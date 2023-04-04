@@ -3,13 +3,27 @@
 @time using DataDrivenSparse
 
 
+function fillmissing!(data)
+    for col in eachcol(data)
+        while true
+            bit_missing = ismissing.(col)
+            if sum(bit_missing) == 0 break end
+            col[bit_missing] .= (circshift(col, -1) + circshift(col, 1) / 2)[bit_missing]
+            bit_missing = ismissing.(col)
+            col[bit_missing] .= circshift(col, 1)[bit_missing]
+        end
+    end
+end
+
 data = DataFrame()
 DATA_ = []
 for fn = readdir("data")
+    itemname = Symbol(first(split(fn, " ")))
+    if (itemname == :알루미늄) || (itemname == :오렌지) continue end
     push!(DATA_, CSV.read("data/" * fn, DataFrame))
     DATA_[end].날짜 = Date.(DATA_[end].날짜, dateformat"y- m- d")
     select!(DATA_[end], ["날짜", "종가"])
-    rename!(DATA_[end], [:t, Symbol(first(split(fn, " ")))])
+    rename!(DATA_[end], [:t, itemname])
     if eltype(DATA_[end][:, 2]) <: AbstractString
         DATA_[end][:, 2] = replace.(DATA_[end][:, 2], "," => "")
         DATA_[end][!, 2] = parse.(Float64, DATA_[end][:, 2])
@@ -20,23 +34,50 @@ for fn = readdir("data")
         leftjoin!(data, DATA_[end], on = :t, makeunique = true)
     end
 end
+data = data[data.t .< Date(2022, 1, 1), :]
+sort!(data, :t)
+fillmissing!(data)
+@assert data == dropmissing(data) # 데이터 무결성 검사
 dropmissing!(data)
+trng = data[data.t .< Date(2021, 1, 1), :]
+test = data[data.t .≥ Date(2020, 12, 31), :]
 
-X = Matrix(data[:, Not(:t)])'
-DX = X - circshift(X, (0,1))
+selected = [:WTI유, :구리, :금]
 
+# X = Matrix(data[:, Not(:t)])'
+X = Matrix(trng[:, selected])'
+DX = diff(X, dims = 2); X = X[:, 1:(end-1)]
 ddprob = ContinuousDataDrivenProblem(X, DX)
 
-# @variables u1 u2 u3
-# u = [u1; u2; u3]
-@variables u1 u2 u3 u4 u5 u6 u7 u8 u9 u10 u11 u12
-u = [u1; u2; u3; u4; u5; u6; u7; u8; u9; u10; u11; u12]
+@variables u[1:size(X)[1]]
+u = DataDrivenDiffEq.scalarize(u)
 basis = Basis(polynomial_basis(u, 2), u)
 
-opt = STLSQ(exp10.(-7:5))
-# https://github.com/SciML/DataDrivenDiffEq.jl/blob/cae0c79e0d7b9eef48f9350e01f69b0798b447bb/lib/DataDrivenSparse/src/algorithms/STLSQ.jl#L97-L120
+opt = STLSQ(10^(-3), 1000)
 ddsol = solve(ddprob, basis, opt, options = DataDrivenCommonOptions(digits = 4))
-soleq = get_basis(ddsol)
-println(soleq) # soleq[1].rhs
+soleq = get_basis(ddsol);
+get_parameter_map(soleq)
+print(soleq, true) # soleq[1].rhs
 is_converged(ddsol)
 
+f̂ = dynamics(soleq)
+P = get_parameter_values(soleq)
+
+@time using OrdinaryDiffEq
+@time using Plots
+u0 = X[:, end]
+tspan = (30, 40)
+dt = 1
+DDM = solve(ODEProblem(f̂, u0, tspan, P), RK4(), saveat = dt)
+
+
+p1 = plot(DDM, vars = (0,1))
+p2 = plot(DDM, vars = (0,2))
+p3 = plot(DDM, vars = (0,3))
+plot!(p1, 0:30, X[1, (end-30):end], xlims = (0,40), color = :black, label = :none, title = "WTI")
+plot!(p2, 0:30, X[2, (end-30):end], xlims = (0,40), color = :black, label = :none, title = "Copper")
+plot!(p3, 0:30, X[3, (end-30):end], xlims = (0,40), color = :black, label = :none, title = "Gold")
+plot!(p1, 30:40, test[1:11, 2], color = :black, label = "Data")
+plot!(p2, 30:40, test[1:11, 3], color = :black, label = "Data")
+plot!(p3, 30:40, test[1:11, 4], color = :black, label = "Data")
+plot(p1, p2, p3, layout = (3, 1), size = (800, 600))
