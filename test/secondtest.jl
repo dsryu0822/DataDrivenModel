@@ -1,14 +1,13 @@
 @time using DataDrivenDiffEq
-@time using CSV, DataFrames, Dates
 @time using DataDrivenSparse
 
-
+@time using CSV, DataFrames, Dates
 function fillmissing!(data)
     for col in eachcol(data)
         while true
             bit_missing = ismissing.(col)
             if sum(bit_missing) == 0 break end
-            col[bit_missing] .= (circshift(col, -1) + circshift(col, 1) / 2)[bit_missing]
+            col[bit_missing] .= ((circshift(col, -1) + circshift(col, 1)) / 2)[bit_missing]
             bit_missing = ismissing.(col)
             col[bit_missing] .= circshift(col, 1)[bit_missing]
         end
@@ -44,6 +43,9 @@ test = data[data.t .≥ Date(2020, 12, 31), :]
 
 selected = [:WTI유, :구리, :금]
 
+# scatter(trng[:, :WTI유], trng[:, :천연가스])
+
+
 # X = Matrix(data[:, Not(:t)])'
 X = Matrix(trng[:, selected])'
 DX = diff(X, dims = 2); X = X[:, 1:(end-1)]
@@ -53,7 +55,7 @@ ddprob = ContinuousDataDrivenProblem(X, DX)
 u = DataDrivenDiffEq.scalarize(u)
 basis = Basis(polynomial_basis(u, 2), u)
 
-opt = STLSQ(10^(-3), 1000)
+opt = STLSQ(10^(-4), 10)
 ddsol = solve(ddprob, basis, opt, options = DataDrivenCommonOptions(digits = 4))
 soleq = get_basis(ddsol);
 get_parameter_map(soleq)
@@ -64,20 +66,19 @@ f̂ = dynamics(soleq)
 P = get_parameter_values(soleq)
 
 @time using OrdinaryDiffEq
-@time using Plots
 u0 = X[:, end]
-tspan = (30, 40)
+tspan = (30, 50)
 dt = 1
 DDM = solve(ODEProblem(f̂, u0, tspan, P), RK4(), saveat = dt)
 
-
-p1 = plot(DDM, vars = (0,1))
-p2 = plot(DDM, vars = (0,2))
-p3 = plot(DDM, vars = (0,3))
-plot!(p1, 0:30, X[1, (end-30):end], xlims = (0,40), color = :black, label = :none, title = "WTI")
-plot!(p2, 0:30, X[2, (end-30):end], xlims = (0,40), color = :black, label = :none, title = "Copper")
-plot!(p3, 0:30, X[3, (end-30):end], xlims = (0,40), color = :black, label = :none, title = "Gold")
-plot!(p1, 30:40, test[1:11, 2], color = :black, label = "Data")
-plot!(p2, 30:40, test[1:11, 3], color = :black, label = "Data")
-plot!(p3, 30:40, test[1:11, 4], color = :black, label = "Data")
+@time using Plots
+p1 = plot(DDM, idxs = (0,1))
+p2 = plot(DDM, idxs = (0,2))
+p3 = plot(DDM, idxs = (0,3))
+plot!(p1, 0:30, X[1, (end-30):end], xlims = (0,50), color = :black, label = :none, title = "WTI")
+plot!(p2, 0:30, X[2, (end-30):end], xlims = (0,50), color = :black, label = :none, title = "Copper")
+plot!(p3, 0:30, X[3, (end-30):end], xlims = (0,50), color = :black, label = :none, title = "Gold")
+plot!(p1, 30:50, test[1:21, 2], color = :black, label = "Data")
+plot!(p2, 30:50, test[1:21, 3], color = :black, label = "Data")
+plot!(p3, 30:50, test[1:21, 4], color = :black, label = "Data")
 plot(p1, p2, p3, layout = (3, 1), size = (800, 600))

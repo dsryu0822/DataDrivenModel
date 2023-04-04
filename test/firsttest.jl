@@ -22,10 +22,10 @@ prob = ODEProblem(lorenz, u0, tspan)
 # sol = solve(prob, Tsit5(), dense = true) # sol(sol.t,Val{4}); sol(sol.t,Val{5})
 sol = solve(prob, RK4(), saveat = dt) # Tsit5() is more efficient https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/#Explicit-Runge-Kutta-Methods
 plot(
-    plot(sol, vars = (0, 1), color = :black),
-    plot(sol, vars = (0, 2), color = :black),
-    plot(sol, vars = (0, 3), color = :black),
-    plot(sol, vars = (1, 2, 3), color = :black)
+    plot(sol, idxs = (0, 1), color = :black),
+    plot(sol, idxs = (0, 2), color = :black),
+    plot(sol, idxs = (0, 3), color = :black),
+    plot(sol, idxs = (1, 2, 3), color = :black)
 )
 # How get the derivative from ODEsolution
 # https://github.com/SciML/DataDrivenDiffEq.jl/blob/8acc287468ef13be134ebd2d85d273bc0f456cfb/src/problem/type.jl#L486

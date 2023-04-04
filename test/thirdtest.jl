@@ -26,8 +26,8 @@ dt = 0.01
 prob = ODEProblem(f, u0, tspan)
 sol = solve(prob, RK4(), saveat = dt)
 plot(
-    plot(sol, vars = (1, 2, 3), color = :black),
-    plot(sol, vars = (4, 5, 6), color = :black)
+    plot(sol, idxs = (1, 2, 3), color = :black),
+    plot(sol, idxs = (4, 5, 6), color = :black)
 )
 @assert sol(sol.t,Val{1})[1] == ((sol(dt) - sol(0)) / dt)
 
@@ -50,9 +50,9 @@ P = get_parameter_values(soleq)
 
 DDM = solve(ODEProblem(f̂, u0, tspan, P), RK4(), saveat = dt)
 plot(
-    plot(sol, vars = (1, 2, 3), color = :black),
-    plot(sol, vars = (4, 5, 6), color = :black, zlabel = "SimulationModel"),
-    plot(DDM, vars = (1, 2, 3), color = :blue),
-    plot(DDM, vars = (4, 5, 6), color = :blue, zlabel = "DataDrivenModel"),
+    plot(sol, idxs = (1, 2, 3), color = :black),
+    plot(sol, idxs = (4, 5, 6), color = :black, zlabel = "SimulationModel"),
+    plot(DDM, idxs = (1, 2, 3), color = :blue),
+    plot(DDM, idxs = (4, 5, 6), color = :blue, zlabel = "DataDrivenModel"),
     size = (600, 600)
 )
