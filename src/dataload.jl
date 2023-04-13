@@ -44,7 +44,7 @@ end
 data = mydata()
 
 for col in eachcol(data)[Not(1)]
-    col .= (col ./ maximum(col))
+    col .= (col ./ maximum(col)) #* 2π
 end
 
 trng = data[data.t .< Date(2021, 1, 1), :]
