@@ -61,10 +61,10 @@ central_fdm(5, 1)
 backward_fdm(2, 1)
 
 include("../src/Utils.jl")
-fdiff(X, order = 2, dt = dt)
+fdiff(X, stencil = 2, dt = dt)
 DX2[:, 2:end]
 
-fdiff(X, order = 5, dt = dt)
+fdiff(X, stencil = 5, dt = dt)
 DX1[:, 5:end]
 DX2[:, 5:end]
 

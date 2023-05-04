@@ -42,6 +42,7 @@ function mydata()
 end
 
 data = mydata()
+data = data[data.WTI유 .> 0, :]
 
 for col in eachcol(data)[Not(1)]
     col .= (col ./ maximum(col)) #* 2π
