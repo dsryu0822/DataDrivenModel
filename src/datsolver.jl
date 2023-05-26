@@ -14,14 +14,15 @@ DX, X = fdiff(X, stencil = 2, dt = 1, method = central_fdm)
 m, n = size(X)
 
 @time using NoiseRobustDifferentiation
-tvDX = tvdiff(X[1,:], 100, 1000, dx = 1)
+tvDX = hcat([tvdiff(x, 100, 1000, dx = 1) for x in eachrow(X)]...)
 plot(
     plot(X[1,:], title = "Data(WTI)"),
-    plot(tvDX, title = "TVdiff"),
+    plot(tvDX'[1,:], title = "TVdiff"),
     plot(DX[1,:], title = "FDM"), layout = (3,1), size = (1000, 1000), legend = :none
 )
 
-ddprob = ContinuousDataDrivenProblem(X, DX)
+# ddprob = ContinuousDataDrivenProblem(X, DX)
+ddprob = ContinuousDataDrivenProblem(X, tvDX')
 
 @variables u[1:(size(X)[1])]
 u = DataDrivenDiffEq.scalarize(u)
@@ -43,7 +44,7 @@ P = get_parameter_values(soleq)
 u0 = collect(trng[end, Not(1)])
 tend = 250; tspan = (30, tend)
 dt = 1
-DDM = solve(ODEProblem(f̂, u0, tspan, P), RK4(), saveat = dt)
+DDM = solve(ODEProblem(f̂, u0, tspan, P), Tsit5(), saveat = dt)
 
 plt_ = []
 for k in 1:size(X)[1]
