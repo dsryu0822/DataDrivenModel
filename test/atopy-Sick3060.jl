@@ -73,7 +73,7 @@ end
 #     end
 # end
 myX = stack(v_)'
-plot(X[:,3], color = :black, ylabel = "D", xlabel = "time step", legend = :none)
+plot(X[:,3], color = :black, ylabel = "B", xlabel = "time step", legend = :none)
 plot!(myX[:,3], color = :blue, ls = :dash)
 
 [X[:,2] myX[:,2]]

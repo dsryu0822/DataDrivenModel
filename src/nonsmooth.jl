@@ -1,9 +1,6 @@
 using Combinatorics
-using StatsBase
 using SparseArrays
 using LinearAlgebra
-
-
 
 function STLSQ(Θ, dXdt, λ = 10^(-6))
     if Θ isa AbstractSparseMatrix
@@ -28,12 +25,15 @@ function STLSQ(Θ, dXdt, λ = 10^(-6))
 
     return Ξ
 end
+# X = rand(0:9, 5,3)
+# v = X[1,:]
 
-X = rand(0:9, 5,3)
-v = X[1,:]
-
-function poly_basis(X::AbstractMatrix, K = 1)
+function poly_basis(X::AbstractMatrix, K = 1; forcing = false)
     mtrx_X = Matrix(X)
+    if size(X, 2) > size(X, 1) && !forcing
+        @warn "X is not a tall matrix!"
+        return nothing
+    end
     dim = size(X, 2)
     ansatz = []
 
@@ -44,9 +44,13 @@ function poly_basis(X::AbstractMatrix, K = 1)
     end
     return hcat(ansatz...)
 end
-poly_basis(X, 4)
+# poly_basis(X, 4)
 
-function poly_basis(v::AbstractVector, K = 1)
+function poly_basis(v::AbstractVector, K = 1; forcing = false)
+    if length(v) > 10 && !forcing
+        @warn "X seems to be no vector!"
+        return nothing
+    end
     ansatz = []
 
     for k ∈ 0:K
@@ -54,51 +58,9 @@ function poly_basis(v::AbstractVector, K = 1)
             push!(ansatz, v .^ case)
         end
     end
-    return vcat(ansatz...)
+    return prod.(ansatz)
 end
-poly_basis(v, 4)
-
-# function poly_dynamics(Ξ)
-#     function f(v)
-#         V = prod.(polynomial(v, 4))
-#         return vec(V' * Ξ)
-#     end
-#     return f
-# end
-
-
-function RK4(f::Function,v::Array{Float64,1}, h=10^(-2))
-    V1 = f(v)
-    V2 = f(v + (h/2)*V1)
-    V3 = f(v + (h/2)*V2)
-    V4 = f(v + h*V3)
-    return v + (h/6)*(V1 + 2V2 + 2V3 + V4)
-end
-
-function Euler(f::Function,v::Array{Float64,1}, h=10^(-2))
-    return v + h*f(v)
-end
-
-function percentiler(v::AbstractVector; resolution = 10)
-    V = []
-    p_ = percentile.(Ref(v), range(0,100,resolution+1))
-    p_[end] += eps(p_[end])
-    for k in 1:resolution
-        push!(V, p_[k] .≤  v .< p_[k+1])
-    end
-    return sparse(reduce(hcat, V)), p_
-end
-function percentiler(X::AbstractMatrix; resolution = 10)
-    ϕ_ = []
-    p_ = []
-    for v in eachcol(X)
-        ϕ, p = percentiler(v, resolution = resolution)
-        push!(ϕ_, ϕ)
-        push!(p_, p)
-    end
-    return ϕ_, p_
-    # return reduce(hcat, ϕ_), reduce(hcat, p_)
-end
+# poly_basis(v, 4)
 
 function col_prod(A::AbstractMatrix, B::AbstractMatrix)
     C_ = []
@@ -112,19 +74,60 @@ function col_prod(A::AbstractMatrix, B::AbstractMatrix)
     end
     return C
 end
+col_prod(A::AbstractVector, B::AbstractVector) = col_prod(A', B')
 
-function bax(v)
-    A_ = []
-    for k in axes(P, 2)
-        Aidx = findfirst(v[k] .< P[:,k])
-        if (Aidx |> isnothing) || (Aidx ≤ 1) || (Aidx > size(P, 1))
-            push!(A_, zeros(size(P, 1)))
-        else
-            push!(A_, axes(P, 1) .== (Aidx-1))
-        end
+
+function argjump(type::Type, Y::AbstractVector)
+    Δ²Y = diff(diff(Y))
+    Δ²Y = Δ²Y ./ maximum(Δ²Y)
+    bit_jump = Δ²Y .> 0.1
+    println(sum(bit_jump), " jumps detected!")
+    if type == Bool
+        return bit_jump
+    elseif type == Int64
+        return findall(bit_jump)
+    else
+        @error "type must be Bool or Int64"
     end
-    pop!.(A_)
-    polys = prod.(polynomial(v, 4))'
-    location = reduce(col_prod, adjoint.(A_))
-    return (col_prod(polys, location) * Ξ) |> vec
 end
+argjump(Y) = argjump(Int64, Y) # If type is not specified, return indices
+
+# using StatsBase
+# function percentizer(v::AbstractVector; nclass = 10)
+#     V = []
+#     p_ = percentile.(Ref(v), range(0,100,nclass+1))
+#     p_[end] += eps(p_[end])
+#     for k in 1:nclass
+#         push!(V, p_[k] .≤  v .< p_[k+1])
+#     end
+# return sparse(reduce(hcat, V)), p_
+# end
+# """
+# nclass is a number or sorted float array.
+# """
+# function percentizer(X::AbstractMatrix; nclass = 10)
+#     ϕ_ = []
+#     p_ = []
+#     for v in eachcol(X)
+#         ϕ, p = gridize(v, nclass = nclass)
+#         push!(ϕ_, ϕ)
+#         push!(p_, p)
+#     end
+#     return ϕ_, p_
+#     # return reduce(hcat, ϕ_), reduce(hcat, p_)
+# end
+# function bax(v)
+#     A_ = []
+#     for k in axes(P, 2)
+#         Aidx = findfirst(v[k] .< P[:,k])
+#         if (Aidx |> isnothing) || (Aidx ≤ 1) || (Aidx > size(P, 1))
+#             push!(A_, zeros(size(P, 1)))
+#         else
+#             push!(A_, axes(P, 1) .== (Aidx-1))
+#         end
+#     end
+#     pop!.(A_)
+#     polys = prod.(polynomial(v, 4))'
+#     location = reduce(col_prod, adjoint.(A_))
+#     return (col_prod(polys, location) * Ξ) |> vec
+# end
