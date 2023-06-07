@@ -24,14 +24,3 @@ function fdiff(X::T; stencil = 5, dt = 1, method = central_fdm) where T <: Abstr
     end
     return DX, X
 end
-
-function Euler(f::Function,v::Array{Float64,1}, h=10^(-2))
-    return v + h*f(v)
-end
-function RK4(f::Function,v::Array{Float64,1}, h=10^(-2))
-    V1 = f(v)
-    V2 = f(v + (h/2)*V1)
-    V3 = f(v + (h/2)*V2)
-    V4 = f(v + h*V3)
-    return v + (h/6)*(V1 + 2V2 + 2V3 + V4)
-end
