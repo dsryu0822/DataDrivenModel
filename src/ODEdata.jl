@@ -1,9 +1,9 @@
 using CSV, DataFrames; println("Packages CSV, DataFrames are loaded!")
 
-function Euler(f::Function,v::Array{Float64,1}, h=10^(-2))
+function Euler(f::Function,v::AbstractVector, h=10^(-2))
     return v + h*f(v)
 end
-function RK4(f::Function,v::Array{Float64,1}, h=10^(-2))
+function RK4(f::Function,v::AbstractVector, h=10^(-2))
     V1 = f(v)
     V2 = f(v + (h/2)*V1)
     V3 = f(v + (h/2)*V2)

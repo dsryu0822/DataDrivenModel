@@ -4,10 +4,6 @@ using Plots: mm, cm
 using LaTeXStrings
 default(size = (600,600))
 
-function col_normalize(M)
-    return M ./ norm.(eachcol(M))'
-end
-
 DATA = CSV.read("data/buck.csv", DataFrame)
 # plot(plot.(eachcol(DATA[1:250,:]))...)
 # plot(DATA.V, DATA.I)
@@ -45,7 +41,6 @@ using Flux, CUDA, JLD2
 CUDA.functional()
 FFNN = Chain(
     mynormlize,
-    # Flux.normalise,
     Dense( 4 => 50),    relu,
     Dense(50 => 50),    relu,
     Dense(50 => 50),    relu,
