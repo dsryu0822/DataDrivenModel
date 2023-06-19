@@ -1,4 +1,4 @@
-using CSV, DataFrames; println("Packages CSV, DataFrames are loaded!")
+using CSV, DataFrames
 
 function Euler(f::Function,v::AbstractVector, h=10^(-2))
     return v + h*f(v)

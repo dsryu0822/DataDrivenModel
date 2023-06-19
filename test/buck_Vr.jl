@@ -1,50 +1,88 @@
 using ProgressBars
-packages = [:DataFrames, :CSV, :LinearAlgebra, :Plots, :Flux, :Clustering, :JLD2, :LaTeXStrings]
+packages = [:DataFrames, :CSV, :LinearAlgebra, :Plots, :Flux, :Clustering, :JLD2, :LaTeXStrings, :CUDA]
 @time for package in ProgressBar(packages)
     @eval using $(package)
 end
-include("../src/ML.jl")
+println(join(packages, ", "), " loaded!")
+
 include("../src/DDM.jl")
+include("../src/ML.jl")
 include("../src/nonsmooth.jl")
 include("../src/ODEdata.jl")
 default(size = (600,600), color = :black, legend = :none)
 
-DATA = CSV.read("data/buck.csv", DataFrame)
+struct Fourier
+    an
+    bn
+    L
+end
+Fourier(m::Integer) = Fourier(zeros(Float32, m), zeros(Float32, m), Float32[-5.0])
+# function (layer::Fourier)(x::AbstractVector)
+#     x = x .|> Float32
+#     m = length(layer.an)
+#     nxL⁻¹ = (1:m) .* exp(layer.L[1]) .* x[end]
+#     approximated = [x;
+#     sum([ (layer.an .*fospi.(nxL⁻¹))
+#         ; (layer.bn .*finpi.(nxL⁻¹))
+#     ])]
+#     return approximated
+# end
+# (layer::Fourier)(x::AbstractMatrix) = hcat(layer.(eachcol(x))...)
+function (layer::Fourier)(x)
+    x = x .|> Float32
+    m = length(layer.an)
+    nxL⁻¹ = (1:m) * x[end, :]' .* exp(layer.L[1])
+    return [x[1:end-1, :]; sum(
+        [cospi.(nxL⁻¹) .* layer.an
+       ; sinpi.(nxL⁻¹) .* layer.bn], dims = 1)]
+end
+Flux.@functor Fourier
 
+function Base.show(io::IO, l::Fourier)
+    print(io, "Fourier(", length(l.an), ")")
+end
+# vcat(collect(Flux.params(Fourier(50)))...)
+
+## Data Load
+DATA = CSV.read("data/buck.csv", DataFrame)
 Y = select(DATA, [:dV, :dI]) |> Matrix .|> Float32
 X = select(DATA, [ :V,  :I]) |> Matrix .|> Float32
 XY = [X Y]
 
+## Clustering
 dbs = dbscan(col_normalize(Y)', 0.01); nsubsys = length(dbs.clusters); println(nsubsys, " clusters found!")
 plot(DATA.V, DATA.I, color = dbs.assignments, alpha = 0.5)
-
-## Clustering
 bit_ = [dbs.assignments .== k for k in 1:nsubsys]
-Θ1 = poly_basis(X[bit_[1],:], 2)
-Θ2 = poly_basis(X[bit_[2],:], 2)
+Θ_ = [poly_basis(X[s,:], 2)     for s in bit_]
+Y_ = [Y[vcat(findall(s)...),:] for s in bit_]
+Ξ_ = [STLSQ(Θ_[s], Y_[s], 0.01) for s in 1:nsubsys]
 
-Θ = [Θ1 zeros(size(Θ1))
-     zeros(size(Θ2)) Θ2]
-Ξ = STLSQ(Θ, Y[vcat(findall.(bit_)...),:], 0.01)
+a1 = plot(DATA.V, DATA.I, alpha = 0.1, legend = :best, label = "Trajectory", xlabel = L"V", ylabel = L"I")
+scatter!(a1, 
+    DATA.V[Not(1)][.!iszero.(diff(dbs.assignments))]
+  , DATA.I[Not(1)][.!iszero.(diff(dbs.assignments))]
+  , color = 1, shape = :+, label = "Jumping points")
 
 function foo(v)
     v = deepcopy(v)
     s = Int64(pop!(v))
-    w = poly_basis(v, 2)
-    ph = zeros(6, 2)
-    ph[:,s] = w
-    return [vec(reshape(ph, 1, :) * Ξ); 0]
+    Θv = poly_basis(v, 2)'
+    return vec([(Θv*Ξ_[s]) 0])
 end
 
 ## Classification
-data = Float32.(Matrix(DATA[Not(end), Not(:t)])')
+# data = Float32.(Matrix(DATA[Not(end), [:V, :I, :t]])') # |> gpu
+data = Float32.(Matrix(DATA[Not(end), [:V, :I, :dV, :dI, :Vr]])') # |> gpu
 subs = Flux.onehotbatch(dbs.assignments[Not(1)], 1:nsubsys) # |> gpu
-trng = Flux.DataLoader((data,subs) , batchsize = 1000)
+trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 1000)
 
-norm_variables = Float32.(norm.(eachrow(data)))
+norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1
 p = size(data, 1)
 SSS = Chain( # SubSystemSelector
-    x -> x./norm_variables,
+    x -> x ./ norm_variables,
+    Fourier(50),
+    # x ->  vcat(x, [x ./ circshift(x, k) for k in 1:(size(x,1)÷2)]...),
+    # Dense( p*(1 + p÷2) => 50),    relu,
     Dense( p => 50),    relu,
     Dense(50 => 50),    relu,
     Dense(50 => 50),    relu,
@@ -52,30 +90,38 @@ SSS = Chain( # SubSystemSelector
     softmax
 ) # |> gpu
 Loss(x,y) = Flux.crossentropy(SSS(x), y)
+losses = [Loss(data, subs)]
 optimizer = ADAM()
 
 if !isfile("test/SSS.jld2")
-    losses = [Loss(data, subs)]
-    acc_ = [0.0]
+    print("test/SSS.jld2 not exists, ")
+    
     ps = Flux.params(SSS)
-    println("Training...")
+    println("Training..., Loss: ", losses[1])
     @time for epch in 1:100_000
-        epch % 100 == 0 && println("epoch ", lpad(epch, 5))
-        Flux.train!(Loss, ps, trng, optimizer)
+        if epch < 10
+            @time Flux.train!(Loss, ps, trng, optimizer)
+        else
+            Flux.train!(Loss, ps, trng, optimizer)
+        end
         loss = Loss(data, subs)
-        acc = sum(dbs.assignments[Not(1)] .== argmax.(SSS.(eachcol(data)))) / length(dbs.assignments[Not(1)])
-        if loss < minimum(losses)
+        acc = sum(dbs.assignments[Not(1)] .== argmax.(eachcol(SSS(data)))) / length(dbs.assignments[Not(1)])
+        if loss < losses[end]
         # if acc > maximum(acc_)
-            jldsave("C:/Temp/SSS.jld2"; SSS, loss, acc)
-            println("epoch ", lpad(epch, 5)
+            jldsave("C:/Temp/SSS.jld2"; SSS, loss, acc, losses)
+            println()
+            print("epoch ", lpad(length(losses), 5)
                     , ": loss = ", rpad(trunc(loss, digits = 6), 8)
                     , ", acc = ", rpad(acc, 7)
                     , " saved!")
+            push!(losses, loss)
+        else
+            epch % 100 == 0 && print("epch- ", lpad(epch, 5), ", ")
+            push!(losses, losses[end])
         end
-        push!(losses, loss)
-        push!(acc_, acc)
+        # push!(acc_, acc)
     end
-    cp("C:/Temp/SSS.jld2", "test/SSS.jld2")
+    cp("C:/Temp/SSS.jld2", "test/SSS.jld2", force = true)
 else
     @info "Loading SSS..."
     fSSS = jldopen("test/SSS.jld2")
@@ -85,35 +131,30 @@ else
     close(fSSS)
 end
 
-a1 = plot(DATA.V, DATA.I, alpha = 0.1, legend = :best, label = "Trajectory", xlabel = L"V", ylabel = L"I")
-scatter!(a1, 
-    DATA.V[Not(1)][.!iszero.(diff(dbs.assignments))]
-  , DATA.I[Not(1)][.!iszero.(diff(dbs.assignments))]
-  , color = 1, shape = :+, label = "Jumping points")
-scatter!(a1, 
-    DATA.V[Not(1, 2)][.!iszero.(diff(argmax.(SSS.(eachcol(data)))))]
-  , DATA.I[Not(1, 2)][.!iszero.(diff(argmax.(SSS.(eachcol(data)))))]
+scatter(a1, 
+    DATA.V[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSS(data)))))]
+  , DATA.I[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSS(data)))))]
   , color = 2, shape = :+, label = "Detected Jumping points")
 png(a1, "a1.png")
 
-DATA
-
+# argmax.(eachcol(SSS(data[:,22])))
+# Float32[v_[23][Not(end)]; d_[23][Not(end)]; 23dt] |> SSS |> vec |> argmax
+# dbs.assignments[22]
+# data[:,22]
 
 ## ODE recovery
 v_ = [[XY[1, 1:2]; dbs.assignments[1]]]
 d_ = [foo(v_[end])]
 dt = 0.00001
-for (tk, t) in ProgressBar(enumerate(dt:dt:0.025))
+for (tk, t) in ProgressBar(enumerate(0:dt:0.025))
     push!(v_, RK4(foo, v_[end], dt))
     push!(d_, foo(v_[end]))
-    v_[end][end] = argmax(SSS(Float32[v_[end][Not(end)]; d_[end][Not(end)]; DATA.Vr[tk]]))
-    # if argmax(SSS(Float32[d_[end][Not(end)]; v_[end][Not(end)]])) == 2
-    #     v_[end][end] = mod(v_[end][end], 2) + 1
-    # end
+    # v_[end][end] = Float32[v_[end][Not(end)]; t] |> SSS |> vec |> argmax
+    v_[end][end] = Float32[v_[end][Not(end)]; d_[end][Not(end)]; DATA.Vr[tk]] |> SSS |> vec |> argmax
 end
 
 prdt = stack(v_)
-a2 = plot(prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
+a2 = plot(a1, prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
 png(a2, "a2.png")
 
 a3 = plot(
