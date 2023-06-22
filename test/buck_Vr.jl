@@ -17,17 +17,6 @@ struct Fourier
     L
 end
 Fourier(m::Integer) = Fourier(zeros(Float32, m), zeros(Float32, m), Float32[-5.0])
-# function (layer::Fourier)(x::AbstractVector)
-#     x = x .|> Float32
-#     m = length(layer.an)
-#     nxL⁻¹ = (1:m) .* exp(layer.L[1]) .* x[end]
-#     approximated = [x;
-#     sum([ (layer.an .*fospi.(nxL⁻¹))
-#         ; (layer.bn .*finpi.(nxL⁻¹))
-#     ])]
-#     return approximated
-# end
-# (layer::Fourier)(x::AbstractMatrix) = hcat(layer.(eachcol(x))...)
 function (layer::Fourier)(x)
     x = x .|> Float32
     m = length(layer.an)
@@ -76,22 +65,23 @@ data = Float32.(Matrix(DATA[Not(end), [:V, :I, :dV, :dI, :Vr]])') # |> gpu
 subs = Flux.onehotbatch(dbs.assignments[Not(1)], 1:nsubsys) # |> gpu
 trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 1000)
 
-norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1
+
 p = size(data, 1)
 SSS = Chain( # SubSystemSelector
-    x -> x ./ norm_variables,
-    Fourier(50),
-    # x ->  vcat(x, [x ./ circshift(x, k) for k in 1:(size(x,1)÷2)]...),
-    # Dense( p*(1 + p÷2) => 50),    relu,
-    Dense( p => 50),    relu,
-    Dense(50 => 50),    relu,
-    Dense(50 => 50),    relu,
+    Flux.Scale(5),
+    # Fourier(50),
+    Dense( p => 50, relu),
+    Dense(50 => 50, relu),
+    Dense(50 => 50, relu),
     Dense(50 => nsubsys),
     softmax
 ) # |> gpu
 Loss(x,y) = Flux.crossentropy(SSS(x), y)
 losses = [Loss(data, subs)]
 optimizer = ADAM()
+
+norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1.0
+SSS[1].scale ./= norm_variables
 
 if !isfile("test/SSS.jld2")
     print("test/SSS.jld2 not exists, ")
@@ -121,7 +111,7 @@ if !isfile("test/SSS.jld2")
         end
         # push!(acc_, acc)
     end
-    cp("C:/Temp/SSS.jld2", "test/SSS.jld2", force = true)
+    cp("C:/Temp/SSS.jld2", "test/SSS.jld2")
 else
     @info "Loading SSS..."
     fSSS = jldopen("test/SSS.jld2")
@@ -131,16 +121,12 @@ else
     close(fSSS)
 end
 
-scatter(a1, 
+### Classifier testing
+a1_1 = scatter(a1, 
     DATA.V[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSS(data)))))]
   , DATA.I[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSS(data)))))]
   , color = 2, shape = :+, label = "Detected Jumping points")
-png(a1, "a1.png")
-
-# argmax.(eachcol(SSS(data[:,22])))
-# Float32[v_[23][Not(end)]; d_[23][Not(end)]; 23dt] |> SSS |> vec |> argmax
-# dbs.assignments[22]
-# data[:,22]
+png(a1_1, "a1_1.png")
 
 ## ODE recovery
 v_ = [[XY[1, 1:2]; dbs.assignments[1]]]
@@ -153,9 +139,10 @@ for (tk, t) in ProgressBar(enumerate(0:dt:0.025))
     v_[end][end] = Float32[v_[end][Not(end)]; d_[end][Not(end)]; DATA.Vr[tk]] |> SSS |> vec |> argmax
 end
 
+### Trajectories
 prdt = stack(v_)
-a2 = plot(a1, prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
-png(a2, "a2.png")
+a1_2 = plot(a1_1, prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
+png(a1_2, "a1_2.png")
 
 a3 = plot(
     plot(prdt[1,:], ylabel = L"V"), plot(prdt[2,:], ylabel = L"I", xlabel = L"t")

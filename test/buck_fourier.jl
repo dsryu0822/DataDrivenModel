@@ -16,7 +16,7 @@ struct Fourier
     bn
     L
 end
-Fourier(m::Integer) = Fourier(zeros(Float32, m), zeros(Float32, m), Float32[-5.0])
+Fourier(m::Integer) = Fourier(zeros(Float32, m), zeros(Float32, m), Float32[0.0])
 function (layer::Fourier)(x)
     x = x .|> Float32
     m = length(layer.an)
@@ -88,7 +88,7 @@ if !isfile("test/SSSf.jld2")
     
     ps = Flux.params(SSSf)
     println("Training..., Loss: ", losses[1])
-    @time for epch in 1:10
+    @time for epch in 1:100_000
         if epch < 10
             @time Flux.train!(Loss, ps, trng, optimizer)
         else
@@ -141,11 +141,31 @@ end
 
 ### Trajectories
 prdt = stack(v_)
-a1_2 = plot(a1, prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
+a1_2 = plot(prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
 png(a1_2, "a1_2.png")
 
+v1 = plot(prdt[1,:], ylabel = L"V")
+plot!(v1, DATA.V[1:2500], color = :blue)
+i1 = plot(prdt[2,:], ylabel = L"I", xlabel = L"t")
+plot!(i1, DATA.I[1:2500], color = :blue)
 a3 = plot(
-    plot(prdt[1,:], ylabel = L"V"), plot(prdt[2,:], ylabel = L"I", xlabel = L"t")
-    , layout = (2,1), xformatter = x -> x*dt, legend = :none
+    v1, i1
+    , layout = (2,1), xformatter = x -> x*dt, legend = :none, size = (800,600)
 )
 png(a3, "a3.png")
+
+### Fourier check
+plot(Flux.params(SSSf[2])[1], linetype = :bar)
+plot(Flux.params(SSSf[2])[2], linetype = :bar)
+[Flux.params(SSSf[2])[1] Flux.params(SSSf[2])[2]]
+plot(DATA.t)
+
+y = (1:50) .* DATA.t' .* 1000000exp(Flux.params(SSSf[2])[3][1])
+plot(vec(sum(
+    (Flux.params(SSSf[2])[1] .* cospi.(y)) +
+    (Flux.params(SSSf[2])[2] .* sinpi.(y)), dims = 1)))
+
+y = (1:50) .* DATA.t' .* 1000000exp(Flux.params(SSSf[2])[3][1])
+plot(vec(sum(
+        (randn(50) .* cospi.(y)) +
+        (randn(50) .* sinpi.(y)), dims = 1)))
