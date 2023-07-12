@@ -1,6 +1,6 @@
 using ProgressBars
 packages = [:DataFrames, :CSV, :LinearAlgebra, :Plots, :Flux, :Clustering, :JLD2, :LaTeXStrings, :CUDA]
-@time for package in ProgressBar(packages)
+@showtime for package in ProgressBar(packages)
     @eval using $(package)
 end
 println(join(packages, ", "), " loaded!")
@@ -34,8 +34,8 @@ end
 
 ## Data Load
 DATA = CSV.read("data/buck.csv", DataFrame)
-Y = select(DATA, [:dV, :dI]) |> Matrix .|> Float32
-X = select(DATA, [ :V,  :I]) |> Matrix .|> Float32
+Y = select(DATA, [:dV, :dI]) |> Matrix # .|> Float32
+X = select(DATA, [ :V,  :I]) |> Matrix # .|> Float32
 XY = [X Y]
 
 ## Clustering
@@ -169,3 +169,44 @@ y = (1:50) .* DATA.t' .* 1000000exp(Flux.params(SSSf[2])[3][1])
 plot(vec(sum(
         (randn(50) .* cospi.(y)) +
         (randn(50) .* sinpi.(y)), dims = 1)))
+
+v_ = [[XY[1, 1:2]; dbs.assignments[1]]]
+d_ = [foo(v_[end])]
+dt = 0.00001
+for (tk, t) in ProgressBar(enumerate(dt:dt:0.005))
+    v_[tk][end] = v_[tk][1] > DATA.Vr[tk] ? 1 : 2
+    push!(v_, RK4(foo, v_[tk], dt))
+    push!(d_, foo(v_[tk])) 
+end
+prdt = stack(v_)
+dprdt = stack(d_)
+
+tk = 21
+v_[tk]
+# v_[tk][1] > DATA.Vr[tk] ? 1 : 2
+# DATA.Vr[tk]
+# foo(v_[tk])
+RK4(foo, [v_[tk][Not(end)]; 1.0], dt)
+RK4(foo, [v_[tk][Not(end)]; 2.0], dt)
+foo([v_[tk][Not(end)]; 2.0])
+buck([v_[tk][Not(end)]; 0.0003])
+
+a1_2 = plot(prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
+v1 = plot(prdt[1,:], ylabel = L"V", color = :blue)
+plot!(v1, DATA.V[1:500], color = :black)
+plot!(v1, DATA.Vr[1:500], color = :red)
+i1 = plot(prdt[2,:], ylabel = L"I", xlabel = L"t")
+plot!(i1, DATA.I[1:500], color = :blue)
+a3 = plot(
+    v1, i1
+    , layout = (2,1), xformatter = x -> x*dt, legend = :none, size = (800,600)
+)
+
+Ξ_[1] - Ξ_[2]
+Ξ_[2][1,2] - E/L
+
+[prdt[1,1:50] prdt[2,1:50] DATA.V[1:50] dprdt[2,1:50] DATA.dI[1:50] DATA.Vr[1:50] abs.(prdt[1,1:50] - DATA.V[1:50])]
+
+
+abs.(dprdt[1,:] - DATA.dV[1:length(dprdt[1,:])])
+plot((prdt[1,:] .> DATA.Vr[1:length(dprdt[1,:])]) .- (DATA.V[1:length(dprdt[1,:])] .> DATA.Vr[1:length(dprdt[1,:])]))

@@ -23,8 +23,8 @@ Vr(t) = γ + η * (mod(t, T))
 function buck(v)
     V, I, t = v
 
-    V̇ = - V/(R*C) + I/C
-    İ = - (V/L) + ifelse(V < Vr(t), E/L, 0)
+    V̇ = -967.1179883945841V + 21276.595744680868I
+    İ = -49.999999999999915V + ifelse(V < Vr(t), 2675.000049999999, 0)
     return [V̇, İ, 1]
 end
 
@@ -39,9 +39,9 @@ end
 push!(∇_, buck(u_[end]))
 U = stack(u_)[Not(end), :]
 ∇ = stack(∇_)[Not(end), :]
-DATA = DataFrame(
-    [collect(0:dt:tend)'; U; ∇; Vr.(0:dt:tend)']'
-    , ["t", "V", "I", "dV", "dI", "Vr"])
+# DATA = DataFrame(
+#     [collect(dt:dt:tend)'; U; ∇; Vr.(dt:dt:tend)']'
+#     , ["t", "V", "I", "dV", "dI", "Vr"])
 
 Y = select(DATA, [:dV, :dI]) |> Matrix .|> Float32
 X = select(DATA, [ :V,  :I]) |> Matrix .|> Float32
@@ -62,8 +62,7 @@ Y_ = [Y[vcat(findall(s)...),:] for s in bit_]
     0        0
     0        0
     0        0
-]
-Ξ_[1]
+] - Ξ_[1]
 
 
 [
@@ -73,5 +72,7 @@ Y_ = [Y[vcat(findall(s)...),:] for s in bit_]
     0        0
     0        0
     0        0
-]
-Ξ_[2]
+] - Ξ_[2]
+
+plot(U[1,1:500])
+plot!(DATA.V[1:500], color = :blue)

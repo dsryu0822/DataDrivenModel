@@ -34,17 +34,17 @@ if !isfile("./data/buck.csv")
 
     u0 = [12.3, 0.55, 0.0]
     u_ = [u0]
-    ∇_ = []
+    ∇_ = [buck(u_[end])]
     dt = 0.00001; tend = 0.25
     for t in dt:dt:tend
-        push!(∇_, buck(u_[end]))
         push!(u_, RK4(buck, u_[end], dt))
+        push!(∇_, buck(u_[end]))
     end
-    push!(∇_, buck(u_[end]))
-    U = stack(u_)[Not(end), :]
-    ∇ = stack(∇_)[Not(end), :]
+    # push!(∇_, buck(u_[end]))
+    U = stack(u_)[Not(end), Not(end)]
+    ∇ = stack(∇_)[Not(end), Not(end)]
     CSV.write("data/buck.csv", DataFrame(
-        [collect(0:dt:tend)'; U; ∇; Vr.(0:dt:tend)']'
+        [collect(dt:dt:tend)'; U; ∇; Vr.(dt:dt:tend)']'
       , ["t", "V", "I", "dV", "dI", "Vr"]))
 end
 
