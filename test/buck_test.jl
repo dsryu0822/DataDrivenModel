@@ -17,11 +17,12 @@ L = 20m
 T = 400μ
 γ = 11.75238
 η = 1309.524
-E = 53.500001
+# E = 53.500001
+E = 53.0
 
 Vr(t) = γ + η * (mod(t, T))
 function buck(v)
-    V, I, t = v
+    V, I, _ = v
 
     V̇ = -967.1179883945841V + 21276.595744680868I
     İ = -49.999999999999915V + ifelse(V < Vr(t), 2675.000049999999, 0)
@@ -46,6 +47,8 @@ U = stack(u_)[Not(end), :]
 Y = select(DATA, [:dV, :dI]) |> Matrix .|> Float32
 X = select(DATA, [ :V,  :I]) |> Matrix .|> Float32
 XY = [X Y]
+
+(Vr.(0:dt:0.0025) / A) .+ Vref
 
 ## Clustering
 dbs = dbscan(col_normalize(Y)', 0.01); nsubsys = length(dbs.clusters); println(nsubsys, " clusters found!")

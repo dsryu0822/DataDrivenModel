@@ -1,6 +1,6 @@
 using ProgressBars
 packages = [:DataFrames, :CSV, :LinearAlgebra, :Plots, :Flux, :Clustering, :JLD2, :LaTeXStrings, :CUDA]
-@showtime for package in ProgressBar(packages)
+@time for package in ProgressBar(packages)
     @eval using $(package)
 end
 println(join(packages, ", "), " loaded!")
@@ -83,8 +83,8 @@ optimizer = ADAM()
 norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1.0
 SSSf[1].scale ./= norm_variables
 
-if !isfile("test/SSSf.jld2")
-    print("test/SSSf.jld2 not exists, ")
+if !isfile("data/SSSf.jld2")
+    print("data/SSSf.jld2 not exists, ")
     
     ps = Flux.params(SSSf)
     println("Training..., Loss: ", losses[1])
@@ -111,10 +111,10 @@ if !isfile("test/SSSf.jld2")
         end
         # push!(acc_, acc)
     end
-    cp("C:/Temp/SSSf.jld2", "test/SSSf.jld2")
+    cp("C:/Temp/SSSf.jld2", "data/SSSf.jld2")
 else
     @info "Loading SSSf..."
-    fSSS = jldopen("test/SSSf.jld2")
+    fSSS = jldopen("data/SSSf.jld2")
     SSSf = fSSS["SSSf"]
     println("loss = ", fSSS["loss"])
     println("acc = ", fSSS["acc"])
@@ -144,13 +144,14 @@ prdt = stack(v_)
 a1_2 = plot(prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
 png(a1_2, "a1_2.png")
 
-v1 = plot(prdt[1,:], ylabel = L"V")
-plot!(v1, DATA.V[1:2500], color = :blue)
-i1 = plot(prdt[2,:], ylabel = L"I", xlabel = L"t")
-plot!(i1, DATA.I[1:2500], color = :blue)
+a1_2 = plot(prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
+v1 = plot(DATA.V[1:1502], legend = :best, color = :black, label = "V")
+plot!(v1, prdt[1,:], ylabel = L"V", color = :blue, style = :dash, label = "predicted V")
+i1 = plot(prdt[2,:], ylabel = L"I", xlabel = L"t", legend = :none)
+plot!(i1, DATA.I[1:1502], color = :blue, style = :dash)
 a3 = plot(
     v1, i1
-    , layout = (2,1), xformatter = x -> x*dt, legend = :none, size = (800,600)
+    , layout = (2,1), xformatter = x -> x*dt, size = (800,600)
 )
 png(a3, "a3.png")
 
@@ -170,43 +171,32 @@ plot(vec(sum(
         (randn(50) .* cospi.(y)) +
         (randn(50) .* sinpi.(y)), dims = 1)))
 
+# ----------------------------------------------------------------------------------
+
 v_ = [[XY[1, 1:2]; dbs.assignments[1]]]
 d_ = [foo(v_[end])]
 dt = 0.00001
-for (tk, t) in ProgressBar(enumerate(dt:dt:0.005))
-    v_[tk][end] = v_[tk][1] > DATA.Vr[tk] ? 1 : 2
-    push!(v_, RK4(foo, v_[tk], dt))
-    push!(d_, foo(v_[tk])) 
+for (tk, t) in ProgressBar(enumerate(dt:dt:0.015))
+    v_[end][end] = v_[end][1] > DATA.Vr[tk] ? 1 : 2
+    push!(v_, RK4(foo, v_[end], dt))
+    push!(d_, foo(v_[end]))
 end
 prdt = stack(v_)
 dprdt = stack(d_)
 
-tk = 21
-v_[tk]
-# v_[tk][1] > DATA.Vr[tk] ? 1 : 2
-# DATA.Vr[tk]
-# foo(v_[tk])
-RK4(foo, [v_[tk][Not(end)]; 1.0], dt)
-RK4(foo, [v_[tk][Not(end)]; 2.0], dt)
-foo([v_[tk][Not(end)]; 2.0])
-buck([v_[tk][Not(end)]; 0.0003])
 
 a1_2 = plot(prdt[1,:], prdt[2,:], legend = :best, label = "Recovered system", xlabel = L"V", ylabel = L"I")
-v1 = plot(prdt[1,:], ylabel = L"V", color = :blue)
-plot!(v1, DATA.V[1:500], color = :black)
-plot!(v1, DATA.Vr[1:500], color = :red)
-i1 = plot(prdt[2,:], ylabel = L"I", xlabel = L"t")
-plot!(i1, DATA.I[1:500], color = :blue)
+v1 = plot(DATA.V[1:1500], legend = :best, color = :black, label = "V")
+plot!(v1, prdt[1,:], ylabel = L"V", color = :blue, style = :dash, label = "predicted V")
+plot!(v1, DATA.Vr[1:1500], color = :red, label = "Vr(t)")
+i1 = plot(prdt[2,:], ylabel = L"I", xlabel = L"t", legend = :none)
+plot!(i1, DATA.I[1:1500], color = :blue, style = :dash)
 a3 = plot(
     v1, i1
-    , layout = (2,1), xformatter = x -> x*dt, legend = :none, size = (800,600)
-)
+    , layout = (2,1), xformatter = x -> x*dt, size = (800,600)
+); png("a3 true.png")
 
-Ξ_[1] - Ξ_[2]
-Ξ_[2][1,2] - E/L
-
-[prdt[1,1:50] prdt[2,1:50] DATA.V[1:50] dprdt[2,1:50] DATA.dI[1:50] DATA.Vr[1:50] abs.(prdt[1,1:50] - DATA.V[1:50])]
-
+[prdt[1,1:150] DATA.V[1:150] dprdt[2,1:150] DATA.dI[1:150] DATA.Vr[1:150] abs.(prdt[1,1:150] - DATA.V[1:150])]
 
 abs.(dprdt[1,:] - DATA.dV[1:length(dprdt[1,:])])
 plot((prdt[1,:] .> DATA.Vr[1:length(dprdt[1,:])]) .- (DATA.V[1:length(dprdt[1,:])] .> DATA.Vr[1:length(dprdt[1,:])]))

@@ -24,11 +24,13 @@ if !isfile("./data/buck.csv")
     E = 53.500001
 
     Vr(t) = γ + η * (mod(t, T))
+    global controlterm = 0
     function buck(v)
-        V, I, t = v
+        V, I, _ = v
 
         V̇ = - V/(R*C) + I/C
-        İ = - (V/L) + ifelse(V < Vr(t), E/L, 0)
+        # İ = - (V/L) + ifelse(V < Vrt, E/L, 0)
+        İ = - (V/L) + controlterm
         return [V̇, İ, 1]
     end
 
@@ -37,6 +39,8 @@ if !isfile("./data/buck.csv")
     ∇_ = [buck(u_[end])]
     dt = 0.00001; tend = 0.25
     for t in dt:dt:tend
+        # global Vrt = Vr(t)
+        global controlterm = ifelse(u_[end][1] < Vr(t), E/L, 0)
         push!(u_, RK4(buck, u_[end], dt))
         push!(∇_, buck(u_[end]))
     end

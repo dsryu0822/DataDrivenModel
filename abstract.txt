@@ -1,0 +1,8 @@
+동역학적 시스템은 맵, 상미분방정식, 편미분방정식 등 여러가지로 표현될 수 있으나 고전적으로 ODE를 통해 많은 연구가 이루어져 왔다. 우리는 적절하게 현실을 모방하는 시스템으로부터 초기점과 파라미터를 바꿔가며 여러가지 궤적을 얻을 수 있으며, 이를 통해 미래를 예측하거나 경향성의 변화 등을 탐지하려는 많은 시도가 있었다. 한편 데이터 기반 모형이란 앞서 말한 것과 반대로 데이터, 즉 궤적을 통해 미분방정식을 얻으려는 시도라고 요약할 수 있다. 지난 10년간 이에 대한 접근법으로써 압축 센싱 혹은 SINDy 등이 발전해왔으나, 이들은 복원된 미분방정식이 연속함수로써 얻어진다는 가정을 필요로 했다. 이는 분명히 합당한 요구사항이지만, 현실 세계 속에서는 수 없이 많은 넌스무스 시스템이 존재하며 이에 대한 일반화는 아직 이루어지지 않은 상태다. 이 연구에서는 군집화 기법, 간단한 딥러닝 아키텍처로 구현된 분류기 등을 통해 넌스무스 시스템을 복원하는 방법에 대해 소개한다.
+
+Data-driven model for non-smooth dynamical system with machine learning technique
+
+Daesick Ryu Younghae Do
+rmsmsgood@knu.ac.kr
+
+Dynamical systems can be represented in many ways, including maps, ordinary differential equations, and partial differential equations, but classically ODEs have been studied. We can obtain different trajectories by changing the initial point and parameters from a system that properly mimics reality, and there have been many attempts to predict the future or detect changes in trends. On the other hand, data-driven models can be summarized as the opposite of the above: an attempt to obtain differential equations from data, i.e., trajectories. In the last decade, approaches such as compressed sensing or SINDy have been developed, but they require the assumption that the recovered differential equations are obtained as a continuous function. While this is certainly a reasonable requirement, there are many nonsmooth systems in the real world and the generalizations to nonsmoothness is still not proposed. In this study, we present a method for recovering nonsmooth systems using clustering techniques and classifiers implemented in a simple deep learning architecture.
