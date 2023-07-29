@@ -44,13 +44,14 @@ function factory_buck(idx::Int64, E::Number)
     dt = 10^(-7); tend = 0.5
     t_ = 0:dt:tend
     Vr_ = Vr.(t_)
-    ndatapoints = round(Int64, 1/200dt)
+    # ndatapoints = round(Int64, 1/200dt)
+    ndatapoints = 1
 
     len_t_ = length(t_)
     traj = zeros(4, len_t_+1)
     u = [12.0, 0.55]
     du = buck(u)
-    traj[1, 1:2] = u
+    traj[1:2, 1] = u
 
     
     for t in 1:length(t_)
@@ -62,11 +63,21 @@ function factory_buck(idx::Int64, E::Number)
         end
     end
     traj = traj[:, 1:(end-1)]'
-    
-    data = DataFrame(
-        [t_ traj Vr_][(end-ndatapoints):end, :],
-        ["t", "V", "I", "dV", "dI", "Vr"])
-    # CSV.write("G:/buck/buck_$(lpad(idx, 6, '0')).csv", data)
+
+    flag_filesave = true
+    if flag_filesave
+        data = DataFrame(
+            [t_ traj Vr_],
+            ["t", "V", "I", "dV", "dI", "Vr"])
+            @warn "file saving mode!"
+            CSV.write("G:/buck/buck_$(lpad(idx, 6, '0')).csv", data)
+    else
+        data = DataFrame(
+            [t_ traj Vr_][(end-ndatapoints):end, :],
+            ["t", "V", "I", "dV", "dI", "Vr"])
+        return nothing
+    end
+
     return data
 end
 
@@ -89,6 +100,13 @@ end
 
 png(a1, "a1")
 plot(a1)
+
+E_range = [20, 30.5, 31.5, 32.1, 33, 40]
+schedule = DataFrame(idx = eachindex(E_range), E = E_range)
+for dr in ProgressBar(eachrow(schedule))
+    data = factory_buck(dr.idx, dr.E)
+end
+
 
 # schedule[100:800,:]
 # dr = eachrow(schedule)[92]

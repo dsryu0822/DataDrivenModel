@@ -109,7 +109,7 @@ end
 using ProgressBars
 v_ = [[YX[1, 3:4]; dbs.assignments[1]]]
 d_ = [foo(v_[end])]
-dt = 0.00001
+dt = 10^(-7)
 for t in ProgressBar(dt:dt:0.025)
     push!(v_, RK4(foo, v_[end], dt))
     push!(d_, foo(v_[end]))

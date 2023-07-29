@@ -32,7 +32,7 @@ end
 u0 = [12.3, 0.55, 0.0]
 u_ = [u0]
 ∇_ = []
-dt = 0.00001; tend = 0.25
+dt = 10^(-7); tend = 0.25
 for t in dt:dt:tend
     push!(∇_, buck(u_[end]))
     push!(u_, RK4(buck, u_[end], dt))

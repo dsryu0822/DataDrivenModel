@@ -37,7 +37,7 @@ if !isfile("./data/buck.csv")
     u0 = [12.3, 0.55, 0.0]
     u_ = [u0]
     ∇_ = [buck(u_[end])]
-    dt = 0.00001; tend = 0.25
+    dt = 10^(-7); tend = 0.25
     for t in dt:dt:tend
         # global Vrt = Vr(t)
         global controlterm = ifelse(u_[end][1] < Vr(t), E/L, 0)

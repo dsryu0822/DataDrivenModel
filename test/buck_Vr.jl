@@ -131,7 +131,7 @@ png(a1_1, "a1_1.png")
 ## ODE recovery
 v_ = [[XY[1, 1:2]; dbs.assignments[1]]]
 d_ = [foo(v_[end])]
-dt = 0.00001
+dt = 10^(-7)
 for (tk, t) in ProgressBar(enumerate(0:dt:0.025))
     push!(v_, RK4(foo, v_[end], dt))
     push!(d_, foo(v_[end]))
