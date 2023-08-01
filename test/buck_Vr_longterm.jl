@@ -11,27 +11,6 @@ include("../src/nonsmooth.jl")
 include("../src/ODEdata.jl")
 default(size = (600,600), color = :black, legend = :none)
 
-struct Fourier
-    an::Array{Float32, 1}
-    bn::Array{Float32, 1}
-    L::Array{Float32, 1}
-end
-Fourier(m::Integer) = Fourier(zeros(Float32, m), zeros(Float32, m), Float32[0.0])
-function (layer::Fourier)(x)
-    x = x .|> Float32
-    m = length(layer.an)
-    nxL⁻¹ = (1:m) * x[end, :]' .* exp(layer.L[1])
-    return [x[1:end-1, :]; sum(
-        [cospi.(nxL⁻¹) .* layer.an
-       ; sinpi.(nxL⁻¹) .* layer.bn], dims = 1)]
-end
-Flux.@functor Fourier
-
-function Base.show(io::IO, l::Fourier)
-    print(io, "Fourier(", length(l.an), ")")
-end
-# vcat(collect(Flux.params(Fourier(50)))...)
-
 ## Data Load
 DATA = CSV.read("G:/buck/buck_000006.csv", DataFrame)
 Y = DATA[end-100000:end,[:dV, :dI]] |> Matrix # .|> Float32
@@ -107,7 +86,7 @@ p = size(data, 1)
 SSSf = Chain( # SubSystemSelector
     Flux.Scale(p),
     Fourier(100),
-    Dense( p => 50, relu),
+    Dense(p+1 => 50, relu),
     Dense(50 => 50, relu),
     Dense(50 => 50, relu),
     Dense(50 => nsubsys),
