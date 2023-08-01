@@ -12,9 +12,9 @@ include("../src/ODEdata.jl")
 default(size = (600,600), color = :black, legend = :none)
 
 struct Fourier
-    an
-    bn
-    L
+    an::Array{Float32, 1}
+    bn::Array{Float32, 1}
+    L::Array{Float32, 1}
 end
 Fourier(m::Integer) = Fourier(zeros(Float32, m), zeros(Float32, m), Float32[0.0])
 function (layer::Fourier)(x)
@@ -41,8 +41,8 @@ X = DATA[end-100000:end,[ :V,  :I]] |> Matrix # .|> Float32
 ## Clustering
 @showtime dbs = dbscan(col_normalize(Y)', 0.001);
 nsubsys = length(dbs.clusters); println(nsubsys, " clusters found!")
-plot(X[:,1], X[:,2], color = dbs.assignments, alpha = 0.5)
-scatter(Y[:,1], Y[:,2], color = dbs.assignments, alpha = 0.5, msw = 0)
+# plot(X[:,1], X[:,2], color = dbs.assignments, alpha = 0.5)
+# scatter(Y[:,1], Y[:,2], color = dbs.assignments, alpha = 0.5, msw = 0)
 bit_ = [dbs.assignments .== k for k in 1:nsubsys]
 Θ_ = [poly_basis(X[s,:], 2)     for s in bit_]
 Y_ = [Y[vcat(findall(s)...),:] for s in bit_]
@@ -63,45 +63,50 @@ end
 #   , color = :red, shape = :+, label = "Jumping points")
 
 
-subsystem = (DATA.dI .< 0) .+ 1
-_DATA = DATA[Not(end), :]
-# _DATA[!, :subs] = subsystem[Not(end)]
-_DATA[!, :now] = subsystem[Not(end)]
-_DATA[!, :next] = subsystem[Not(1)]
+subsystem = (DATA.dI .> 0) .+ 1
+# _DATA = DATA[Not(end), :]
+# _DATA[!, :now] = subsystem[Not(end)]
+# _DATA[!, :next] = subsystem[Not(1)]
 
-_DATA[_DATA.now .!= _DATA.next, :]
-idx_change = findall(_DATA.now .!= _DATA.next)
-# _DATA[51950:51970, :]
-# _DATA[58740:58760, :]
-idx_data = [idx_change;
-            idx_change .+ 1;
-            idx_change .- 1;
-            idx_change .+ 2;
-            idx_change .- 2;
-            idx_change .+ 3;
-            idx_change .- 3;
-            idx_change .+ 4;
-            idx_change .- 4;
-            idx_change .+ 5;
-            idx_change .- 5;
-            5000001 .- idx_change] |> sort |> unique
-idx_data = idx_data[1 .≤ idx_data .≤ 5000000]
-_DATA = _DATA[idx_data, :]
-_DATA = _DATA[end-10000:end, :]
+_DATA = DATA
+_DATA[!, :now] = subsystem
+__DATA = _DATA[1:1:end,:]
+__next = __DATA.now[Not(1)]
+__DATA = __DATA[Not(end), :]
+__DATA[!, :next] = __next
+_DATA = __DATA
+
+# _DATA[_DATA.now .!= _DATA.next, :]
+# idx_change = findall(_DATA.now .!= _DATA.next)
+# # _DATA[51950:51970, :]
+# # _DATA[58740:58760, :]
+# idx_data = [1:100:nrow(_DATA);
+#             idx_change;
+#             # idx_change .+ 1;
+#             # idx_change .- 1;
+#             # idx_change .+ 2;
+#             # idx_change .- 2;
+#             # idx_change .+ 3;
+#             # idx_change .- 3;
+#             # idx_change .+ 4;
+#             # idx_change .- 4;
+#             # idx_change .+ 5;
+#             # idx_change .- 5;
+#             5000001 .- idx_change] |> sort |> unique
+# idx_data = idx_data[1 .≤ idx_data .≤ 5000000]
+# _DATA = _DATA[idx_data, :]
+# _DATA = _DATA[end-50000:100:end, :]
 
 ## Classification
-data = Float32.(Matrix(select(_DATA, [:V, :I, :t]))')
-subs = Flux.onehotbatch(_DATA.next, 1:nsubsys)
-trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 1000)
-# data = Float32.(Matrix(DATA[Not(end), [:V, :I, :dV, :dI, :t]])')
-# subs = Flux.onehotbatch(dbs.assignments[Not(1)], 1:nsubsys)
-# trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 1000)
-
+target = deepcopy(_DATA.now)
+data = Float32.(Matrix(select(_DATA, [:V, :I, :Vr]))')
+subs = Flux.onehotbatch(target, 1:nsubsys)
+trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 10000)
 
 p = size(data, 1)
 SSSf = Chain( # SubSystemSelector
     Flux.Scale(p),
-    Fourier(50),
+    Fourier(100),
     Dense( p => 50, relu),
     Dense(50 => 50, relu),
     Dense(50 => 50, relu),
@@ -109,7 +114,8 @@ SSSf = Chain( # SubSystemSelector
     softmax
 )
 Loss(x,y) = Flux.crossentropy(SSSf(x), y)
-losses = [Loss(data, subs)]
+loss_ = [Loss(data, subs)]
+acry_ = [sum(target .== argmax.(eachcol(SSSf(data)))) / size(data, 2)]
 optimizer = ADAM()
 
 norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1.0
@@ -119,7 +125,7 @@ if !isfile("data/SSSf.jld2")
     print("data/SSSf.jld2 not exists, ")
     
     ps = Flux.params(SSSf)
-    println("Training... First Loss: ", losses[1])
+    println("Training... First Loss: ", loss_[1])
     @time for epch in 1:100_000
         if epch < 10
             @time Flux.train!(Loss, ps, trng, optimizer)
@@ -127,52 +133,52 @@ if !isfile("data/SSSf.jld2")
             Flux.train!(Loss, ps, trng, optimizer)
         end
         loss = Loss(data, subs)
-        acc = sum(_DATA.next .== argmax.(eachcol(SSSf(data)))) / nrow(_DATA)
-        if loss < losses[end]
-        # if acc > maximum(acc_)
-            jldsave("C:/Temp/SSSf.jld2"; SSSf, loss, acc, losses)
+        acry = sum(target .== argmax.(eachcol(SSSf(data)))) / size(data, 2)
+        if acry < acry_[end]
+        # if loss < loss_[end]
+            jldsave("C:/Temp/SSSf.jld2"; SSSf, loss, acry) # , loss_, acry_)
             println()
-            print("epoch ", lpad(length(losses), 5)
+            print("epoch ", lpad(length(loss_), 5)
                     , ": loss = ", rpad(trunc(loss, digits = 6), 8)
-                    , ", acc = ", rpad(trunc(100acc, digits = 4), 8)
+                    , ", acry = ", rpad(trunc(100acry, digits = 4), 8)
                     , " saved!")
-            push!(losses, loss)
+            push!(loss_, loss)
+            push!(acry_, acry)
         else
             epch % 100 == 0 && print(", ", lpad(epch, 5))
-            push!(losses, losses[end])
+            push!(loss_, loss_[end])
+            push!(acry_, acry_[end])
         end
-        # push!(acc_, acc)
     end
     cp("C:/Temp/SSSf.jld2", "data/SSSf.jld2")
 else
     @info "Loading SSSf..."
-    fSSS = jldopen("data/SSSf.jld2")
-    SSSf = fSSS["SSSf"]
-    println("loss = ", fSSS["loss"])
-    println("acc = ", fSSS["acc"])
+    fSSSf = jldopen("data/SSSf.jld2")
+    SSSf = fSSSf["SSSf"]
+    println("loss = ", fSSSf["loss"])
+    println("acry = ", fSSSf["acry"])
     close(fSSS)
 end
 
 ### Classifier testing
-a1_1 = scatter(a1, 
-    _DATA.V[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSSf(data)))))]
-  , _DATA.I[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSSf(data)))))]
-  , color = 2, shape = :+, label = "Detected Jumping points")
-png(a1_1, "a1_1.png")
-_DATA
-Ξ_[2]
-## ODE recovery
+# a1_1 = scatter(a1, 
+#     _DATA.V[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSSf(data)))))]
+#   , _DATA.I[Not(1, 2)][.!iszero.(diff(argmax.(eachcol(SSSf(data)))))]
+#   , color = 2, shape = :+, label = "Detected Jumping points")
+# png(a1_1, "a1_1.png")
 
+## ODE recovery
+dt = 10^(-7); tspan = 0:dt:0.01
+zeros(5, length(tspan))
 v_ = [Float64[data[1:2, 1]; argmax(subs[:,1])]]
 d_ = [foo(v_[end])]
-dt = 10^(-7)
-for (tk, t) in ProgressBar(enumerate(0:dt:0.025))
-    v_[end][end] = [v_[end][1:2]; t]  |> SSSf |> vec |> argmax |> Float64
+for (tk, t) in ProgressBar(enumerate(tspan))
     v, d = RK4(foo, v_[end], dt)
     push!(v_, v)
     push!(d_, d)
-    # v_[end][end] = Float32[v_[end][Not(end)]; t] |> SSSf |> vec |> argmax
-    # v_[end][end] = Float32[v_[end][Not(end)]; d_[end][Not(end)]; t] |> SSSf |> vec |> argmax
+    # v_[end][end] = [v_[end][1:2]; _DATA.Vr[tk]]  |> SSSf |> vec |> argmax |> Float64
+    v_[end][end] = [v_[end][1:2]; t]  |> SSSf |> vec |> argmax |> Float64
+    # v_[end][end] = [v_[end][1:2]; d_[end][1:2]; t]  |> SSSf |> vec |> argmax |> Float64
 end
 
 ### Trajectories
