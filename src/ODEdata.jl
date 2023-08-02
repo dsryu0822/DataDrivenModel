@@ -1,16 +1,16 @@
 using CSV, DataFrames
 
 function Euler(f::Function,v::AbstractVector, h=10^(-2))
-    return v + h*f(v)
+    V1 = f(v)
+    return v + h*V1, V1
 end
 function RK4(f::Function,v::AbstractVector, h=10^(-2))
     V1 = f(v)
     V2 = f(v + (h/2)*V1)
     V3 = f(v + (h/2)*V2)
     V4 = f(v + h*V3)
-    return v + (h/6)*(V1 + 2V2 + 2V3 + V4)
+    return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
-
 
 if !isfile("./data/buck.csv")
     m = 10^(-3)

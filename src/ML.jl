@@ -37,20 +37,31 @@ end
 
 struct Fourier
     m::Int64
-    a0::Float32
     an::AbstractArray{Float32, 1}
     bn::AbstractArray{Float32, 1}
-    L::Float32
+    a0::AbstractArray{Float32, 1}
+    L::AbstractArray{Float32, 1}
 end
 function Base.show(io::IO, l::Fourier)
     print(io, "Fourier(", l.m, ")")
 end
-Fourier(m::Integer) = Fourier(m, zero(Float32), zeros(Float32, m), zeros(Float32, m), zero(Float32))
+Fourier(m::Integer) = Fourier(m, zeros(Float32, m), zeros(Float32, m), zeros(Float32, 1), zeros(Float32, 1))
+
+# function (layer::Fourier)(x)
+#     nxL⁻¹ = (1:layer.m) .* x[[end], :] * exp.(layer.a0_L)[end]
+
+#     return [x[1:end-1, :]; identity.(layer.a0_L)[1] .+ sum(
+#         (cospi.(nxL⁻¹) .* layer.an) + 
+#         (sinpi.(nxL⁻¹) .* layer.bn)
+#         , dims = 1)]
+# end
 
 function (layer::Fourier)(x)
-    nxL⁻¹ = (1:layer.m) .* x[[end], :] * exp(layer.L)
+    # a0_L = exp.(layer.a0_L)
+    nxL⁻¹ = (1:layer.m) .* x[[end], :] .* exp.(layer.L)
 
-    return [x[1:end-1, :]; layer.a0 .+ sum(
+    # return [x[1:end-1, :]; layer.a0 .+ sum(
+    return [x; layer.a0 .+ sum(
         (cospi.(nxL⁻¹) .* layer.an) + 
         (sinpi.(nxL⁻¹) .* layer.bn)
         , dims = 1)]

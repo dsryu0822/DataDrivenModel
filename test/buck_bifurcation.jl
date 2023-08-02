@@ -41,11 +41,14 @@ function factory_buck(idx::Int64, E::Number)
         # İ = - (V/L) + ifelse(V < Vr(t), E/L, 0)
         return [V̇, İ]
     end
-    dt = 10^(-7); tend = 0.5
+    dt = 10^(-7); tend = 5.0
     t_ = 0:dt:tend
     Vr_ = Vr.(t_)
+    # flag_filesave = true
+    # ndatapoints = 1
+    flag_filesave = false
     # ndatapoints = round(Int64, 1/200dt)
-    ndatapoints = 1
+    ndatapoints = round(Int64, tend/(100dt))
 
     len_t_ = length(t_)
     traj = zeros(4, len_t_+1)
@@ -64,25 +67,24 @@ function factory_buck(idx::Int64, E::Number)
     end
     traj = traj[:, 1:(end-1)]'
 
-    flag_filesave = true
     if flag_filesave
         data = DataFrame(
             [t_ traj Vr_],
             ["t", "V", "I", "dV", "dI", "Vr"])
             @warn "file saving mode!"
             CSV.write("G:/buck/buck_$(lpad(idx, 6, '0')).csv", data)
+        return nothing
     else
         data = DataFrame(
             [t_ traj Vr_][(end-ndatapoints):end, :],
             ["t", "V", "I", "dV", "dI", "Vr"])
-        return nothing
     end
 
     return data
 end
 
-# E_range = 15:40
-E_range = [15:0.1:24; 24:0.01:40]
+E_range = 15:1:40
+# E_range = [15:0.1:24; 24:0.01:40]
 schedule = DataFrame(idx = eachindex(E_range), E = E_range)
 
 xdots = Float64[]; ydots = Float64[]

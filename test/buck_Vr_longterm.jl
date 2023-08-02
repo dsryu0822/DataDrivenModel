@@ -9,7 +9,9 @@ include("../src/DDM.jl")
 include("../src/ML.jl")
 include("../src/nonsmooth.jl")
 include("../src/ODEdata.jl")
+
 default(size = (600,600), color = :black, legend = :none)
+optimizer = ADAM()
 
 ## Data Load
 DATA = CSV.read("G:/buck/buck_000006.csv", DataFrame)
@@ -61,16 +63,16 @@ _DATA = __DATA
 # # _DATA[58740:58760, :]
 # idx_data = [1:100:nrow(_DATA);
 #             idx_change;
-#             # idx_change .+ 1;
-#             # idx_change .- 1;
-#             # idx_change .+ 2;
-#             # idx_change .- 2;
-#             # idx_change .+ 3;
-#             # idx_change .- 3;
-#             # idx_change .+ 4;
-#             # idx_change .- 4;
-#             # idx_change .+ 5;
-#             # idx_change .- 5;
+#             idx_change .+ 1;
+#             idx_change .- 1;
+#             idx_change .+ 2;
+#             idx_change .- 2;
+#             idx_change .+ 3;
+#             idx_change .- 3;
+#             idx_change .+ 4;
+#             idx_change .- 4;
+#             idx_change .+ 5;
+#             idx_change .- 5;
 #             5000001 .- idx_change] |> sort |> unique
 # idx_data = idx_data[1 .≤ idx_data .≤ 5000000]
 # _DATA = _DATA[idx_data, :]
@@ -78,66 +80,84 @@ _DATA = __DATA
 
 ## Classification
 target = deepcopy(_DATA.now)
-data = Float32.(Matrix(select(_DATA, [:V, :I, :Vr]))')
-subs = Flux.onehotbatch(target, 1:nsubsys)
-trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 10000)
+data = Float32.(Matrix(select(_DATA, [:V, :I, :t]))') |> gpu
+# data = Float32.(Matrix(select(_DATA, [:V, :I, :dV, :dI, :t]))') |> gpu
+subs = Flux.onehotbatch(target, 1:nsubsys) |> gpu
+trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 500_000) # Full data
 
 p = size(data, 1)
 SSSf = Chain( # SubSystemSelector
     Flux.Scale(p),
     Fourier(100),
-    Dense(p+1 => 50, relu),
+    Dense(p+1=> 50, relu),
     Dense(50 => 50, relu),
     Dense(50 => 50, relu),
     Dense(50 => nsubsys),
     softmax
-)
+) |> gpu
 Loss(x,y) = Flux.crossentropy(SSSf(x), y)
-loss_ = [Loss(data, subs)]
-acry_ = [sum(target .== argmax.(eachcol(SSSf(data)))) / size(data, 2)]
-optimizer = ADAM()
 
 norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1.0
-SSSf[1].scale ./= norm_variables
+SSSf[1].scale ./= (norm_variables |> ifelse(SSSf[1].scale isa CuArray, CuArray, identity))
 
+# try
+epch_ = [0]
+loss_ = [Loss(data, subs)]
+acry_ = [sum(target .== argmax.(eachcol(SSSf(data) |> cpu))) / size(data, 2)]
 if !isfile("data/SSSf.jld2")
-    print("data/SSSf.jld2 not exists, ")
+    print("")
     
     ps = Flux.params(SSSf)
-    println("Training... First Loss: ", loss_[1])
-    @time for epch in 1:100_000
+    @info """
+    data/SSSf.jld2 not exists, Training...
+    First Loss: $(loss_[1])
+    """
+    @time CUDA.@sync for epch in 1:100_000
         if epch < 10
             @time Flux.train!(Loss, ps, trng, optimizer)
         else
             Flux.train!(Loss, ps, trng, optimizer)
         end
         loss = Loss(data, subs)
-        acry = sum(target .== argmax.(eachcol(SSSf(data)))) / size(data, 2)
-        if acry < acry_[end]
-        # if loss < loss_[end]
-            jldsave("C:/Temp/SSSf.jld2"; SSSf, loss, acry) # , loss_, acry_)
+        if loss < loss_[end]
+            acry = sum(target .== argmax.(eachcol(SSSf(data) |> cpu))) / size(data, 2)
+            # SSSf = SSSf |> cpu
+            jldsave("C:/Temp/SSSf.jld2"; SSSf, loss, acry, epch_, loss_, acry_)
+            # SSSf = SSSf |> gpu
             println()
             print("epoch ", lpad(length(loss_), 5)
                     , ": loss = ", rpad(trunc(loss, digits = 6), 8)
                     , ", acry = ", rpad(trunc(100acry, digits = 4), 8)
-                    , " saved!")
+                    , "!")
+            if acry > acry_[end]
+                push!(acry_, acry)
+                jldsave("C:/Temp/SSSf+.jld2"; SSSf, loss, acry)
+                print("+")
+            end
+            push!(epch_, epch)
             push!(loss_, loss)
-            push!(acry_, acry)
         else
             epch % 100 == 0 && print(", ", lpad(epch, 5))
-            push!(loss_, loss_[end])
-            push!(acry_, acry_[end])
         end
     end
     cp("C:/Temp/SSSf.jld2", "data/SSSf.jld2")
 else
-    @info "Loading SSSf..."
     fSSSf = jldopen("data/SSSf.jld2")
     SSSf = fSSSf["SSSf"]
-    println("loss = ", fSSSf["loss"])
-    println("acry = ", fSSSf["acry"])
-    close(fSSS)
+    @info """
+    Loading SSSf...
+    loss = $(fSSSf["loss"])
+    acry = $(fSSSf["acry"])
+    """
+    epch_ = fSSSf["epch_"]
+    loss_ = fSSSf["loss_"]
+    acry_ = fSSSf["acry_"]
+    close(fSSSf)
 end
+
+# catch InterruptException
+#     @info "Stopped by you"
+# end
 
 ### Classifier testing
 # a1_1 = scatter(a1, 
@@ -148,7 +168,9 @@ end
 
 ## ODE recovery
 dt = 10^(-7); tspan = 0:dt:0.01
-zeros(5, length(tspan))
+# zeros(5, length(tspan))
+data = data |> cpu
+subs = subs |> cpu
 v_ = [Float64[data[1:2, 1]; argmax(subs[:,1])]]
 d_ = [foo(v_[end])]
 for (tk, t) in ProgressBar(enumerate(tspan))
@@ -156,7 +178,7 @@ for (tk, t) in ProgressBar(enumerate(tspan))
     push!(v_, v)
     push!(d_, d)
     # v_[end][end] = [v_[end][1:2]; _DATA.Vr[tk]]  |> SSSf |> vec |> argmax |> Float64
-    v_[end][end] = [v_[end][1:2]; t]  |> SSSf |> vec |> argmax |> Float64
+    v_[end][end] = Float32[v_[end][1:2]; d_[end][1:2]; t] |> CuArray |> SSSf |> vec |> argmax |> Float64
     # v_[end][end] = [v_[end][1:2]; d_[end][1:2]; t]  |> SSSf |> vec |> argmax |> Float64
 end
 
