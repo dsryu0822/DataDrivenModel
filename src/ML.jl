@@ -4,37 +4,6 @@ function col_normalize(M)
     return M ./ norm.(eachcol(M))'
 end
 
-
-# DATA = CSV.read("G:/buck/buck_000006.csv", DataFrame)[end-100000:end,:]
-# Y = select(DATA, [:dV, :dI]) |> Matrix
-# X = select(DATA, [ :V,  :I]) |> Matrix
-# XY = [X Y]
-
-# dbs = dbscan(col_normalize(Y)', 0.001); nsubsys = length(dbs.clusters); println(nsubsys, " clusters found!")
-# using Plots
-# scatter(eachcol(Y)..., msw = 0, color = dbs.assignments, label = :none)
-
-# using Flux
-# struct Fourier0
-#     an
-#     bn
-#     L
-# end
-# function Base.show(io::IO, l::Fourier0)
-#     print(io, "Fourier(", length(l.an), ")")
-# end
-
-# Fourier0(m::Integer) = Fourier0(randn(Float32, m), randn(Float32, m), Float32[0.0])
-# function (layer::Fourier0)(x)
-#     m = length(layer.an)
-#     nxL⁻¹ = (1:m) * x[end, :]' .* exp(layer.L[1])
-#     return [x[1:end-1, :]; sum(
-#         [cospi.(nxL⁻¹) .* layer.an
-#        ; sinpi.(nxL⁻¹) .* layer.bn], dims = 1)]
-# end
-# Flux.@functor Fourier0
-# ------------------------------
-
 struct Fourier
     m::Int64
     an::AbstractArray{Float32, 1}
@@ -46,16 +15,6 @@ function Base.show(io::IO, l::Fourier)
     print(io, "Fourier(", l.m, ")")
 end
 Fourier(m::Integer) = Fourier(m, zeros(Float32, m), zeros(Float32, m), zeros(Float32, 1), zeros(Float32, 1))
-
-# function (layer::Fourier)(x)
-#     nxL⁻¹ = (1:layer.m) .* x[[end], :] * exp.(layer.a0_L)[end]
-
-#     return [x[1:end-1, :]; identity.(layer.a0_L)[1] .+ sum(
-#         (cospi.(nxL⁻¹) .* layer.an) + 
-#         (sinpi.(nxL⁻¹) .* layer.bn)
-#         , dims = 1)]
-# end
-
 function (layer::Fourier)(x)
     # a0_L = exp.(layer.a0_L)
     nxL⁻¹ = (1:layer.m) .* x[[end], :] .* exp.(layer.L)
@@ -67,21 +26,6 @@ function (layer::Fourier)(x)
         , dims = 1)]
 end
 Flux.@functor Fourier
-
-# vcat(sum(CuArray(rand(Float32, 4, size(x, 2))), dims = 1), x)
-
-# struct Modulo
-#     log10T::AbstractArray{Float32, 1}
-# end
-# function Base.show(io::IO, l::Modulo)
-#     print(io, "Modulo(", l.log10T, ")")
-# end
-# Modulo(T::AbstractFloat) = Modulo(Float32[log10.(T)])
-
-# function (layer::Modulo)(x)
-#     return [x[1:(end-1),:]; mod.(x[[end],:], 10 .^ layer.log10T)]
-# end
-# Flux.@functor Modulo
 
 struct Modulo
     T::AbstractArray{Float32, 1}
@@ -95,3 +39,108 @@ function (layer::Modulo)(x)
     return [x[1:(end-1),:]; mod.(x[[end],:], layer.T)]
 end
 Flux.@functor Modulo
+
+
+
+isgpu(M::AbstractArray) = M isa CuArray
+isgpu(f::Chain) = any([typeof(first(f)).types...] .<: CuArray)
+gcpu(M) = ifelse(isgpu(M), gpu, cpu)
+
+function Accuracy(f, data, label)
+    x, _ = data.data
+    n = size(x, 2)
+    m = length(label)
+    @assert n == m "data($n) and label($m) size mismatch"
+
+    x = x |> gcpu(f)
+    predicted = argmax.(eachcol(f(x) |> cpu))
+    return sum(label .== predicted) / n
+end
+
+function init_ANN(data)
+    p = size(data.data[1], 1)
+    ANN = Chain( # SubSystemSelector
+        # Flux.Scale(p, bias = false),
+        # Fourier(100),
+        # Dense(p+1=> 50, relu),
+        # Modulo(400*(10^(-6))),
+        Dense(p => 50, relu),
+        Dense(50 => 50, relu),
+        Dense(50 => 50, relu),
+        Dense(50 => nsubsys),
+        softmax
+        ) |> gcpu(data.data[1])
+    @info "ANN is initiating on $(ifelse(isgpu(ANN), "GPU", "CPU"))"
+
+    Loss(x,y) = Flux.crossentropy(ANN(x), y)
+    return ANN
+end
+function save_ANN(ANN, data; lastepch = 0, dir = "C:/Temp/")
+    @info "ANN is training on $(ifelse(isgpu(ANN), "GPU", "CPU"))"
+    optimizer = ADAM()
+    ps = Flux.params(ANN)
+
+    x, y = data.data
+    Loss(x, y) = Flux.crossentropy(ANN(x), y)
+
+    loss_ = [Loss(x, y)]
+    acry_ = [Accuracy(ANN, data, label)]
+    epch_ = [0]
+
+try
+    @info "Training started!"
+    for epch in 1:lastepch
+        if (epch < 10) || (epch % 1000 == 0)
+            @time Flux.train!(Loss, ps, data, optimizer)
+        else
+            Flux.train!(Loss, ps, data, optimizer)
+        end
+        loss = Loss(x, y)
+        if loss < loss_[end]
+            acry = Accuracy(ANN, data, label)
+            @info join(["epoch ", lpad(epch, 5)
+            , ": loss = ", rpad(trunc(loss, digits = 6), 8)
+            , ", acry = ", rpad(trunc(100acry, digits = 4), 8)
+            , ","])
+
+            if acry > acry_[end]
+                print("\033[F!\r\n")
+                push!(loss_, loss)
+                push!(acry_, acry)
+                push!(epch_, epch)
+                _ANN = ANN |> cpu
+                jldsave(joinpath(dir, "SSS_$(lpad(epch, 6, '0')).jld2"); _ANN, loss, acry, epch)
+                jldsave(joinpath(dir, "SSS.jld2"); _ANN, loss, acry, epch)
+                jldsave("C:/Temp/SSS.jld2"; _ANN, loss, acry, epch)
+            end
+        end
+    end
+    cp("C:/Temp/SSS.jld2", "data/SSS.jld2")
+catch err
+    if err isa InterruptException
+        @info """
+        Stopped by you. the last one is backed up:
+        $(dir)/_ANN.jld2
+        """
+    else
+        @error err
+    end
+    jldsave(joinpath(dir, "_ANN.jld2"); _ANN = ANN, loss = loss_[end], acry = acry_[end], epch = epch_[end])
+end
+    return ANN
+end
+function load_ANN(dir)
+    file = jldopen(dir)
+    ANN = file["_ANN"]
+    loss = file["loss"]
+    acry = file["acry"]
+    epch = file["epch"]
+    close(file)
+    @info """
+    ANN is loaded on $(ifelse(isgpu(ANN), "GPU", "CPU"))
+    loss = $loss
+    acry = $acry
+    epch = $epch
+    """
+    return ANN, loss, acry, epch
+end
