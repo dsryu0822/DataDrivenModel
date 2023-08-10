@@ -15,26 +15,27 @@ optimizer = ADAM()
 
 ## Data Load
 DATA = CSV.read("G:/buck/buck_000006.csv", DataFrame)
-Y = DATA[end-100000:end,[:dV, :dI]] |> Matrix # .|> Float32
-X = DATA[end-100000:end,[ :V,  :I]] |> Matrix # .|> Float32
-# XY = [X Y]
+# Y = DATA[end-100000:end,[:dV, :dI]] |> Matrix # .|> Float32
+# X = DATA[end-100000:end,[ :V,  :I]] |> Matrix # .|> Float32
+# # XY = [X Y]
 
-## Clustering
-@showtime dbs = dbscan(col_normalize(Y)', 0.001);
-nsubsys = length(dbs.clusters); println(nsubsys, " clusters found!")
-# plot(X[:,1], X[:,2], color = dbs.assignments, alpha = 0.5)
-# scatter(Y[:,1], Y[:,2], color = dbs.assignments, alpha = 0.5, msw = 0)
-bit_ = [dbs.assignments .== k for k in 1:nsubsys]
-Θ_ = [poly_basis(X[s,:], 2)     for s in bit_]
-Y_ = [Y[vcat(findall(s)...),:] for s in bit_]
-Ξ_ = [STLSQ(Θ_[s], Y_[s], 0.01) for s in 1:nsubsys]
+# ## Clustering
+# @showtime dbs = dbscan(col_normalize(Y)', 0.001);
+nsubsys = 2
+# nsubsys = length(dbs.clusters); println(nsubsys, " clusters found!")
+# # plot(X[:,1], X[:,2], color = dbs.assignments, alpha = 0.5)
+# # scatter(Y[:,1], Y[:,2], color = dbs.assignments, alpha = 0.5, msw = 0)
+# bit_ = [dbs.assignments .== k for k in 1:nsubsys]
+# Θ_ = [poly_basis(X[s,:], 2)     for s in bit_]
+# Y_ = [Y[vcat(findall(s)...),:] for s in bit_]
+# Ξ_ = [STLSQ(Θ_[s], Y_[s], 0.01) for s in 1:nsubsys]
 
-function foo(v)
-    v = deepcopy(v)
-    s = Int64(pop!(v))
-    Θv = poly_basis(v, 2)'
-    return vec([(Θv*Ξ_[s]) 0])
-end
+# function foo(v)
+#     v = deepcopy(v)
+#     s = Int64(pop!(v))
+#     Θv = poly_basis(v, 2)'
+#     return vec([(Θv*Ξ_[s]) 0])
+# end
 
 
 # a1 = plot(_DATA.V, _DATA.I, alpha = 0.1, legend = :best, label = "Trajectory", xlabel = L"V", ylabel = L"I")
@@ -56,6 +57,7 @@ __next = __DATA.now[Not(1)]
 __DATA = __DATA[Not(end), :]
 __DATA[!, :next] = __next
 _DATA = __DATA
+# _DATA.t = mod.(_DATA.t, 400*(10^(-6)))
 
 # _DATA[_DATA.now .!= _DATA.next, :]
 # idx_change = findall(_DATA.now .!= _DATA.next)
@@ -79,17 +81,23 @@ _DATA = __DATA
 # _DATA = _DATA[end-50000:100:end, :]
 
 ## Classification
+data = Float32.(Matrix(select(_DATA, [:V, :I, :Vr]))') |> gpu
 target = deepcopy(_DATA.now)
-data = Float32.(Matrix(select(_DATA, [:V, :I, :t]))') |> gpu
 # data = Float32.(Matrix(select(_DATA, [:V, :I, :dV, :dI, :t]))') |> gpu
+# target = deepcopy(_DATA.next)
 subs = Flux.onehotbatch(target, 1:nsubsys) |> gpu
 trng = Flux.DataLoader((data,subs), shuffle = true, batchsize = 500_000) # Full data
 
+# plot((Modulo(400*(10^(-6))) |> gpu)(data)[end, 1:10000])
+
+try
 p = size(data, 1)
 SSSf = Chain( # SubSystemSelector
-    Flux.Scale(p),
-    Fourier(100),
-    Dense(p+1=> 50, relu),
+    # Flux.Scale(p, bias = false),
+    # Fourier(100),
+    # Dense(p+1=> 50, relu),
+    # Modulo(400*(10^(-6))),
+    Dense(p => 50, relu),
     Dense(50 => 50, relu),
     Dense(50 => 50, relu),
     Dense(50 => nsubsys),
@@ -97,10 +105,11 @@ SSSf = Chain( # SubSystemSelector
 ) |> gpu
 Loss(x,y) = Flux.crossentropy(SSSf(x), y)
 
-norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1.0
-SSSf[1].scale ./= (norm_variables |> ifelse(SSSf[1].scale isa CuArray, CuArray, identity))
+# norm_variables = Float32.(norm.(eachrow(Matrix(data)))); norm_variables[end] = 1.0
+# SSSf[1].scale ./= (norm_variables |> ifelse(SSSf[1].scale isa CuArray, CuArray, identity))
+# SSSf[1].T .= 0.0002
+# histogram(diff(_DATA.t[Bool.([abs.(diff(_DATA.dI .> 0)); 1])]))
 
-# try
 epch_ = [0]
 loss_ = [Loss(data, subs)]
 acry_ = [sum(target .== argmax.(eachcol(SSSf(data) |> cpu))) / size(data, 2)]
@@ -113,7 +122,7 @@ if !isfile("data/SSSf.jld2")
     First Loss: $(loss_[1])
     """
     @time CUDA.@sync for epch in 1:100_000
-        if epch < 10
+        if (epch < 10) || (epch % 1000 == 0)
             @time Flux.train!(Loss, ps, trng, optimizer)
         else
             Flux.train!(Loss, ps, trng, optimizer)
@@ -121,17 +130,18 @@ if !isfile("data/SSSf.jld2")
         loss = Loss(data, subs)
         if loss < loss_[end]
             acry = sum(target .== argmax.(eachcol(SSSf(data) |> cpu))) / size(data, 2)
-            # SSSf = SSSf |> cpu
-            jldsave("C:/Temp/SSSf.jld2"; SSSf, loss, acry, epch_, loss_, acry_)
-            # SSSf = SSSf |> gpu
+            jldsave("C:/Temp/SSSf $(lpad(epch, 6, '0')).jld2"; SSSf, loss, acry, epch_, loss_, acry_)
             println()
-            print("epoch ", lpad(length(loss_), 5)
+            print("epoch ", lpad(epch, 5)
                     , ": loss = ", rpad(trunc(loss, digits = 6), 8)
                     , ", acry = ", rpad(trunc(100acry, digits = 4), 8)
                     , "!")
+            
             if acry > acry_[end]
                 push!(acry_, acry)
+                # SSSf = SSSf |> cpu
                 jldsave("C:/Temp/SSSf+.jld2"; SSSf, loss, acry)
+                # SSSf = SSSf |> gpu
                 print("+")
             end
             push!(epch_, epch)
@@ -155,9 +165,9 @@ else
     close(fSSSf)
 end
 
-# catch InterruptException
-#     @info "Stopped by you"
-# end
+catch InterruptException
+    @info "Stopped by you"
+end
 
 ### Classifier testing
 # a1_1 = scatter(a1, 

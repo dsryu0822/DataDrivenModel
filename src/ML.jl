@@ -69,3 +69,29 @@ end
 Flux.@functor Fourier
 
 # vcat(sum(CuArray(rand(Float32, 4, size(x, 2))), dims = 1), x)
+
+# struct Modulo
+#     log10T::AbstractArray{Float32, 1}
+# end
+# function Base.show(io::IO, l::Modulo)
+#     print(io, "Modulo(", l.log10T, ")")
+# end
+# Modulo(T::AbstractFloat) = Modulo(Float32[log10.(T)])
+
+# function (layer::Modulo)(x)
+#     return [x[1:(end-1),:]; mod.(x[[end],:], 10 .^ layer.log10T)]
+# end
+# Flux.@functor Modulo
+
+struct Modulo
+    T::AbstractArray{Float32, 1}
+end
+function Base.show(io::IO, l::Modulo)
+    print(io, "Modulo(", l.T, ")")
+end
+Modulo(T::AbstractFloat) = Modulo(Float32[T])
+
+function (layer::Modulo)(x)
+    return [x[1:(end-1),:]; mod.(x[[end],:], layer.T)]
+end
+Flux.@functor Modulo
