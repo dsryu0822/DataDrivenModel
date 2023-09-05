@@ -64,10 +64,10 @@ function init_ANN(data)
         # Fourier(100),
         # Dense(p+1=> 50, relu),
         # Modulo(400*(10^(-6))),
-        Dense(p => 50, relu),
-        Dense(50 => 50, relu),
-        Dense(50 => 50, relu),
-        Dense(50 => nsubsys),
+        Dense(p => 100, relu),
+        Dense(100 => 100, relu),
+        Dense(100 => 100, relu),
+        Dense(100 => nsubsys),
         softmax
         ) |> gcpu(data.data[1])
     @info "ANN is initiating on $(ifelse(isgpu(ANN), "GPU", "CPU"))"
@@ -96,14 +96,14 @@ try
             Flux.train!(Loss, ps, data, optimizer)
         end
         loss = Loss(x, y)
-        if loss < loss_[end]
+        if loss < minimum(loss_)
             acry = Accuracy(ANN, data, label)
-            @info join(["epoch ", lpad(epch, 5)
-            , ": loss = ", rpad(trunc(loss, digits = 6), 8)
-            , ", acry = ", rpad(trunc(100acry, digits = 4), 8)
-            , ","])
-
-            if acry > acry_[end]
+            if acry > maximum(acry_)
+                @info join(["epoch ", lpad(epch, 5)
+                , ": loss = ", rpad(trunc(loss, digits = 6), 8)
+                , ", acry = ", rpad(trunc(100acry, digits = 4), 8)
+                , ","])
+    
                 print("\033[F!\r\n")
                 push!(loss_, loss)
                 push!(acry_, acry)
@@ -111,7 +111,6 @@ try
                 _ANN = ANN |> cpu
                 jldsave(joinpath(dir, "SSS_$(lpad(epch, 6, '0')).jld2"); _ANN, loss, acry, epch)
                 jldsave(joinpath(dir, "SSS.jld2"); _ANN, loss, acry, epch)
-                jldsave("C:/Temp/SSS.jld2"; _ANN, loss, acry, epch)
             end
         end
     end

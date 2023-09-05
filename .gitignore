@@ -1,3 +1,5 @@
 *.pdf
-REPL.jl
 *.png
+*.mp4
+*.html
+REPL.jl

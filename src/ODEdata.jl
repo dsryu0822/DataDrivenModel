@@ -1,4 +1,4 @@
-using CSV, DataFrames
+using CSV, DataFrames, ProgressBars
 
 function Euler(f::Function,v::AbstractVector, h=10^(-2))
     V1 = f(v)
@@ -71,4 +71,41 @@ if !isfile("./data/lorenz.csv")
     prob = ODEProblem(lorenz, u0, tspan)
     sol = solve(prob, DP5(), saveat = dt, reltol = 1e-12, abstol = 1e-12)
     CSV.write("data/lorenz.csv", DataFrame(Array(sol)', :auto))
+end
+
+
+if !isfile("./data/softimp.csv")
+    const κ = 400.0
+    const μ = 172.363
+
+    const d2 = 0.08
+
+    function softimp(tuv)
+        t, u, v    = tuv
+
+        impact = ifelse(abs(u) < d2, 0, -(κ^2)*sign(u)*(abs(u)-d2) - μ*v)
+        ṫ = 1
+        u̇ = v
+        v̇ = cospi(t) + impact
+        return [ṫ, u̇, v̇]
+    end
+
+
+    u_ = [[0.0, 0,0]]
+    ∇_ = [softimp(u_[end])]
+    dt = 10^(-3); tend = 100
+    @time for t in ProgressBar(dt:dt:tend)
+        u, ∇ = RK4(softimp, u_[end], dt)
+        push!(u_, u)
+        push!(∇_, ∇)
+    end
+    half = length(u_) ÷ 2
+    quat = half + length(u_) ÷ 4
+    U = stack(u_)[:, quat:end]
+    ∇ = stack(∇_)[:, quat:end]
+
+    CSV.write("data/softimp", DataFrame(
+        [U' ∇[2:3, :]'],
+        ["t", "u", "v", "du", "dv"])
+    )
 end

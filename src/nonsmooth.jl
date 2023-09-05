@@ -12,3 +12,9 @@ function argjump(type::Type, Y::AbstractVector)
     end
 end
 argjump(Y) = argjump(Int64, Y) # If type is not specified, return indices
+
+function argext(arr)
+    idxmin = (circshift(arr, 1) .> arr) .&& (circshift(arr, -1) .> arr)
+    idxmax = (circshift(arr, 1) .< arr) .&& (circshift(arr, -1) .< arr)
+    return idxmin .|| idxmax
+end

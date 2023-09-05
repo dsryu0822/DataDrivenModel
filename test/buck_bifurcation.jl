@@ -10,7 +10,7 @@ const RC = R*C
 
 using ProgressBars
 packages = [:DataFrames, :CSV, :Plots, :LaTeXStrings]
-@time for package in ProgressBar(packages)
+for package in ProgressBar(packages)
     @eval using $(package)
 end
 println(join(packages, ", "), " loaded!")
@@ -19,17 +19,10 @@ function Euler(f::Function,v::AbstractVector, h=10^(-2))
     V1 = f(v)
     return v + h*V1, V1
 end
-function RK4(f::Function,v::AbstractVector, h=10^(-2))
-    V1 = f(v)
-    V2 = f(v + (h/2)*V1)
-    V3 = f(v + (h/2)*V2)
-    V4 = f(v + h*V3)
-    return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
-end
 
 Vr(t) = γ + η * (mod(t, T))
 
-function factory_buck(idx::Int64, E::Number)
+function factory_buck(idx::Int64, E::Number; flag_filesave = false)
     EdL = E/L
     
     controlterm = 0.0
@@ -38,16 +31,12 @@ function factory_buck(idx::Int64, E::Number)
 
         V̇ = - V/(RC) + I/C
         İ = - (V/L) + controlterm
-        # İ = - (V/L) + ifelse(V < Vr(t), E/L, 0)
         return [V̇, İ]
     end
-    dt = 10^(-7); tend = 5.0
+    dt = 10^(-7); tend = 0.5
     t_ = 0:dt:tend
     Vr_ = Vr.(t_)
-    # flag_filesave = true
-    # ndatapoints = 1
-    flag_filesave = false
-    # ndatapoints = round(Int64, 1/200dt)
+
     ndatapoints = round(Int64, tend/(100dt))
 
     len_t_ = length(t_)
@@ -83,31 +72,30 @@ function factory_buck(idx::Int64, E::Number)
     return data
 end
 
-E_range = 15:1:40
-# E_range = [15:0.1:24; 24:0.01:40]
+# E_range = 15:40
+E_range = 15:0.001:40
 schedule = DataFrame(idx = eachindex(E_range), E = E_range)
 
 xdots = Float64[]; ydots = Float64[]
 for dr in ProgressBar(eachrow(schedule))
     data = factory_buck(dr.idx, dr.E)
     
-    # idx_jump = (diff(data.dI)) .< -100
-    # sampledV = data.V[Not([end])][idx_jump]
     idx_sampled = diff(data.Vr) .< 0
     sampledV = data[Not(1), :V][idx_sampled]
     append!(xdots, fill(dr.E, length(sampledV)))
     append!(ydots, sampledV)
 end
-@showtime a1 = scatter(xdots, ydots, label = :none, msw = 0, color = :black, ms = 1, alpha = 0.5, size = (1000, 600))
+@time a1 = scatter(xdots, ydots,
+xlabel = L"E", ylabel = L"V",
+label = :none, msw = 0, color = :black, ms = 0.5, alpha = 0.5, size = (700, 480));
 
-png(a1, "a1")
-plot(a1)
+png(a1, "buck_bifurcation")
 
-E_range = [20, 30.5, 31.5, 32.1, 33, 40]
-schedule = DataFrame(idx = eachindex(E_range), E = E_range)
-for dr in ProgressBar(eachrow(schedule))
-    data = factory_buck(dr.idx, dr.E)
-end
+# E_range = [20, 30.5, 31.5, 32.1, 33, 40]
+# schedule = DataFrame(idx = eachindex(E_range), E = E_range)
+# for dr in ProgressBar(eachrow(schedule))
+#     data = factory_buck(dr.idx, dr.E)
+# end
 
 
 # schedule[100:800,:]
