@@ -1,4 +1,4 @@
-using LinearAlgebra, Clustering, CSV, DataFrames
+using LinearAlgebra, Clustering, CSV, DataFrames, Flux
 
 function col_normalize(M)
     return M ./ norm.(eachcol(M))'

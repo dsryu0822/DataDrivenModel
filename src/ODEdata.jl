@@ -104,7 +104,7 @@ if !isfile("./data/softimp.csv")
     U = stack(u_)[:, quat:end]
     ∇ = stack(∇_)[:, quat:end]
 
-    CSV.write("data/softimp", DataFrame(
+    CSV.write("data/softimp.csv", DataFrame(
         [U' ∇[2:3, :]'],
         ["t", "u", "v", "du", "dv"])
     )

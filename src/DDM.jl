@@ -1,6 +1,4 @@
-using Combinatorics
-using LinearAlgebra
-using SparseArrays
+using Combinatorics, LinearAlgebra, SparseArrays
 
 function STLSQ(Θ, dXdt, λ = 10^(-6))
     if Θ isa AbstractSparseMatrix
@@ -18,7 +16,7 @@ function STLSQ(Θ, dXdt, λ = 10^(-6))
             i_ = .!🚫[:, j]
             Ξ[i_, j] = Θ[:,i_] \ dXdt[:,j]
         end
-        if __🚫 == 🚫 println("Stopped!"); break end # Early stopping
+        if __🚫 == 🚫 println("Stopped!"); break end # Earl_X stopping
         __🚫 = deepcopy(🚫)
     end
     println("MSE: ", sum(abs2, Θ * Ξ - dXdt) / length(dXdt))
@@ -63,16 +61,24 @@ function poly_basis(v::AbstractVector, K = 1; forcing = false)
 end
 # poly_basis(v, 4)
 
-function col_prod(A::AbstractMatrix, B::AbstractMatrix)
-    C_ = []
-    for a in eachcol(A)
-        push!(C_, a .* B)
+# function col_prod(A::AbstractMatrix, B::AbstractMatrix)
+#     C_ = []
+#     for a in eachcol(A)
+#         push!(C_, a .* B)
+#     end
+#     C = reduce(hcat, C_)
+#     if (A isa AbstractSparseMatrix) ||
+#        (B isa AbstractSparseMatrix)
+#         C = sparse(C)
+#     end
+#     return C
+# end
+# col_prod(A::AbstractVector, B::AbstractVector) = col_prod(A', B')
+
+function col_func(X, f_)
+    _X = deepcopy(X)
+    for f in f_
+        _X = [_X f.(X)]
     end
-    C = reduce(hcat, C_)
-    if (A isa AbstractSparseMatrix) ||
-       (B isa AbstractSparseMatrix)
-        C = sparse(C)
-    end
-    return C
+    return _X
 end
-col_prod(A::AbstractVector, B::AbstractVector) = col_prod(A', B')
