@@ -80,6 +80,8 @@ if !isfile("./data/softimp.csv")
 
     const d2 = 0.08
 
+    local ∇
+
     function softimp(tuv)
         t, u, v    = tuv
 
