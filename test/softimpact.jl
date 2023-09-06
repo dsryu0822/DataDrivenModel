@@ -56,5 +56,4 @@ mtrx_sindy[1]
 mtrx_sindy[2]
 mtrx_sindy[3]
 mtrx_sindy[4]
-
 mtrx_sindy[1] - mtrx_sindy[3]
