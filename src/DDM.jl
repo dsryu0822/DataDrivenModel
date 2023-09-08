@@ -82,3 +82,8 @@ function col_func(X, f_)
     end
     return _X
 end
+
+
+
+collect(multiexponents(length(0:3), 2))
+
