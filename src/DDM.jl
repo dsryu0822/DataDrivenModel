@@ -5,8 +5,13 @@ struct STLSQresult
     matrix::AbstractMatrix
     MSE::Float64
 end
+function Base.show(io::IO, ed::STLSQresult)
+    show(io, "text/plain", sparse(ed.matrix))
+    println()
+    print(io, "MSE = $(ed.MSE)")    
+end
 
-function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = true)::STLSQresult
+function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = false)::STLSQresult
     if Θ isa AbstractSparseMatrix
         Θ = Matrix(Θ)
     end
@@ -30,13 +35,16 @@ function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = true)::STLSQresult
 
     return STLSQresult(Ξ, MSE)
 end
-
-function Base.show(io::IO, ed::STLSQresult)
-    show(io, "text/plain", sparse(ed.matrix))
-    println()
-    print(io, "MSE = $(ed.MSE)")    
+function STLSQ(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T}, f_ = nothing;
+    λ = 10^(-6), verbose = false) where T <: Union{Integer, Symbol}
+    if f_ |> isnothing
+        X = Matrix(df[:, Xsyms])
+    else
+        X = col_func(Matrix(df[:, Xsyms]), f_)
+    end
+    Y = Matrix(df[:, Ysyms])
+    return STLSQ(X, Y, λ = λ, verbose = verbose)
 end
-
 # X = rand(0:9, 5,3)
 # v = X[1,:]
 # STLSQ(X,v,0.1)
@@ -104,8 +112,3 @@ function col_func(X::AbstractVector, f_)
     end
     return _X
 end
-
-
-
-collect(multiexponents(length(0:3), 2))
-
