@@ -8,26 +8,19 @@ using Plots, LaTeXStrings; default(msw = 0, color = :black)
 d_range = 0.1:0.0001:0.3
 plan = DataFrame(idx = eachindex(d_range), d = d_range)
 
-cd("//155.230.155.221/ty/DS")
+cd("//155.230.155.221/ty/DS"); pwd()
 
 dr = eachrow(plan)[1]
 data = factory_soft(dr.idx, dr.d)
 valnames = ["t" "u" "v" "cos(t)" "cos(u)" "cos(v)" "abs(t)" "abs(u)" "abs(v)" "sign(t)" "sign(u)" "sign(v)"] |> vec
 
 _data = data[1:10:end, :]
-# points = Matrix(_data[:, [:u, :v, :dv]] |> col_normalize)'
-
-
-# kmeansed = kmeans(log10.(abs.(_data.dv))', 2); subsystem = kmeansed.assignments
-# @time dbscaned = dbscan(points, 0.0025); subsystem = dbscaned.assignments;
-# subsystem = 1 .+ (abs.(_data.dv) .> 1)
-# _data[:, :subsystem]  = subsystem;
 
 using ProgressBars
 using Random
 
 n = nrow(_data)
-sampled = rand(1:n, 12) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
+# sampled = rand(1:n, 12) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
 X = col_func(Matrix(_data[sampled, [:t, :u, :v]]), [cospi, abs, sign])
 Y = Matrix(_data[sampled, [:du, :dv]])
 STLSQ(X, Y, λ = 0.1)
@@ -53,11 +46,6 @@ for k in ProgressBar(1:n)
     end
 end
 scatter(log10.(error_))
-
-# Z = col_func(Matrix(_data[[sampled; 1], [:t, :u, :v]]), [cospi, abs, sign])
-# det(Z)
-# Z[:,1] .== Z[:,7]
-
 
 subsystem = ones(Int64, n); subsystem[stranger] .= 2;
 _data[:, :subsystem]  = subsystem;
@@ -102,7 +90,6 @@ for t in ProgressBar(x[1]:dt:50)
     s = predict(Dtree, x_[end])
     x, dx = RK4(g, s, x_[end], dt)
     push!(x_, x)
-    push!(dx_, dx)
 end
 
 uv1 = plot(data.t[1:10:end], data.u[1:10:end], label = "data")
