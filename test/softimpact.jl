@@ -10,56 +10,105 @@ plan = DataFrame(idx = eachindex(d_range), d = d_range)
 
 cd("//155.230.155.221/ty/DS")
 
-dr = eachrow(plan)[501]
+dr = eachrow(plan)[1]
 data = factory_soft(dr.idx, dr.d)
-
-data[:, :ddv] = [diff(data.dv)[1]; diff(data.dv)]
-_data = data[1:1:end, :]
-
-# histogram(diff(__data.dv), yscale = :log10, xlabel = "u'''"); png("230907 2");
-# scatter(__data.u[Not(1)], diff(__data.dv), xlabel = "u", ylabel = "u'''"); png("230907 4");
-
-# histogram(log.(abs.(_data.ddv)), xlabel = "log.(abs.(_data.ddv))", yscale = :log10); png("230907 2")
-
-# points = col_normalize([_data.u _data.v _data.dv])'
-histogram(log.(abs.(_data.ddv)), xlabel = "log.(abs.(_data.ddv))", yscale = :log10); png("230907 3")
-
-subsystem = (log.(abs.(_data.ddv)) .< -10) .+ 1
-scatter(_data.u, _data.v, _data.dv, color = subsystem, label = :none, ms = 1, alpha = 0.5); png("230907")
-
 valnames = ["t" "u" "v" "cos(t)" "cos(u)" "cos(v)" "abs(t)" "abs(u)" "abs(v)" "sign(t)" "sign(u)" "sign(v)"] |> vec
-# valnames = poly_basis(valnames', 2, forcing = true) |> vec
 
-_data[:, :subsystem]  = subsystem
+_data = data[1:10:end, :]
+# points = Matrix(_data[:, [:u, :v, :dv]] |> col_normalize)'
+
+
+# kmeansed = kmeans(log10.(abs.(_data.dv))', 2); subsystem = kmeansed.assignments
+# @time dbscaned = dbscan(points, 0.0025); subsystem = dbscaned.assignments;
+# subsystem = 1 .+ (abs.(_data.dv) .> 1)
+# _data[:, :subsystem]  = subsystem;
+
+using ProgressBars
+using Random
+
+n = nrow(_data)
+sampled = rand(1:n, 12) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
+X = col_func(Matrix(_data[sampled, [:t, :u, :v]]), [cospi, abs, sign])
+Y = Matrix(_data[sampled, [:du, :dv]])
+STLSQ(X, Y, λ = 0.1)
+
+stranger = Int64[]
+error_ = Float64[]
+for k in ProgressBar(1:n)
+    if k ∈ sampled continue end
+    sampledk = [sampled; k]
+    X = col_func(Matrix(_data[sampledk, [:t, :u, :v]]), [cospi, abs, sign])
+    Y = Matrix(_data[sampledk, [:du, :dv]])
+    try
+        result = STLSQ(X, Y, λ = 0.1, verbose = false)
+        error = result.MSE
+        push!(error_, result.MSE)
+        if log10(error) > -20
+            push!(stranger, k)
+        end
+    catch err
+        if err isa SingularException
+            push!(error_, 10^(-30))
+        end
+    end
+end
+scatter(log10.(error_))
+
+# Z = col_func(Matrix(_data[[sampled; 1], [:t, :u, :v]]), [cospi, abs, sign])
+# det(Z)
+# Z[:,1] .== Z[:,7]
+
+
+subsystem = ones(Int64, n); subsystem[stranger] .= 2;
+_data[:, :subsystem]  = subsystem;
+
+scatter(_data.u, _data.v, _data.dv,
+xlabel = L"u", ylabel = L"v", zlabel = L"dv",
+color = subsystem, label = :none,
+ms = 1, alpha = 0.5,
+size = (800, 800))
+png("230920_1")
 
 gdf_ = groupby(_data, :subsystem)
-mtrx_ = []
+STLSQ_ = []
 for gdf in gdf_
-    X = poly_basis(Matrix(gdf[:, [:t, :u, :v]]), 3)
-    # X = col_func(Matrix(gdf[:, [:t, :u, :v]]), [cospi, abs, sign])
+    # X = poly_basis(Matrix(gdf[:, [:t, :u, :v]]), 3)
+    X = col_func(Matrix(gdf[:, [:t, :u, :v]]), [cospi, abs, sign])
     Y = Matrix(gdf[:, [:du, :dv]])
-    push!(mtrx_, STLSQ(X, Y, 0.1))
+    push!(STLSQ_, STLSQ(X, Y, λ = 0.1))
 end
-mtrx_[1]
-mtrx_[2]
-[valnames mtrx_[1]]
-[valnames mtrx_[2]]
+STLSQ_[1]
+STLSQ_[2]
 
-scatter(cospi.(gdf_[1].t), gdf_[1].dv)
+function factory_STLSQ(STLSQed)
+    function f(s, x)
+        return [1; vec(col_func(x', [cospi, abs, sign]) * STLSQed[s].matrix)]
+    end
+    return f
+end
+g = factory_STLSQ(STLSQ_)
 
-Plots.gr()
-scatter(gdf_[1].u, gdf_[1].v, gdf_[1].dv, zlims = (-150, 200), ms = 0.1); png("temp1")
-scatter(gdf_[2].u, gdf_[2].v, gdf_[2].dv, zlims = (-150, 200), ms = 0.1); png("temp2")
 
+using DecisionTree
+Dtree = DecisionTreeClassifier(max_depth = 3)
+fit!(Dtree, Matrix(_data[:, [:t, :u, :v]]), subsystem)
+print_tree(Dtree, 5)
 
-STLSQ(
-    [cospi.(gdf_[1].t) gdf_[1].u gdf_[1].v sign.(gdf_[1].u)],
-    [gdf_[1].du gdf_[1].dv], 0.1)
+x_ = [collect(data[1,1:3])]
+x = x_[end]
 
-z = [cospi.(gdf_[1].t) gdf_[1].u gdf_[1].v sign.(gdf_[1].u)]
+dt = 10^(-5)
+for t in ProgressBar(x[1]:dt:50)
+    s = predict(Dtree, x_[end])
+    x, dx = RK4(g, s, x_[end], dt)
+    push!(x_, x)
+    push!(dx_, dx)
+end
 
-points = reshape(log.(abs.(_data.ddv)), 1, :)
-ε = 0.1
-@time dbscaned = dbscan(points, ε); dbscaned.counts
-subsystem = dbscaned.assignments
-# scatter(_data.u, _data.v, _data.dv, title = L"ε=" * "$ε", color = subsystem, label = :none, ms = 1);
+uv1 = plot(data.t[1:10:end], data.u[1:10:end], label = "data")
+plot!(uv1, data.t[1:10:end], stack(x_)[2,1:10:end], color = :red, style = :dash, label = "predicted")
+
+uv2 = plot(data.t[1:10:end], data.v[1:10:end], label = "data")
+plot!(uv2, data.t[1:10:end], stack(x_)[3,1:10:end], color = :red, style = :dash, label = "predicted")
+
+plot(uv1, uv2, layout = (2,1), size = (800, 800)); png("230920_2")

@@ -1,6 +1,12 @@
 using Combinatorics, LinearAlgebra, SparseArrays
+using Printf
 
-function STLSQ(Θ, dXdt, λ = 10^(-6))
+struct STLSQresult
+    matrix::AbstractMatrix
+    MSE::Float64
+end
+
+function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = true)::STLSQresult
     if Θ isa AbstractSparseMatrix
         Θ = Matrix(Θ)
     end
@@ -9,20 +15,28 @@ function STLSQ(Θ, dXdt, λ = 10^(-6))
     __🚫 = 0
     
     while true
-        print(".")
+        verbose && print(".")
         🚫 = abs.(Ξ) .< λ
         Ξ[🚫] .= 0
         for j in 1:dim
             i_ = .!🚫[:, j]
             Ξ[i_, j] = Θ[:,i_] \ dXdt[:,j]
         end
-        if __🚫 == 🚫 println("Stopped!"); break end # Earl_X stopping
+        if __🚫 == 🚫 verbose && println("Stopped!"); break end # Earl_X stopping
         __🚫 = deepcopy(🚫)
     end
-    println("MSE: ", sum(abs2, Θ * Ξ - dXdt) / length(dXdt))
+    MSE = sum(abs2, Θ * Ξ - dXdt) / length(dXdt)
+    verbose && println("MSE: $MSE")
 
-    return Ξ
+    return STLSQresult(Ξ, MSE)
 end
+
+function Base.show(io::IO, ed::STLSQresult)
+    show(io, "text/plain", sparse(ed.matrix))
+    println()
+    print(io, "MSE = $(ed.MSE)")    
+end
+
 # X = rand(0:9, 5,3)
 # v = X[1,:]
 # STLSQ(X,v,0.1)
@@ -75,10 +89,18 @@ end
 # end
 # col_prod(A::AbstractVector, B::AbstractVector) = col_prod(A', B')
 
-function col_func(X, f_)
+function col_func(X::AbstractMatrix, f_)
     _X = deepcopy(X)
     for f in f_
         _X = [_X f.(X)]
+    end
+    return _X
+end
+
+function col_func(X::AbstractVector, f_)
+    _X = deepcopy(X)
+    for f in f_
+        _X = [_X; f.(X)]
     end
     return _X
 end
