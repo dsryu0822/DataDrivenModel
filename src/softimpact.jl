@@ -10,8 +10,23 @@ d_range = 0.1:0.0001:0.3
 plan = DataFrame(idx=eachindex(d_range), d=d_range)
 
 cd("//155.230.155.221/ty/DS");
-pwd();
-
+pwd()
+## -------------- begin bifurcation diagram -------------- ##
+# xdots = Float64[]; ydots = Float64[]
+# for dr in ProgressBar(eachrow(schedule))
+#     data = factory_soft(dr.idx, dr.d)
+#     idx = [false; diff(abs.(data.u) .> (dr.d/2)) .> 0]
+#     sampled = data.v[idx]
+#     append!(xdots, fill(dr.d, length(sampled)))
+#     append!(ydots, sampled)
+# end
+# @time a1 = scatter(xdots, ydots,
+# xlabel = L"d", ylabel = "Impact velocity",
+# label = :none, msw = 0, color = :black, ms = 0.5, alpha = 0.5, size = (700, 300))
+# png(a1, "soft_bifurcation")
+## -------------- end bifurcation diagram -------------- ##
+ 
+include("../src/ML.jl")
 dr = eachrow(plan)[1]
 data = factory_soft(dr.idx, dr.d)
 valnames = ["t" "u" "v" "cos(t)" "cos(u)" "cos(v)" "abs(t)" "abs(u)" "abs(v)" "sign(t)" "sign(u)" "sign(v)"] |> vec
@@ -84,12 +99,13 @@ for t in ProgressBar(x[1]:dt:50)
     x, dx = RK4(g, s, x_[end], dt)
     push!(x_, x)
 end
+_x_ = stack(x_)
 
 uv1 = plot(data.t[1:10:end], data.u[1:10:end], label="data")
-plot!(uv1, data.t[1:10:end], stack(x_)[2, 1:10:end], color=:red, style=:dash, label="predicted")
+plot!(uv1, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
 
 uv2 = plot(data.t[1:10:end], data.v[1:10:end], label="data")
-plot!(uv2, data.t[1:10:end], stack(x_)[3, 1:10:end], color=:red, style=:dash, label="predicted")
+plot!(uv2, data.t[1:10:end], _x_[3, 1:10:end], color=:red, style=:dash, label="predicted")
 
 plot(uv1, uv2, layout=(2, 1), size=(800, 800));
 png("temp 2");

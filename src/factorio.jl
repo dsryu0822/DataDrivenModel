@@ -1,14 +1,14 @@
 include("ODEdata.jl")
 
-# const m = 10^(-3)
-# const μ = 10^(-6)
-# const R = 22 # 22
-# const L = 20m # 20m
-# const C = 47μ # 22μ
-# const T = 400μ
-# const γ = 11.7 # 11.75238
-# const η = 1309.5 # 1309.524
-# const RC = R*C
+const m = 10^(-3)
+const μ = 10^(-6)
+const R = 22 # 22
+const L = 20m # 20m
+const C = 47μ # 22μ
+const T = 400μ
+const γ = 11.7 # 11.75238
+const η = 1309.5 # 1309.524
+const RC = R*C
 
 function factory_buck(idx::Int64, E::Number; flag_filesave = false)
     Vr(t) = γ + η * (mod(t, T))
@@ -63,7 +63,7 @@ function factory_buck(idx::Int64, E::Number; flag_filesave = false)
 end
 
 const κ = 400.0
-const μ = 172.363
+const _μ = 172.363
 
 function factory_soft(idx::Int64, d::Number)
     d2 = d/2
@@ -71,7 +71,7 @@ function factory_soft(idx::Int64, d::Number)
     function soft(tuv)
         t, u, v    = tuv
 
-        impact = ifelse(abs(u) < d2, 0, -(κ^2)*sign(u)*(abs(u)-d2) - μ*v)
+        impact = ifelse(abs(u) < d2, 0, -(κ^2)*sign(u)*(abs(u)-d2) - _μ*v)
         ṫ = 1
         u̇ = v
         v̇ = cospi(t) + impact
