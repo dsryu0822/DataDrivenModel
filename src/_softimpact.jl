@@ -24,7 +24,8 @@ pwd()
 ## -------------- end bifurcation diagram -------------- ##
 
 dr = eachrow(plan)[1]
-data = factory_soft(dr.idx, dr.d)
+@time data = factory_soft(dr.idx, dr.d)
+look(data)
 valnames = ["t" "u" "v" "cos(t)" "cos(u)" "cos(v)" "abs(t)" "abs(u)" "abs(v)" "sign(t)" "sign(u)" "sign(v)"] |> vec
 
 _data = data[1:10:end, :]
@@ -34,10 +35,7 @@ using Random
 
 n = nrow(_data)
 sampled = rand(1:n, 12) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
-# X = col_func(Matrix(_data[sampled, [:t, :u, :v]]), [cospi, abs, sign])
-# Y = Matrix(_data[sampled, [:du, :dv]])
-# STLSQ(X, Y, λ = 0.1)
-STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], [cospi, abs, sign], verbose=true)
+STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, abs, sign], verbose=true)
 
 
 stranger = Int64[]
@@ -48,7 +46,7 @@ for k in ProgressBar(1:n)
     end
     sampledk = [sampled; k]
 
-    result = STLSQ(_data[sampledk, :], [:du, :dv], [:t, :u, :v], [cospi, abs, sign])
+    result = STLSQ(_data[sampledk, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, abs, sign])
     error = result.MSE
     push!(error_, result.MSE)
     if error > eps(Float64)
@@ -69,7 +67,7 @@ scatter(_data.u, _data.v, _data.dv,
 png("temp 1")
 
 gdf_ = groupby(_data, :subsystem)
-STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], [cospi, abs, sign]) for gdf in gdf_]
+STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], f_ = [cospi, abs, sign]) for gdf in gdf_]
 STLSQ_[1]
 STLSQ_[2]
 
@@ -99,9 +97,11 @@ _x_ = stack(x_)
 
 uv1 = plot(data.t[1:10:end], data.u[1:10:end], label="data")
 plot!(uv1, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
+title!(uv1, "Soft impact")
 
 uv2 = plot(data.t[1:10:end], data.v[1:10:end], label="data")
 plot!(uv2, data.t[1:10:end], _x_[3, 1:10:end], color=:red, style=:dash, label="predicted")
+xlabel!(uv2, L"t")
 
 plot(uv1, uv2, layout=(2, 1), size=(800, 800));
 png("temp 2");

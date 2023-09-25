@@ -34,8 +34,8 @@ function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = false)::STLSQresult
 
     return STLSQresult(Ξ, MSE)
 end
-function STLSQ(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T},
-    K = 1, f_ = nothing;
+function STLSQ(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
+    K = 1, f_ = nothing,
     λ = 10^(-6), verbose = false) where T <: Union{Integer, Symbol}
     if f_ |> isnothing
         X = poly_basis(Matrix(df[:, Xsyms]), K)

@@ -1,5 +1,6 @@
 include("../src/factorio.jl")
 include("../src/DDM.jl")
+include("../src/visual.jl")
 const dt = 10^(-7)
 
 using Plots, LaTeXStrings;
@@ -12,9 +13,9 @@ cd("//155.230.155.221/ty/DS");
 pwd()
 
 dr = eachrow(plan)[end]
-data = factory_buck(dr.idx, dr.E)
-
-_data = data[1:10:end, :]
+@time data = factory_buck(dr.idx, dr.E)
+look(data)
+_data = data[1:end, :]
 # plot(data.V, data.I)
 
 using ProgressBars
@@ -67,12 +68,13 @@ g = factory_STLSQ(STLSQ_)
 
 
 using DecisionTree
-my_depth = 10
+my_depth = 8
 Dtree = DecisionTreeClassifier(max_depth=my_depth, n_subfeatures=2)
 features = Matrix(_data[:, [:V, :I, :Vr]])
 fit!(Dtree, features, subsystem)
 print_tree(Dtree, my_depth)
 acc = sum(subsystem .== predict(Dtree, features)) / length(subsystem)
+println(acc)
 
 x_ = [collect(data[1, [:V, :I]])]
 x = x_[end]

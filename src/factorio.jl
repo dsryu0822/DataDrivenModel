@@ -1,99 +1,86 @@
 include("ODEdata.jl")
 
-const m = 10^(-3)
-const μ = 10^(-6)
-const R = 22 # 22
-const L = 20m # 20m
-const C = 47μ # 22μ
-const T = 400μ
-const γ = 11.7 # 11.75238
-const η = 1309.5 # 1309.524
-const RC = R*C
+const _m = 10^(-3)
+const _μ = 10^(-6)
+const _R = 22 # 22
+const _L = 20_m # 20m
+const _C = 47_μ # 22μ
+const _T = 400_μ
+const _γ = 11.7 # 11.75238
+const _η = 1309.5 # 1309.524
+const _RC = _R*_C
 
-function factory_buck(idx::Int64, E::Number; flag_filesave = false)
-    Vr(t) = γ + η * (mod(t, T))
+function factory_buck(idx::Int64, E::Number, tspan = (0.495, 0.5), ic = [12.0, 0.55])
+    Vr(t) = _γ + _η * (mod(t, _T))
 
-    EdL = E/L
+    EdL = E/_L
     
-    controlterm = 0.0
-    function buck(VI::AbstractVector)
+    function buck(VI::AbstractVector, nonsmooth::Real)
         V, I = VI
 
-        V̇ = - V/(RC) + I/C
-        İ = - (V/L) + controlterm
+        V̇ = - V/(_RC) + I/_C
+        İ = - (V/_L) + nonsmooth
         return [V̇, İ]
     end
-    dt = 10^(-7); tend = 0.5
-    t_ = 0:dt:tend
+    dt = 10^(-7)
+    t_ = 0:dt:last(tspan)
     Vr_ = Vr.(t_)
 
-    ndatapoints = round(Int64, tend/(100dt))
+    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
 
     len_t_ = length(t_)
-    traj = zeros(4, len_t_+1)
-    u = [12.0, 0.55]
-    du = buck(u)
-    traj[1:2, 1] = u
-
+    x = ic; DIM = length(x)
+    traj = zeros(2DIM, len_t_+1)
+    traj[1:DIM, 1] = x
     
     for tk in 1:length(t_)
-        controlterm = ifelse(u[1] < Vr_[tk], EdL, 0)
-        u, du = Euler(buck, u, dt)
-        if tk ≥ ndatapoints
-            traj[3:4, tk  ] = du
-            traj[1:2, tk+1] =  u
+        nonsmooth = ifelse(x[1] < Vr_[tk], EdL, 0)
+        x, dx = RK4(buck, x, nonsmooth, dt)
+        if tk+1 ≥ (len_t_ - ndatapoints)
+            traj[        1:DIM , tk+1] =  x
+            traj[DIM .+ (1:DIM), tk  ] = dx
         end
     end
     traj = traj[:, 1:(end-1)]'
+    traj = [t_ traj Vr_][(end-ndatapoints):end, :]
 
-    if flag_filesave
-        data = DataFrame(
-            [t_ traj Vr_],
-            ["t", "V", "I", "dV", "dI", "Vr"])
-            @warn "file saving mode!"
-            CSV.write("G:/buck/buck_$(lpad(idx, 6, '0')).csv", data)
-        return nothing
-    else
-        data = DataFrame(
-            [t_ traj Vr_][(end-ndatapoints):end, :],
-            ["t", "V", "I", "dV", "dI", "Vr"])
-    end
+    data = DataFrame(traj,
+        ["t", "V", "I", "dV", "dI", "Vr"])
 
     return data
 end
 
-const _κ = 400.0
-const _μ = 172.363
-
-function factory_soft(idx::Int64, d::Number)
+const __κ = 400.0
+const __μ = 172.363
+function factory_soft(idx::Int64, d::Number, tspan = (45, 50), ic = [0.0, 0.05853, 0.47898])
     d2 = d/2
     
-    function soft(tuv)
+    function soft(tuv::AbstractVector, nonsmooth::Real)
         t, u, v = tuv
 
-        impact = ifelse(abs(u) < d2, 0, -(_κ^2)*sign(u)*(abs(u)-d2) - _μ*v)
         ṫ = 1
         u̇ = v
-        v̇ = cospi(t) + impact
+        v̇ = cospi(t) + nonsmooth
         return [ṫ, u̇, v̇]
     end
-    dt = 10^(-5); tend = 50
-    t_ = 0:dt:tend
+    dt = 10^(-5)
+    t_ = 0:dt:last(tspan)
 
-    ndatapoints = round(Int64, tend/(10dt))
+    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
 
     len_t_ = length(t_)
-    traj = zeros(6, len_t_+1)
-    x = [0.0, 0.05853, 0.47898]
-    dx = soft(x)
-    traj[1:3, 1] = x
+    x = ic; DIM = length(x)
+    traj = zeros(2DIM, len_t_+1)
+    traj[1:DIM, 1] = x
 
     
-    for tk in 1:length(t_)
-        x, dx = RK4(soft, x, dt)
-        if tk ≥ ndatapoints
-            traj[4:6, tk  ] = dx
-            traj[1:3, tk+1] =  x
+    for tk in 1:len_t_
+         # u == x[2], v == x[3]
+        nonsmooth = ifelse(abs(x[2]) < d2, 0, -(__κ^2)*sign(x[2])*(abs(x[2])-d2) - __μ*x[3])
+        x, dx = RK4(soft, x, nonsmooth, dt)
+        if tk+1 ≥ (len_t_ - ndatapoints)
+            traj[        1:DIM , tk+1] =  x
+            traj[DIM .+ (1:DIM), tk  ] = dx
         end
     end
     traj = traj[:, (end-ndatapoints):(end-1)]'
