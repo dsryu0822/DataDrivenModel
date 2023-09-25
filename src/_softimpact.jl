@@ -1,10 +1,7 @@
 include("../src/factorio.jl")
-include("../src/ML.jl")
 include("../src/DDM.jl")
-dt = 10^(-5)
-
-using Plots, LaTeXStrings;
-default(msw=0, color=:black);
+include("../src/visual.jl")
+const _dt = 10^(-5)
 
 d_range = 0.1:0.0001:0.3
 plan = DataFrame(idx=eachindex(d_range), d=d_range)
@@ -25,8 +22,7 @@ pwd()
 # label = :none, msw = 0, color = :black, ms = 0.5, alpha = 0.5, size = (700, 300))
 # png(a1, "soft_bifurcation")
 ## -------------- end bifurcation diagram -------------- ##
- 
-include("../src/ML.jl")
+
 dr = eachrow(plan)[1]
 data = factory_soft(dr.idx, dr.d)
 valnames = ["t" "u" "v" "cos(t)" "cos(u)" "cos(v)" "abs(t)" "abs(u)" "abs(v)" "sign(t)" "sign(u)" "sign(v)"] |> vec
@@ -94,9 +90,9 @@ print_tree(Dtree, 5)
 x_ = [collect(data[1, [:t, :u, :v]])]
 x = x_[end]
 
-for t in ProgressBar(x[1]:dt:50)
+for t in ProgressBar(x[1]:_dt:50)
     s = predict(Dtree, x_[end])
-    x, dx = RK4(g, s, x_[end], dt)
+    x, dx = RK4(g, s, x_[end], _dt)
     push!(x_, x)
 end
 _x_ = stack(x_)

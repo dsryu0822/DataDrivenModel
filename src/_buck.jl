@@ -1,7 +1,6 @@
 include("../src/factorio.jl")
-include("../src/ML.jl")
 include("../src/DDM.jl")
-dt = 10^(-7)
+const dt = 10^(-7)
 
 using Plots, LaTeXStrings;
 default(msw=0, color=:black);
@@ -12,7 +11,6 @@ plan = DataFrame(idx=eachindex(E_range), E=E_range)
 cd("//155.230.155.221/ty/DS");
 pwd()
 
-include("../src/ML.jl")
 dr = eachrow(plan)[end]
 data = factory_buck(dr.idx, dr.E)
 
@@ -25,7 +23,6 @@ using Random
 n = nrow(_data)
 sampled = rand(1:n, 3) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
 STLSQ(_data[sampled, :], [:dV, :dI], [:V, :I], verbose=true)
-
 
 stranger = Int64[]
 error_ = Float64[]

@@ -1,5 +1,4 @@
 using Combinatorics, LinearAlgebra, SparseArrays
-using Printf
 
 struct STLSQresult
     matrix::AbstractMatrix
@@ -31,7 +30,7 @@ function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = false)::STLSQresult
         __🚫 = deepcopy(🚫)
     end
     MSE = sum(abs2, Θ * Ξ - dXdt) / length(dXdt)
-    verbose && println("MSE: $MSE")
+    verbose && println("MSE = $MSE")
 
     return STLSQresult(Ξ, MSE)
 end

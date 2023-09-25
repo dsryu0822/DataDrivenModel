@@ -16,8 +16,8 @@ function factory_buck(idx::Int64, E::Number; flag_filesave = false)
     EdL = E/L
     
     controlterm = 0.0
-    function buck(v::AbstractVector)
-        V, I = v
+    function buck(VI::AbstractVector)
+        V, I = VI
 
         V̇ = - V/(RC) + I/C
         İ = - (V/L) + controlterm
@@ -36,12 +36,12 @@ function factory_buck(idx::Int64, E::Number; flag_filesave = false)
     traj[1:2, 1] = u
 
     
-    for t in 1:length(t_)
-        controlterm = ifelse(u[1] < Vr_[t], EdL, 0)
+    for tk in 1:length(t_)
+        controlterm = ifelse(u[1] < Vr_[tk], EdL, 0)
         u, du = Euler(buck, u, dt)
-        if t ≥ ndatapoints
-            traj[3:4,   t] = du
-            traj[1:2, t+1] = u
+        if tk ≥ ndatapoints
+            traj[3:4, tk  ] = du
+            traj[1:2, tk+1] =  u
         end
     end
     traj = traj[:, 1:(end-1)]'
@@ -62,16 +62,16 @@ function factory_buck(idx::Int64, E::Number; flag_filesave = false)
     return data
 end
 
-const κ = 400.0
+const _κ = 400.0
 const _μ = 172.363
 
 function factory_soft(idx::Int64, d::Number)
     d2 = d/2
     
     function soft(tuv)
-        t, u, v    = tuv
+        t, u, v = tuv
 
-        impact = ifelse(abs(u) < d2, 0, -(κ^2)*sign(u)*(abs(u)-d2) - _μ*v)
+        impact = ifelse(abs(u) < d2, 0, -(_κ^2)*sign(u)*(abs(u)-d2) - _μ*v)
         ṫ = 1
         u̇ = v
         v̇ = cospi(t) + impact
@@ -89,11 +89,11 @@ function factory_soft(idx::Int64, d::Number)
     traj[1:3, 1] = x
 
     
-    for t in 1:length(t_)
+    for tk in 1:length(t_)
         x, dx = RK4(soft, x, dt)
-        if t ≥ ndatapoints
-            traj[4:6,   t] = dx
-            traj[1:3, t+1] = x
+        if tk ≥ ndatapoints
+            traj[4:6, tk  ] = dx
+            traj[1:3, tk+1] =  x
         end
     end
     traj = traj[:, (end-ndatapoints):(end-1)]'
