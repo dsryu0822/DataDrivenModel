@@ -35,17 +35,15 @@ _data = data[1:10:end, :]
 using ProgressBars
 
 n = nrow(_data)
-sampled = rand(1:n, 12) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
-# sampled = rand(20593:31480, 56)
-# sampled = rand(1:n, length(poly_basis(1:3, 5)))
-α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], verbose=true, λ = 0.1).matrix
-# α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], K = 5, verbose=true, λ = 0.1).matrix;
+sampled = rand(1:n, 80) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
+# α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], verbose=true, λ = 0.1).matrix
+α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], K = 5, f_ = [sign, abs], verbose=true, λ = 0.1).matrix
 
 stranger = Int64[]
 error_ = Float64[]
 for k in ProgressBar(1:n)
-    error = sum(abs2, collect(_data[k, [:du, :dv]])' .- func_basis(collect(_data[k, [:t, :u, :v]]), [cospi, sign, abs])'α)
-    # error = sum(abs2, collect(_data[k, [:du, :dv]])' .- poly_basis(collect(_data[k, [:t, :u, :v]]), 5)'α)
+    # error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], f_ = [cospi, sign, abs])*α)
+    error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], K = 5, f_ = [sign, abs])*α)
     push!(error_, error)
     if error > 1e-10
         push!(stranger, k)
@@ -72,7 +70,7 @@ STLSQ_[2]
 
 function factory_STLSQ(STLSQed)
     function f(s, x)
-        return [1; vec(func_basis(x', [cospi, sign, abs]) * STLSQed[s].matrix)]
+        return [1; vec(Θ(x, f_ = [cospi, sign, abs]) * STLSQed[s].matrix)]
     end
     return f
 end
@@ -87,7 +85,7 @@ print_tree(Dtree, 5)
 x_ = [collect(data[1, [:t, :u, :v]])]
 x = x_[end]
 
-for t in ProgressBar(x[1]:_dt:50)
+@time for t in ProgressBar(x[1]:_dt:50)
     s = predict(Dtree, x_[end])
     x, dx = RK4(g, s, x_[end], _dt)
     push!(x_, x)
@@ -107,11 +105,11 @@ png("temp 2");
 
 # ---
 
-@time data = factory_soft(dr.idx, dr.d, (45, 100))
+@time data = factory_soft(dr.idx, dr.d, (45, 60))
 x_ = [collect(data[1, [:t, :u, :v]])]
 x = x_[end]
 
-for t in ProgressBar(x[1]:_dt:100)
+for t in ProgressBar(x[1]:_dt:60)
     s = predict(Dtree, x_[end])
     x, dx = RK4(g, s, x_[end], _dt)
     push!(x_, x)

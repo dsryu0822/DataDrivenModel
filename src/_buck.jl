@@ -16,7 +16,6 @@ _data = data[1:end, :]
 # plot(data.V, data.I)
 
 using ProgressBars
-using Random
 
 n = nrow(_data)
 sampled = rand(1:n, 3) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
@@ -51,7 +50,7 @@ STLSQ_[2]
 
 function factory_STLSQ(STLSQed)
     function f(s, x)
-        return vec(poly_basis(x, 1)' * STLSQed[s].matrix)
+        return vec(Θ(x, K = 1) * STLSQed[s].matrix)
     end
     return f
 end

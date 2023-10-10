@@ -1,4 +1,4 @@
-using Combinatorics, LinearAlgebra, SparseArrays
+using Combinatorics, LinearAlgebra, SparseArrays, DataFrames
 
 struct STLSQresult
     matrix::AbstractMatrix
@@ -6,8 +6,8 @@ struct STLSQresult
 end
 function Base.show(io::IO, ed::STLSQresult)
     show(io, "text/plain", sparse(ed.matrix))
-    println()
-    print(io, "MSE = $(ed.MSE)")    
+    # println()
+    print(io, "\nMSE = $(ed.MSE)")    
 end
 
 function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)::STLSQresult
@@ -37,11 +37,7 @@ end
 function STLSQ(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
     K = 1, f_ = nothing,
     λ = 10^(-6), verbose = false) where T <: Union{Integer, Symbol}
-    if f_ |> isnothing
-        X = poly_basis(df[:, Xsyms], K)
-    else
-        X = func_basis(df[:, Xsyms], f_)
-    end
+    X = Θ(df[:, Xsyms], K = K, f_ = f_)
     Y = Matrix(df[:, Ysyms])
     return STLSQ(X, Y, λ = λ, verbose = verbose)
 end
@@ -49,56 +45,23 @@ end
 # v = X[1,:]
 # STLSQ(X,v,0.1)
 
-function poly_basis(X::AbstractMatrix, K = 1; forcing = false)
-    mtrx_X = Matrix(X)
-    if size(X, 2) > size(X, 1) && !forcing
-        @warn "X is not a tall matrix!"
-        return nothing
-    end
+function Θ(X::AbstractMatrix; K = 1, f_ = nothing)
     dim = size(X, 2)
     ansatz = []
 
     for k in 0:K
-        for case = collect(multiexponents(dim,k))
-            push!(ansatz, prod(mtrx_X .^ case', dims = 2))
+        for case = collect(multiexponents(dim, k))
+            push!(ansatz, prod(X .^ case', dims = 2))
         end
     end
-    return hcat(ansatz...)
-end
-# poly_basis(X, 4)
-
-function poly_basis(v::AbstractVector, K = 1; forcing = false)
-    if length(v) > 10 && !forcing
-        @warn "X seems to be no vector!"
-        return nothing
-    end
-    ansatz = []
-
-    for k ∈ 0:K
-        for case = collect(multiexponents(length(v),k))
-            push!(ansatz, v .^ case)
+    ΘX = hcat(ansatz...)
+    if f_ |> !isnothing
+        for f in f_
+            ΘX = [ΘX f.(X)]
         end
     end
-    return prod.(ansatz)
+    return ΘX
 end
-# poly_basis(v, 4)
-
-poly_basis(X::DataFrame, f_) = poly_basis(Matrix(X), f_)
-
-function func_basis(X::AbstractMatrix, f_)
-    _X = deepcopy(X)
-    for f in f_
-        _X = [_X f.(X)]
-    end
-    return _X
-end
-
-function func_basis(X::AbstractVector, f_)
-    _X = deepcopy(X)
-    for f in f_
-        _X = [_X; f.(X)]
-    end
-    return _X
-end
-
-func_basis(X::DataFrame, f_) = func_basis(Matrix(X), f_)
+Θ(X::AbstractVector; K = 1, f_ = nothing) = Θ(reshape(X, 1, :), K = K, f_ = f_)
+Θ(X::AbstractDataFrame; K = 1, f_ = nothing) = Θ(Matrix(X), K = K, f_ = f_)
+Θ(X::DataFrameRow; K = 1, f_ = nothing) = Θ(collect(X), K = K, f_ = f_)
