@@ -10,11 +10,11 @@ function Base.show(io::IO, ed::STLSQresult)
     print(io, "MSE = $(ed.MSE)")    
 end
 
-function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = false)::STLSQresult
-    if Θ isa AbstractSparseMatrix
-        Θ = Matrix(Θ)
+function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)::STLSQresult
+    if ΘX isa AbstractSparseMatrix
+        ΘX = Matrix(ΘX)
     end
-    Ξ = Θ \ dXdt
+    Ξ = ΘX \ Ẋ
     dim = size(Ξ, 2)
     __🚫 = 0
     
@@ -24,12 +24,12 @@ function STLSQ(Θ, dXdt; λ = 10^(-6), verbose = false)::STLSQresult
         Ξ[🚫] .= 0
         for j in 1:dim
             i_ = .!🚫[:, j]
-            Ξ[i_, j] = Θ[:,i_] \ dXdt[:,j]
+            Ξ[i_, j] = ΘX[:,i_] \ Ẋ[:,j]
         end
         if __🚫 == 🚫 verbose && println("Stopped!"); break end # Earl_X stopping
         __🚫 = deepcopy(🚫)
     end
-    MSE = sum(abs2, Θ * Ξ - dXdt) / length(dXdt)
+    MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ)
     verbose && println("MSE = $MSE")
 
     return STLSQresult(Ξ, MSE)
@@ -38,9 +38,9 @@ function STLSQ(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractV
     K = 1, f_ = nothing,
     λ = 10^(-6), verbose = false) where T <: Union{Integer, Symbol}
     if f_ |> isnothing
-        X = poly_basis(Matrix(df[:, Xsyms]), K)
+        X = poly_basis(df[:, Xsyms], K)
     else
-        X = col_func(Matrix(df[:, Xsyms]), f_)
+        X = func_basis(df[:, Xsyms], f_)
     end
     Y = Matrix(df[:, Ysyms])
     return STLSQ(X, Y, λ = λ, verbose = verbose)
@@ -83,21 +83,9 @@ function poly_basis(v::AbstractVector, K = 1; forcing = false)
 end
 # poly_basis(v, 4)
 
-# function col_prod(A::AbstractMatrix, B::AbstractMatrix)
-#     C_ = []
-#     for a in eachcol(A)
-#         push!(C_, a .* B)
-#     end
-#     C = reduce(hcat, C_)
-#     if (A isa AbstractSparseMatrix) ||
-#        (B isa AbstractSparseMatrix)
-#         C = sparse(C)
-#     end
-#     return C
-# end
-# col_prod(A::AbstractVector, B::AbstractVector) = col_prod(A', B')
+poly_basis(X::DataFrame, f_) = poly_basis(Matrix(X), f_)
 
-function col_func(X::AbstractMatrix, f_)
+function func_basis(X::AbstractMatrix, f_)
     _X = deepcopy(X)
     for f in f_
         _X = [_X f.(X)]
@@ -105,10 +93,12 @@ function col_func(X::AbstractMatrix, f_)
     return _X
 end
 
-function col_func(X::AbstractVector, f_)
+function func_basis(X::AbstractVector, f_)
     _X = deepcopy(X)
     for f in f_
         _X = [_X; f.(X)]
     end
     return _X
 end
+
+func_basis(X::DataFrame, f_) = func_basis(Matrix(X), f_)

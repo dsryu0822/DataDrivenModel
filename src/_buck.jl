@@ -3,9 +3,6 @@ include("../src/DDM.jl")
 include("../src/visual.jl")
 const dt = 10^(-7)
 
-using Plots, LaTeXStrings;
-default(msw=0, color=:black);
-
 E_range = 15:0.001:40
 plan = DataFrame(idx=eachindex(E_range), E=E_range)
 
@@ -23,20 +20,14 @@ using Random
 
 n = nrow(_data)
 sampled = rand(1:n, 3) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
-STLSQ(_data[sampled, :], [:dV, :dI], [:V, :I], verbose=true)
+α = STLSQ(_data[sampled, :], [:dV, :dI], [:V, :I], verbose=true).matrix
 
 stranger = Int64[]
 error_ = Float64[]
 for k in ProgressBar(1:n)
-    if k ∈ sampled
-        continue
-    end
-    sampledk = [sampled; k]
-
-    result = STLSQ(_data[sampledk, :], [:dV, :dI], [:V, :I])
-    error = result.MSE
-    push!(error_, result.MSE)
-    if error > eps(Float64)
+    error = sum(abs2, collect(_data[k, [:dV, :dI]])' .- [0; collect(_data[k, [:V, :I]])]'α)
+    push!(error_, error)
+    if error > 1e-8
         push!(stranger, k)
     end
 end
@@ -93,10 +84,27 @@ title!(uv1, "Buck converter")
 uv2 = plot(data.t[1:10:end], data.I[1:10:end], ylabel = L"I", label="data")
 plot!(uv2, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
 xlabel!(uv2, L"t")
-
-# uv3 = plot(data.V[1:10:end], data.I[1:10:end], xlabel = "V", ylabel = "I")
-# plot!(_x_[1, 1:10:end], _x_[2, 1:10:end], xlabel = "V", ylabel = "I", color=:red, style=:dash)
-
 plot(uv1, uv2, layout=(2, 1), size=(800, 800));
 png("temp 2");
 
+# ---
+
+@time data = factory_buck(dr.idx, dr.E, (0.495, 0.55))
+x_ = [collect(data[1, [:V, :I]])]
+x = x_[end]
+
+for ramp in ProgressBar(data.Vr)
+    s = predict(Dtree, [x_[end]; ramp])
+    x, dx = RK4(g, s, x_[end], dt)
+    push!(x_, x)
+end
+_x_ = stack(x_)
+
+uv1 = plot(data.t[1:10:end], data.V[1:10:end], ylabel = L"V", label="data")
+plot!(uv1, data.t[1:10:end], _x_[1, 1:10:end], color=:red, style=:dash, label="predicted")
+title!(uv1, "Buck converter")
+
+uv2 = plot(data.t[1:10:end], data.I[1:10:end], ylabel = L"I", label="data")
+plot!(uv2, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
+xlabel!(uv2, L"t")
+plot(uv1, uv2, layout=(2, 1), size=(1600, 900))

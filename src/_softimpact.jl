@@ -29,27 +29,25 @@ look(data)
 valnames = ["t" "u" "v" "cos(t)" "cos(u)" "cos(v)" "abs(t)" "abs(u)" "abs(v)" "sign(t)" "sign(u)" "sign(v)"] |> vec
 
 _data = data[1:10:end, :]
+# _data.du += 0.0001randn(nrow(_data)); _data.dv += 0.0001randn(nrow(_data))
+# _data.du = diff(data.u)[1:10:end]/_dt; _data.dv = diff(data.v)[1:10:end]/_dt
 
 using ProgressBars
-using Random
 
 n = nrow(_data)
 sampled = rand(1:n, 12) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
-STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, abs, sign], verbose=true)
-
+# sampled = rand(20593:31480, 56)
+# sampled = rand(1:n, length(poly_basis(1:3, 5)))
+α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], verbose=true, λ = 0.1).matrix
+# α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], K = 5, verbose=true, λ = 0.1).matrix;
 
 stranger = Int64[]
 error_ = Float64[]
 for k in ProgressBar(1:n)
-    if k ∈ sampled
-        continue
-    end
-    sampledk = [sampled; k]
-
-    result = STLSQ(_data[sampledk, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, abs, sign])
-    error = result.MSE
-    push!(error_, result.MSE)
-    if error > eps(Float64)
+    error = sum(abs2, collect(_data[k, [:du, :dv]])' .- func_basis(collect(_data[k, [:t, :u, :v]]), [cospi, sign, abs])'α)
+    # error = sum(abs2, collect(_data[k, [:du, :dv]])' .- poly_basis(collect(_data[k, [:t, :u, :v]]), 5)'α)
+    push!(error_, error)
+    if error > 1e-10
         push!(stranger, k)
     end
 end
@@ -67,13 +65,14 @@ scatter(_data.u, _data.v, _data.dv,
 png("temp 1")
 
 gdf_ = groupby(_data, :subsystem)
-STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], f_ = [cospi, abs, sign]) for gdf in gdf_]
+STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], λ = 0.1) for gdf in gdf_]
+# STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], K = 3, λ = 0.1) for gdf in gdf_]
 STLSQ_[1]
 STLSQ_[2]
 
 function factory_STLSQ(STLSQed)
     function f(s, x)
-        return [1; vec(col_func(x', [cospi, abs, sign]) * STLSQed[s].matrix)]
+        return [1; vec(func_basis(x', [cospi, sign, abs]) * STLSQed[s].matrix)]
     end
     return f
 end
@@ -105,3 +104,64 @@ xlabel!(uv2, L"t")
 
 plot(uv1, uv2, layout=(2, 1), size=(800, 800));
 png("temp 2");
+
+# ---
+
+@time data = factory_soft(dr.idx, dr.d, (45, 100))
+x_ = [collect(data[1, [:t, :u, :v]])]
+x = x_[end]
+
+for t in ProgressBar(x[1]:_dt:100)
+    s = predict(Dtree, x_[end])
+    x, dx = RK4(g, s, x_[end], _dt)
+    push!(x_, x)
+end
+_x_ = stack(x_)
+
+uv1 = plot(data.t[1:10:end], data.u[1:10:end], label="data")
+plot!(uv1, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
+title!(uv1, "Soft impact")
+
+uv2 = plot(data.t[1:10:end], data.v[1:10:end], label="data")
+plot!(uv2, data.t[1:10:end], _x_[3, 1:10:end], color=:red, style=:dash, label="predicted")
+xlabel!(uv2, L"t")
+
+plot(uv1, uv2, layout=(2, 1), size=(1600, 900))
+png("temp 2")
+# ---
+
+@time data = factory_soft(dr.idx, dr.d, (45, 50), [0.0, 0.04, 0.3])
+x_ = [collect(data[1, [:t, :u, :v]])]
+x = x_[end]
+
+for t in ProgressBar(x[1]:_dt:50)
+    s = predict(Dtree, x_[end])
+    x, dx = RK4(g, s, x_[end], _dt)
+    push!(x_, x)
+end
+_x_ = stack(x_)
+
+uv1 = plot(data.t[1:10:end], data.u[1:10:end], label="data")
+plot!(uv1, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
+title!(uv1, "Soft impact")
+
+uv2 = plot(data.t[1:10:end], data.v[1:10:end], label="data")
+plot!(uv2, data.t[1:10:end], _x_[3, 1:10:end], color=:red, style=:dash, label="predicted")
+xlabel!(uv2, L"t")
+
+plot(uv1, uv2, layout=(2, 1), size=(800, 800))
+png("temp")
+
+rank()
+
+ddist = sum.(abs2, eachrow(_data[:, [:du, :dv]]))
+ratio = ddist ./ circshift(ddist, 1)
+scatter(abs.(ratio .- 1))
+
+diff(findall(abs.(ratio .- 1) .> 1000))
+
+abs.(ratio .- 1)[abs.(ratio .- 1) .> 1000]
+hline!(h = minimum([true; diff(ddist)][ratio .> 1000]) / maximum(ddist))
+# scatter(log10.(abs.(ratio .- 1)))
+# plot!(findall(ratio .> 1000),
+# log10.(minimum([true; diff(ddist)][ratio .> 1000]) ./ ddist[ratio .> 1000]))
