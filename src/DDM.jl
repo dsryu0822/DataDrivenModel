@@ -35,9 +35,9 @@ function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)::STLSQresult
     return STLSQresult(Ξ, MSE)
 end
 function STLSQ(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
-    K = 1, f_ = nothing,
+    K = 1, M = 0, f_ = Function[],
     λ = 10^(-6), verbose = false) where T <: Union{Integer, Symbol}
-    X = Θ(df[:, Xsyms], K = K, f_ = f_)
+    X = Θ(df[:, Xsyms], K = K, M = M, f_ = f_)
     Y = Matrix(df[:, Ysyms])
     return STLSQ(X, Y, λ = λ, verbose = verbose)
 end
@@ -45,7 +45,7 @@ end
 # v = X[1,:]
 # STLSQ(X,v,0.1)
 
-function Θ(X::AbstractMatrix; K = 1, f_ = nothing)
+function Θ(X::AbstractMatrix; K = 1, M = 0, f_ = Function[])
     dim = size(X, 2)
     ansatz = []
 
@@ -55,13 +55,19 @@ function Θ(X::AbstractMatrix; K = 1, f_ = nothing)
         end
     end
     ΘX = hcat(ansatz...)
-    if f_ |> !isnothing
-        for f in f_
-            ΘX = [ΘX f.(X)]
-        end
+    for f in f_
+        ΘX = [ΘX f.(X)]
     end
+    for m in 1:M
+        ΘX = [ΘX cospi.(m*X) sinpi.(m*X)]
+    end
+
     return ΘX
 end
-Θ(X::AbstractVector; K = 1, f_ = nothing) = Θ(reshape(X, 1, :), K = K, f_ = f_)
-Θ(X::AbstractDataFrame; K = 1, f_ = nothing) = Θ(Matrix(X), K = K, f_ = f_)
-Θ(X::DataFrameRow; K = 1, f_ = nothing) = Θ(collect(X), K = K, f_ = f_)
+   Θ(X::AbstractVector; K = 1, M = 1, f_ = Function[]) = 
+    Θ(reshape(X, 1, :), K = K, M = M, f_ = f_)
+Θ(X::AbstractDataFrame; K = 1, M = 1, f_ = Function[]) = 
+           Θ(Matrix(X), K = K, M = M, f_ = f_)
+     Θ(X::DataFrameRow; K = 1, M = 1, f_ = Function[]) = 
+          Θ(collect(X), K = K, M = M, f_ = f_)
+Θ

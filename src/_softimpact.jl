@@ -35,15 +35,16 @@ _data = data[1:10:end, :]
 using ProgressBars
 
 n = nrow(_data)
-sampled = rand(1:n, 80) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
+sampled = rand(1:n, 14) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
 # α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], verbose=true, λ = 0.1).matrix
-α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], K = 5, f_ = [sign, abs], verbose=true, λ = 0.1).matrix
+α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], M = 2, verbose=true, λ = 0.1).matrix
 
 stranger = Int64[]
 error_ = Float64[]
 for k in ProgressBar(1:n)
     # error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], f_ = [cospi, sign, abs])*α)
-    error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], K = 5, f_ = [sign, abs])*α)
+    # error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], K = 5, f_ = [sign, abs])*α)
+    error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], M = 2)*α)
     push!(error_, error)
     if error > 1e-10
         push!(stranger, k)
@@ -63,14 +64,16 @@ scatter(_data.u, _data.v, _data.dv,
 png("temp 1")
 
 gdf_ = groupby(_data, :subsystem)
-STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], λ = 0.1) for gdf in gdf_]
+# STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], λ = 0.1) for gdf in gdf_]
 # STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], K = 3, λ = 0.1) for gdf in gdf_]
+STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], M = 2, λ = 0.1) for gdf in gdf_]
 STLSQ_[1]
 STLSQ_[2]
 
 function factory_STLSQ(STLSQed)
     function f(s, x)
-        return [1; vec(Θ(x, f_ = [cospi, sign, abs]) * STLSQed[s].matrix)]
+        # return [1; vec(Θ(x, f_ = [cospi, sign, abs]) * STLSQed[s].matrix)]
+        return [1; vec(Θ(x, M = 2) * STLSQed[s].matrix)]
     end
     return f
 end
