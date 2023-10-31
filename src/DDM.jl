@@ -1,4 +1,5 @@
 using Combinatorics, LinearAlgebra, SparseArrays, DataFrames
+@info "Packages Combinatorics, LinearAlgebra, SparseArrays, DataFrames loaded"
 
 struct STLSQresult
     matrix::AbstractMatrix
@@ -29,6 +30,7 @@ function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)::STLSQresult
         if __🚫 == 🚫 verbose && println("Stopped!"); break end # Earl_X stopping
         __🚫 = deepcopy(🚫)
     end
+    Ξ =  sparse(Ξ)
     MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ)
     verbose && println("MSE = $MSE")
 
@@ -64,10 +66,14 @@ function Θ(X::AbstractMatrix; K = 1, M = 0, f_ = Function[])
 
     return ΘX
 end
-   Θ(X::AbstractVector; K = 1, M = 1, f_ = Function[]) = 
+   Θ(X::AbstractVector; K = 1, M = 0, f_ = Function[]) = 
     Θ(reshape(X, 1, :), K = K, M = M, f_ = f_)
-Θ(X::AbstractDataFrame; K = 1, M = 1, f_ = Function[]) = 
+Θ(X::AbstractDataFrame; K = 1, M = 0, f_ = Function[]) = 
            Θ(Matrix(X), K = K, M = M, f_ = f_)
-     Θ(X::DataFrameRow; K = 1, M = 1, f_ = Function[]) = 
+     Θ(X::DataFrameRow; K = 1, M = 0, f_ = Function[]) = 
           Θ(collect(X), K = K, M = M, f_ = f_)
 Θ
+
+function FDM1(M::AbstractMatrix, dt = 0.1)
+   return DataFrame([diff(M, dims = 1)/dt M[2:end, :]], :auto)
+end

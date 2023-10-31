@@ -90,3 +90,56 @@ function factory_soft(idx::Int64, d::Number, tspan = (45, 50), ic = [0.0, 0.0585
 
     return data
 end
+
+const _a = 1.0
+const _b = 3.0
+const _c = 1.0
+const _d = 5.0
+const _k = 0.9
+const _f = 0.1
+const _ω = 1.0
+const _α = 0.1
+const _β = 0.8
+function factory_HR(idx::Int64, a::Number, tspan = (90, 100), ic = [0.0, 0.1, 0.1, 0.1])
+    
+    function HR(txyz::AbstractVector, nonsmooth::Real)
+        t,x,y,z=txyz
+
+        ṫ = 1
+        ẋ = y - _a*x^3 + _b*x^2 + _k*x*z + _f*cos(_ω*t)
+        ẏ = _c - _d*x^2 - y
+        ż = _α*nonsmooth + _β*x
+        return [ṫ, ẋ, ẏ, ż]
+    end
+    dt = 10^(-3)
+    t_ = 0:dt:last(tspan)
+
+    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
+
+    len_t_ = length(t_)
+    x = ic; DIM = length(x)
+    traj = zeros(2DIM, len_t_+1)
+    traj[1:DIM, 1] = x
+
+    
+    for tk in 1:len_t_
+         # u == x[2], v == x[3]
+        nonsmooth = sign(x[4]+1) + sign(x[4]-1) - x[4]
+        # if x[4] < -1
+        #     nonsmooth = -2 -x[4]
+        # elseif x[4] > 1
+        #     nonsmooth = 2 - x[4]
+        # end
+        x, dx = RK4(HR, x, nonsmooth, dt)
+        if tk+1 ≥ (len_t_ - ndatapoints)
+            traj[        1:DIM , tk+1] =  x
+            traj[DIM .+ (1:DIM), tk  ] = dx
+        end
+    end
+    traj = traj[:, (end-ndatapoints):(end-1)]'
+
+    data = DataFrame(traj,
+        ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
+
+    return data
+end
