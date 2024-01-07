@@ -1,6 +1,7 @@
 using Plots, LaTeXStrings
+@info "Packages Plots, LaTeXStrings loaded"
 default(msw=0, color=:black)
-
+mm = Plots.mm
 
 function look(data)
     vn = names(data)
