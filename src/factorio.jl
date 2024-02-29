@@ -19,11 +19,13 @@ function RK4(f::Function, v::AbstractVector, h=10^(-2), nonsmooth=0.0)
     V4 = f(v + h*V3, nonsmooth)
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
-function solve(f_, v, h = h=10^(-2), DT = nothing, anc_ = [])
-    V = zeros(1+length(anc_), length(v))
+function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
+    bit_anc = anc_ |> isnothing
+    V = zeros(1+length(t_), length(v))
     V[1, :] = v
-    @showprogress for (k, anc) in enumerate(anc_)
-        s = predict(DT, [v; anc])
+    @showprogress for k in 1:length(t_)
+        _v = bit_anc ? v : [v; anc_[k]]
+        s = predict(DT, _v)
         v, _ = RK4(f_[s], v, h)
         V[k+1, :] = v
     end
@@ -54,10 +56,9 @@ function factory_buck(idx::Int64, E::Number, ic = [12.0, 0.55], tspan = (0.00, 0
     dt = 10^(-7)
     t_ = 0:dt:last(tspan)
     Vr_ = Vr.(t_)
-
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
-
     len_t_ = length(t_)
+
     x = ic; DIM = length(x)
     traj = zeros(2DIM, len_t_+1)
     traj[1:DIM, 1] = x
@@ -87,15 +88,14 @@ function soft(tuv::AbstractVector, nonsmooth::Real)
     v̇ = cospi(t) + nonsmooth
     return [ṫ, u̇, v̇]
 end
-function factory_soft(idx::Int64, d::Number, ic = [0.0, 0.05853, 0.47898], tspan = (0, 20))
+function factory_soft(idx::Int64, d::Number, ic = [0.0, 0.0, 0.0], tspan = (0, 10))
     d2 = d/2
     
     dt = 10^(-5)
     t_ = 0:dt:last(tspan)
-
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
-
     len_t_ = length(t_)
+
     x = ic; DIM = length(x)
     traj = zeros(2DIM, len_t_+1)
     traj[1:DIM, 1] = x
@@ -108,13 +108,11 @@ function factory_soft(idx::Int64, d::Number, ic = [0.0, 0.05853, 0.47898], tspan
             traj[DIM .+ (1:DIM), tk  ] = dx
         end
     end
-    traj = traj[:, (end-ndatapoints):(end-1)]'
+    traj = traj[:, (end-ndatapoints-1):(end-2)]'
 
-    data = DataFrame(traj,
-        ["t", "u", "v", "dt", "du", "dv"])
-
-    return data
+    return traj
 end
+factory_soft(T::Type, args...) = DataFrame(factory_soft(args...), ["t", "u", "v", "dt", "du", "dv"])
 
 const _a = 1.0
 const _b = 3.0

@@ -6,163 +6,47 @@ const _dt = 10^(-5)
 d_range = 0.1:0.0001:0.3
 plan = DataFrame(idx=eachindex(d_range), d=d_range)
 
-cd("//155.230.155.221/ty/DS");
+# cd("//155.230.155.221/ty/DS");
 pwd()
-## -------------- begin bifurcation diagram -------------- ##
-# xdots = Float64[]; ydots = Float64[]
-# for dr in ProgressBar(eachrow(schedule))
-#     data = factory_soft(dr.idx, dr.d)
-#     idx = [false; diff(abs.(data.u) .> (dr.d/2)) .> 0]
-#     sampled = data.v[idx]
-#     append!(xdots, fill(dr.d, length(sampled)))
-#     append!(ydots, sampled)
-# end
-# @time a1 = scatter(xdots, ydots,
-# xlabel = L"d", ylabel = "Impact velocity",
-# label = :none, msw = 0, color = :black, ms = 0.5, alpha = 0.5, size = (700, 300))
-# png(a1, "soft_bifurcation")
-## -------------- end bifurcation diagram -------------- ##
 
 dr = eachrow(plan)[1]
-@time data = factory_soft(dr.idx, dr.d)
+@time data = factory_soft(DataFrame, dr.idx, dr.d)
 look(data)
-valnames = ["t" "u" "v" "cos(t)" "cos(u)" "cos(v)" "abs(t)" "abs(u)" "abs(v)" "sign(t)" "sign(u)" "sign(v)"] |> vec
-
-_data = data[1:10:end, :]
-# _data.du += 0.0001randn(nrow(_data)); _data.dv += 0.0001randn(nrow(_data))
-# _data.du = diff(data.u)[1:10:end]/_dt; _data.dv = diff(data.v)[1:10:end]/_dt
-
-using ProgressBars
+half = nrow(data) ÷ 2
+_data = data[1:half, :]
 
 n = nrow(_data)
-sampled = rand(1:n, 14) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
-# α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], verbose=true, λ = 0.1).matrix
-α = STLSQ(_data[sampled, :], [:du, :dv], [:t, :u, :v], M = 2, verbose=true, λ = 0.1).matrix
+sampled = rand(1:n, 15) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
+# sampled = 1:12 # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
+f = SINDy(_data[sampled, :], [:dt, :du, :dv], [:t, :u, :v], f_ = [sign, abs, cospi])
+print(f, ["t", "u", "v"])
 
-stranger = Int64[]
-error_ = Float64[]
-for k in ProgressBar(1:n)
-    # error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], f_ = [cospi, sign, abs])*α)
-    # error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], K = 5, f_ = [sign, abs])*α)
-    error = sum(abs2, collect(_data[k, [:du, :dv]])' .- Θ(_data[k, [:t, :u, :v]], M = 2)*α)
-    push!(error_, error)
-    if error > 1e-10
-        push!(stranger, k)
-    end
-end
-scatter(log10.(error_))
+error_ = norm.(eachrow(Matrix(_data[:, [:dt, :du, :dv]])) .- f.(eachrow(Matrix(_data[:, [:t, :u, :v]]))))
+bit_alien = error_ .> 1e-5
+scatter(log10.(error_)[1:100:end])
 
 subsystem = ones(Int64, n);
-subsystem[stranger] .= 2;
+subsystem[bit_alien] .= 2;
 _data[:, :subsystem] = subsystem;
-
-scatter(_data.u, _data.v, _data.dv,
-    xlabel=L"u", ylabel=L"v", zlabel=L"dv",
-    color=subsystem, label=:none,
-    ms=1, alpha=0.5,
-    size=(800, 800))
-png("temp 1")
+plot(_data.u[1:100:end], _data.v[1:100:end], xlabel=L"u", ylabel=L"v", color=subsystem[1:100:end], label=:none, ms=1, alpha=0.5, size=(800, 800))
 
 gdf_ = groupby(_data, :subsystem)
-# STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], f_ = [cospi, sign, abs], λ = 0.1) for gdf in gdf_]
-# STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], K = 3, λ = 0.1) for gdf in gdf_]
-STLSQ_ = [STLSQ(gdf, [:du, :dv], [:t, :u, :v], M = 2, λ = 0.1) for gdf in gdf_]
-STLSQ_[1]
-STLSQ_[2]
-
-function factory_STLSQ(STLSQed)
-    function f(s, x)
-        # return [1; vec(Θ(x, f_ = [cospi, sign, abs]) * STLSQed[s].matrix)]
-        return [1; vec(Θ(x, M = 2) * STLSQed[s].matrix)]
-    end
-    return f
-end
-g = factory_STLSQ(STLSQ_)
-
+f_ = [SINDy(gdf, [:dt, :du, :dv], [:t, :u, :v], f_ = [sign, cospi], λ = 1e-2) for gdf in gdf_]
+print(f_[1], ["t", "u", "v"])
+print(f_[2], ["t", "u", "v"])
 
 using DecisionTree
-Dtree = DecisionTreeClassifier(max_depth=3)
-fit!(Dtree, Matrix(_data[:, [:t, :u, :v]]), subsystem)
-print_tree(Dtree, 5)
+Dtree = DecisionTreeClassifier(max_depth=3, n_subfeatures=3)
+features = Matrix(_data[:, [:t, :u, :v]])
+fit!(Dtree, features, subsystem); print_tree(Dtree, 3)
+acc = sum(subsystem .== predict(Dtree, features)) / length(subsystem)
 
-x_ = [collect(data[1, [:t, :u, :v]])]
-x = x_[end]
+dt = 1e-5
+x = collect(data[end, [:t, :u, :v]])
+y = factory_soft(DataFrame, dr.idx, dr.d, x)
+ŷ = DataFrame(solve(f_, x, dt, y.t, Dtree), ["t", "u", "v"]);
+plot(xlabel = L"t", ylabel = L"u(t)", size = (800, 300), margin = 3mm)
+plot!(y.t[1:100:end], y.u[1:100:end], label = "true", lw = 2)
+plot!(y.t[1:100:end], ŷ.u[1:100:end], label = "pred", lw = 2, ls = :dash, color = :red)
 
-@time for t in ProgressBar(x[1]:_dt:50)
-    s = predict(Dtree, x_[end])
-    x, dx = RK4(g, s, x_[end], _dt)
-    push!(x_, x)
-end
-_x_ = stack(x_)
-
-uv1 = plot(data.t[1:10:end], data.u[1:10:end], label="data")
-plot!(uv1, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
-title!(uv1, "Soft impact")
-
-uv2 = plot(data.t[1:10:end], data.v[1:10:end], label="data")
-plot!(uv2, data.t[1:10:end], _x_[3, 1:10:end], color=:red, style=:dash, label="predicted")
-xlabel!(uv2, L"t")
-
-plot(uv1, uv2, layout=(2, 1), size=(800, 800));
-png("temp 2");
-
-# ---
-
-@time data = factory_soft(dr.idx, dr.d, (45, 60))
-x_ = [collect(data[1, [:t, :u, :v]])]
-x = x_[end]
-
-for t in ProgressBar(x[1]:_dt:60)
-    s = predict(Dtree, x_[end])
-    x, dx = RK4(g, s, x_[end], _dt)
-    push!(x_, x)
-end
-_x_ = stack(x_)
-
-uv1 = plot(data.t[1:10:end], data.u[1:10:end], label="data")
-plot!(uv1, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
-title!(uv1, "Soft impact")
-
-uv2 = plot(data.t[1:10:end], data.v[1:10:end], label="data")
-plot!(uv2, data.t[1:10:end], _x_[3, 1:10:end], color=:red, style=:dash, label="predicted")
-xlabel!(uv2, L"t")
-
-plot(uv1, uv2, layout=(2, 1), size=(1600, 900))
-png("temp 2")
-# ---
-
-@time data = factory_soft(dr.idx, dr.d, (45, 50), [0.0, 0.04, 0.3])
-x_ = [collect(data[1, [:t, :u, :v]])]
-x = x_[end]
-
-for t in ProgressBar(x[1]:_dt:50)
-    s = predict(Dtree, x_[end])
-    x, dx = RK4(g, s, x_[end], _dt)
-    push!(x_, x)
-end
-_x_ = stack(x_)
-
-uv1 = plot(data.t[1:10:end], data.u[1:10:end], label="data")
-plot!(uv1, data.t[1:10:end], _x_[2, 1:10:end], color=:red, style=:dash, label="predicted")
-title!(uv1, "Soft impact")
-
-uv2 = plot(data.t[1:10:end], data.v[1:10:end], label="data")
-plot!(uv2, data.t[1:10:end], _x_[3, 1:10:end], color=:red, style=:dash, label="predicted")
-xlabel!(uv2, L"t")
-
-plot(uv1, uv2, layout=(2, 1), size=(800, 800))
-png("temp")
-
-rank()
-
-ddist = sum.(abs2, eachrow(_data[:, [:du, :dv]]))
-ratio = ddist ./ circshift(ddist, 1)
-scatter(abs.(ratio .- 1))
-
-diff(findall(abs.(ratio .- 1) .> 1000))
-
-abs.(ratio .- 1)[abs.(ratio .- 1) .> 1000]
-hline!(h = minimum([true; diff(ddist)][ratio .> 1000]) / maximum(ddist))
-# scatter(log10.(abs.(ratio .- 1)))
-# plot!(findall(ratio .> 1000),
-# log10.(minimum([true; diff(ddist)][ratio .> 1000]) ./ ddist[ratio .> 1000]))
+plot(log10.(abs.(y.u .- ŷ.u)))
