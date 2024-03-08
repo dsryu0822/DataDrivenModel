@@ -31,7 +31,7 @@ plan = DataFrame(idx=eachindex(d_range), d=d_range)
 cd("//155.230.155.221/ty/DS");
 pwd()
 
-dr = eachrow(plan)[1]
+dr = first(eachrow(plan))
 @time data = factory_soft(dr.idx, dr.d)
 @time data = factory_soft(dr.idx, dr.d, (45, 60))
 test = 500000
