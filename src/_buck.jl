@@ -7,7 +7,7 @@ E_range = 15:0.001:40
 plan = DataFrame(idx=eachindex(E_range), E=E_range)
 data_tspan = [0, 1.005]
 
-dr = eachrow(plan)[end]
+dr = last(eachrow(plan))
 @time if "G:/DDM/cached_buck.csv" |> isfile
     data = CSV.read("G:/DDM/cached_buck.csv", DataFrame)
 else
@@ -24,7 +24,7 @@ print(f, ["V", "I"])
 
 @time error_ = norm.(eachrow(Matrix(trng[:, [:dV, :dI]])) .- f.(eachrow(Matrix(trng[:, [:V, :I]]))))
 bit_alien = error_ .> 1e-4
-# scatter(log10.(error_)[1:100:end], ylabel = L"\log_{10} | r |", title = "Residuals", legend = :none, xlabel = "Index")
+# scatter(log10.(error_)[1:10000:end], ylabel = L"\log_{10} | r |", title = "Residuals", legend = :none, xlabel = "Index")
 
 subsystem = ones(Int64, nrow(trng));
 subsystem[bit_alien] .= 2;

@@ -1,57 +1,81 @@
-include("../src/factorio.jl")
 include("../src/DDM.jl")
+include("../src/factorio.jl")
 include("../src/visual.jl")
-const _dt = 10^(-5)
+using DecisionTree, Random
 
 d_range = 0.1:0.0001:0.3
 plan = DataFrame(idx=eachindex(d_range), d=d_range)
+data_tspan = [0, 105]
 
 dr = first(eachrow(plan))
-@time data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 100])
-look(data)
-half = nrow(data) ÷ 2
-cut = 10_000_000
-# cut = 1_000_000
-_data = data[1:cut, :]
-_data = deepcopy(data)
+@time if "G:/DDM/cached_soft.csv" |> isfile
+    data = CSV.read("G:/DDM/cached_soft.csv", DataFrame)
+else
+    data = factory_soft(DataFrame, dr.idx, dr.d, tspan = data_tspan)
+    CSV.write("G:/DDM/cached_soft.csv", data)
+end
+cutidx = 10_000_000
+trng = data[1:cutidx,:]
+test = data[cutidx:end,:]
 
-n = nrow(_data)
-sampled = rand(1:n, 15) # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
-# sampled = 1:12 # 230920 샘플링을 라이브러리 수와 똑같이 맞춰버리면 SingularException이 발생할 수 있음
-f = SINDy(_data[sampled, :], [:dt, :du, :dv], [:t, :u, :v], f_ = [sign, abs, cospi])
+sampled = rand(1:nrow(trng), 15)
+f = SINDy(trng[sampled, :], [:dt, :du, :dv], [:t, :u, :v], f_ = [sign, abs, cospi])
 print(f, ["t", "u", "v"])
 
-error_ = norm.(eachrow(Matrix(_data[:, [:dt, :du, :dv]])) .- f.(eachrow(Matrix(_data[:, [:t, :u, :v]]))))
-bit_alien = error_ .> 1e-5
-# scatter(log10.(error_)[1:100:end])
+@time error_ = norm.(eachrow(Matrix(trng[:, [:dt, :du, :dv]])) .- f.(eachrow(Matrix(trng[:, [:t, :u, :v]]))))
+bit_alien = error_ .> 1e-4
+# scatter(log10.(error_)[1:100:100000], ylabel = L"\log_{10} | r |", title = "Residuals", legend = :none, xlabel = "Index")
 
-subsystem = ones(Int64, n);
+subsystem = ones(Int64, nrow(trng));
 subsystem[bit_alien] .= 2;
-_data[:, :subsystem] = subsystem;
-plot(_data.u[1:100:end], _data.v[1:100:end], xlabel=L"u", ylabel=L"v", color=subsystem[1:100:end], label=:none, ms=1, alpha=0.5, size=(800, 800))
+subsystem[1] = 1;
+trng[:, :subsystem] = subsystem;
+# plot(trng.u[1:100:100000], trng.v[1:100:100000], color=trng.subsystem[1:100:100000], xlabel=L"u", ylabel=L"v", label=:none, ms=1, alpha=0.5, size=(800, 800))
 
-gdf_ = groupby(_data[1:1000:end, :], :subsystem)
-f_ = [SINDy(gdf, [:dt, :du, :dv], [:t, :u, :v], f_ = [sign, cospi], λ = 1e-2) for gdf in gdf_]
-print(f_[1], ["t", "u", "v"])
-print(f_[2], ["t", "u", "v"])
+idx_sltd = findall((subsystem .!= circshift(subsystem, 1)) .|| (subsystem .!= circshift(subsystem, -1)))
 
-bit_chgd = (subsystem .!= circshift(subsystem, 1)) .|| (subsystem .!= circshift(subsystem, -1)) 
-__data = _data[findall(bit_chgd) ∪ rand(findall(.!bit_chgd), count(bit_chgd)), :]
-# __data = deepcopy(_data)
+T_ = trunc.(Int64, exp10.(4:0.1:6))
+log_pfmc = DataFrame(zeros(0, 1+length(T_)), :auto)
+for sparsity = [1]#, 20, 10, 1]
+    println("sparsity = $sparsity")
+    len_exact = []
+    for T = T_
+        print("T = $T: ")
+        _trng = trng[(1:sparsity:T) ∪ ((1:T) ∩ idx_sltd),:]
+        gdf_ = groupby(_trng, :subsystem)
+        f_ = [SINDy(gdf, [:dt, :du, :dv], [:t, :u, :v], f_ = [sign, abs, cospi], λ = 1e-5) for gdf in gdf_]
+        # print.(f_, Ref(["t", "u", "v"]))
 
-using DecisionTree
-Dtree = DecisionTreeClassifier(max_depth=3, n_subfeatures=3)
-features = Matrix(__data[:, [:t, :u, :v]])
-fit!(Dtree, features, __data.subsystem); print_tree(Dtree, 3)
-acc = sum(__data.subsystem .== predict(Dtree, features)) / length(__data.subsystem)
+        labels = _trng.subsystem
+        features = Matrix(_trng[:, [:t, :u, :v]])
+        acc_ = []
+        for seed in 1:10
+            Dtree = build_tree(_trng.subsystem, features, 2, 2, rng = seed); # print_tree(Dtree, feature_names = ["u", "v"])
+            push!(acc_, count(labels .== apply_tree(Dtree, features)) / length(labels))
+            if maximum(acc_) ≈ 1 break; else print("█") end
+        end
+        Dtree = build_tree(_trng.subsystem, features, 2, 2, rng = argmax(acc_))
+        println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
 
-dt = 1e-5
-x = collect(data[end, [:t, :u, :v]])
-y = factory_soft(DataFrame, dr.idx, dr.d, ic = x)
-ŷ = DataFrame(solve(f_, x, dt, y.t, Dtree), ["t", "u", "v"]);
-plot(xlabel = L"t", ylabel = L"u(t)", size = (800, 300), margin = 3mm)
-plot!(y.t[1:100:end], y.u[1:100:end], label = "true", lw = 2)
-plot!(y.t[1:100:end], ŷ.u[1:100:end], label = "pred", lw = 2, ls = :dash, color = :red)
-hline!([-.05, .05], label = "bound", color = :blue)
-png("112")
-plot(log10.(abs.(y.u .- ŷ.u)))
+        dt = 1e-5
+        x = collect(test[1, [:t, :u, :v]])
+        y = test
+        ŷ = DataFrame(solve(f_, x, dt, y.t, Dtree), ["t", "u", "v"])
+        idx_miss = findfirst([abs.(y.u - ŷ.u) .> .1; true]) - 1
+        push!(len_exact, y.t[idx_miss])
+        xtk = [100, y.t[idx_miss], 105]
+        if T ∈ Int64.(exp10.(1:8))
+            plot(xlabel = L"t", ylabel = L"u(t)", size = (800, 200), xlims = [100, 105], xticks = xtk, xformatter = x -> "$(round(x, digits = 5))", margin = 5mm, legend = :none)
+            plot!(y.t[1:100:end], y.u[1:100:end], label = "true", lw = 2)
+            plot!(y.t[1:100:end], ŷ.u[1:100:end], label = "pred", lw = 2, ls = :dash, color = :red)
+            png("T = $T.png")
+        end
+    end
+    push!(log_pfmc, [sparsity; len_exact])
+    CSV.write("log_pfmc_soft.csv", log_pfmc)
+    scatter(log10.(T_), collect(log_pfmc[end, Not(1)]) .- 1, xlabel = L"\log_{10} T", ylabel = "Perfect predicted", ylims = [0,Inf], legend = :none)
+end
+cog = range(colorant"orange", colorant"green", length = 6)
+plot(xlabel = L"\log_{10} T", ylabel = "break time", ylims = [0,5.1])
+plot!(log10.(T_), collect(log_pfmc[1, 2:end]) .- 100, color = cog[1], label = 100/log_pfmc.x1[1], lw = 3, alpha = 0.5)
+png("soft.png")
