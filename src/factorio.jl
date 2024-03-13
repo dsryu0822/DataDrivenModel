@@ -161,8 +161,7 @@ function factory_HR(idx::Int64, a::Number; ic = [0.0, 0.1, 0.1, 0.1], tspan = [0
     end
     traj = traj[:, (end-ndatapoints):(end-1)]'
 
-    data = DataFrame(traj,
-        ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
-
-    return data
+    return traj
 end
+factory_HR(T::Type, args...; ic = [0.0, 0.1, 0.1, 0.1], tspan = [0, 20]) = 
+DataFrame(factory_HR(args...;  ic = ic, tspan = tspan), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
