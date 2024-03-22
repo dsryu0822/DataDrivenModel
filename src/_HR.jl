@@ -11,6 +11,7 @@ else
     data = factory_HR(DataFrame, 0, 1, tspan = data_tspan)
     CSV.write("C:/DDM/cached_hrnm.csv", data)
 end
+# data = data[1:100000,:]
 
 normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, [:dx, :dy, :dz]]), dims = 1)))
 jumpt = [1; findall(normeddf .> 0.02)]
@@ -21,23 +22,30 @@ jumpt = [1; findall(normeddf .> 0.02)]
 subsystem = zeros(Int64, nrow(data));
 sets = collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1))); pop!(sets); sets = UnitRange.(first.(sets), last.(sets))
 for id_subsys in 1:4
-    idx_long = argmax(length.(sets))
+# id_subsys = 1
+# theset = [1, 4]
+    # idx_long = argmax(length.(sets))
 
     candy_ = []
-    head = data[sets[idx_long], [:t, :x, :y, :z]]
-    @time for i in eachindex(sets)
-        body = data[sets[i], [:t, :x, :y, :z]]
-        candy = SINDy(data[reduce(vcat, sets[[idx_long, i]]), :],
-                [:dt, :dx, :dy, :dz], [:t, :x, :y, :z],
-                N = 3, f_ = [cos])
-        X = Θ([head; body], N = 3, f_ = [cos])
-        if rank(X) ≥ max(size(X, 2))
-            push!(candy_, i => candy.MSE)
-            if candy.MSE < 1e-28 break end
+    for n in 2:3
+        for theset = combinations(eachindex(sets), n)
+            # if idx_long ∉ theset continue end
+            if 1 ∈ diff(theset) continue end
+            println(theset)
+
+            sliced = data[reduce(vcat, sets[theset]), :]
+            X = Θ(sliced[:, [:t, :x, :y, :z]], N = 3, f_ = [cos])
+            if rank(X) ≥ max(size(X, 2))
+                candy = SINDy(sliced,
+                        [:dt, :dx, :dy, :dz], [:t, :x, :y, :z],
+                        N = 3, f_ = [cos])
+                push!(candy_, theset => candy.MSE)
+                if candy.MSE < 1e-28 break end
+            end
         end
     end
     picked = first(candy_[argmin(last.(candy_))])
-    f = SINDy(data[reduce(vcat, sets[[idx_long; picked]]), :],
+    f = SINDy(data[reduce(vcat, sets[picked]), :],
         [:dt, :dx, :dy, :dz], [:t, :x, :y, :z],
         N = 3, f_ = [cos])
     print(f, ["t", "x", "y", "z"])
@@ -69,14 +77,15 @@ cutidx = 1_000_000
 trng = data[1:cutidx,:]
 test = data[cutidx:end,:]
 
-τ_ = trunc.(Int64, exp10.(0.5:0.5:3))
+τ_ = trunc.(Int64, exp10.(1.0:0.2:2.2))
 len_exact = []
-for T = τ_
+for T = findall(trng.subsystem .!= circshift(trng.subsystem, -1))[τ_]
     print("T = $T: ")
-    _trng = trng[(1:sparsity:T) ∪ ((1:T) ∩ idx_sltd),:]
+
+    _trng = trng[1:T,:]
     gdf_ = groupby(_trng, :subsystem)
     f_ = [SINDy(gdf, [:dt, :dx, :dy, :dz], [:t, :x, :y, :z], N = 3, f_ = [cos]) for gdf in gdf_]
-    print.(f_, Ref(["t", "x", "y", "z"]))
+    # print.(f_, Ref(["t", "x", "y", "z"]))
 
     labels = _trng.subsystem
     features = Matrix(_trng[:, [:t, :x, :y, :z]])
