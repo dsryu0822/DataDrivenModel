@@ -34,8 +34,7 @@ test = data[cutidx:end,:]
 
 # idx_sltd = findall((trng.subsystem .!= circshift(trng.subsystem, 1)) .|| (trng.subsystem .!= circshift(trng.subsystem, -1)))
 
-τ_ = trunc.(Int64, exp10.(.5:.1:3))
-τ_ = [100]
+τ_ = unique(trunc.(Int64, exp10.(.5:.1:3)))
 # scatter(findall(trng.subsystem .!= circshift(trng.subsystem, -1))[τ_], τ_, scale = :log10, size = [600,600], xlabel = L"T", ylabel = L"τ", label = :none)
 # log_pfmc = DataFrame(zeros(0, 1+length(τ_)), :auto)
 len_exact = []

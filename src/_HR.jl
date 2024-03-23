@@ -11,7 +11,6 @@ else
     data = factory_HR(DataFrame, 0, 1, tspan = data_tspan)
     CSV.write("C:/DDM/cached_hrnm.csv", data)
 end
-# data = data[1:100000,:]
 
 normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, [:dx, :dy, :dz]]), dims = 1)))
 jumpt = [1; findall(normeddf .> 0.02)]
@@ -73,11 +72,11 @@ for id_subsys in 1:4
 end
 data[:, :subsystem] = subsystem;
 
-cutidx = 1_000_000
+cutidx = 10_000_000
 trng = data[1:cutidx,:]
 test = data[cutidx:end,:]
 
-τ_ = trunc.(Int64, exp10.(1.0:0.2:2.2))
+τ_ = unique(trunc.(Int64, exp10.(0.1:0.1:2.0)))
 len_exact = []
 for T = findall(trng.subsystem .!= circshift(trng.subsystem, -1))[τ_]
     print("T = $T: ")
@@ -102,13 +101,13 @@ for T = findall(trng.subsystem .!= circshift(trng.subsystem, -1))[τ_]
     x = collect(test[1, [:t, :x, :y, :z]])
     y = test
     ŷ = DataFrame(solve(f_, x, dt, y.t, Dtree), ["t", "x", "y", "z"])
-    idx_miss = findfirst([abs.(y.y - ŷ.y) .> .1; true]) - 1
-    push!(len_exact, y.t[idx_miss])
-    xtk = [y.t[idx_miss]]
-        plot(xlabel = L"t", ylabel = L"u(t)", size = (800, 200), xlims = [10000, 10050], xticks = xtk, xformatter = x -> "$(round(x, digits = 5))", margin = 5mm, legend = :none)
-        plot!(y.t[1:100:end], y.y[1:100:end], label = "true", lw = 2)
-        plot!(y.t[1:100:end], ŷ.y[1:100:end], label = "pred", lw = 2, ls = :dash, color = :red)
-        png("T = $T.png")
+    idx_miss = findfirst([abs.(y.y - ŷ.y) .> 1; true]) - 1
+    push!(len_exact, count(findall(test.subsystem .!= circshift(test.subsystem, -1)) .< idx_miss))
+    xtk = [trunc(y.t[idx_miss], digits = 2)]
+    plot(legend = :none, size = [600, 200], ticks = false)
+    plot!(y.t[1:100:end], y.y[1:100:end], label = "true", lw = 3)
+    plot!(y.t[1:100:end], ŷ.y[1:100:end], label = "pred", lw = 3, ls = :dash, color = :red)
+    png("T = $T.png")
 end
 CSV.write("log_pfmc_hrnm.csv", DataFrame(input = τ_, output = len_exact))
 

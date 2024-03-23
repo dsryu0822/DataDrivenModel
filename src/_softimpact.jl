@@ -32,7 +32,7 @@ cutidx = 10_000_000
 trng = data[1:cutidx,:]
 test = data[cutidx:end,:]
 
-τ_ = trunc.(Int64, exp10.(0.5:0.1:2))
+τ_ = unique(trunc.(Int64, exp10.(0.5:0.1:2)))
 # scatter(findall(trng.subsystem .!= circshift(trng.subsystem, -1))[τ_], τ_, scale = :log10, size = [600,600], xlabel = L"T", ylabel = L"τ", label = :none)
 # log_pfmc = DataFrame(zeros(0, length(τ_)), :auto)
 len_exact = []
