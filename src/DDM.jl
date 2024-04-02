@@ -20,9 +20,11 @@ function (s::STLSQresult)(x)
 end
 
 function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)
-    if ΘX isa AbstractSparseMatrix
-        ΘX = Matrix(ΘX)
-    end
+    _ΘX = deepcopy(ΘX)
+    L₂ = norm.(eachcol(ΘX))
+    ΘX = ΘX ./ L₂'
+    # L₂ is for column-wise normalization to ensure restricted isometry property
+
     Ξ = ΘX \ Ẋ
     dim = size(Ξ, 2)
     __🚫 = 0
@@ -38,8 +40,8 @@ function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)
         if __🚫 == 🚫 verbose && println("Stopped!"); break end # Earl_X stopping
         __🚫 = deepcopy(🚫)
     end
-    Ξ =  sparse(Ξ)
-    MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ)
+    Ξ =  sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
+    MSE = sum(abs2, Ẋ - _ΘX * Ξ) / length(Ẋ) # compare to original data
     verbose && println("MSE = $MSE")
 
     return Ξ, MSE
