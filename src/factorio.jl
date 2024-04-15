@@ -89,7 +89,7 @@ function soft(tuv::AbstractVector, nonsmooth::Real)
     v̇ = cospi(t) + nonsmooth
     return [ṫ, u̇, v̇]
 end
-function factory_soft(idx::Int64, d::Number; ic = [0.0, 0.0, 0.0], tspan = [0, 10])
+function factory_soft(idx::Int64, d::Number; ic = [.0, .05853, .47898], tspan = [0, 10])
     d2 = d/2
     
     dt = 10^(-5)
@@ -113,7 +113,7 @@ function factory_soft(idx::Int64, d::Number; ic = [0.0, 0.0, 0.0], tspan = [0, 1
 
     return traj
 end
-factory_soft(T::Type, args...; ic = [.0, .0, .0], tspan = [0, 10]) =
+factory_soft(T::Type, args...; ic = [.0, .05853, .47898], tspan = [0, 10]) =
 DataFrame(factory_soft(args...; ic = ic, tspan), ["t", "u", "v", "dt", "du", "dv"])
 
 const _a = 1.0
@@ -121,20 +121,21 @@ const _b = 3.0
 const _c = 1.0
 const _d = 5.0
 const _k = 0.9
-const _f = 0.1
+# const _f = 0.1
 const _ω = 1.0
 const _α = 0.1
 const _β = 0.8 
-function HR(txyz::AbstractVector, nonsmooth::Real)
-    t,x,y,z=txyz
+function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 20])
+    function HR(txyz::AbstractVector, nonsmooth::Real)
+        t,x,y,z=txyz
+    
+        ṫ = 1
+        ẋ = y - _a*x^3 + _b*x^2 + _k*x*z + _f*cos(_ω*t)
+        ẏ = _c - _d*x^2 - y
+        ż = _α*nonsmooth + _β*x
+        return [ṫ, ẋ, ẏ, ż]
+    end
 
-    ṫ = 1
-    ẋ = y - _a*x^3 + _b*x^2 + _k*x*z + _f*cos(_ω*t)
-    ẏ = _c - _d*x^2 - y
-    ż = _α*nonsmooth + _β*x
-    return [ṫ, ẋ, ẏ, ż]
-end
-function factory_HR(idx::Int64, a::Number; ic = [0.0, 0.1, 0.1, 0.1], tspan = [0, 20])
     dt = 10^(-3)
     t_ = first(tspan):dt:last(tspan)
 
@@ -163,5 +164,5 @@ function factory_HR(idx::Int64, a::Number; ic = [0.0, 0.1, 0.1, 0.1], tspan = [0
 
     return traj
 end
-factory_HR(T::Type, args...; ic = [0.0, 0.1, 0.1, 0.1], tspan = [0, 20]) = 
-DataFrame(factory_HR(args...;  ic = ic, tspan = tspan), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
+factory_hrnm(T::Type, args...; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 20]) = 
+DataFrame(factory_hrnm(args...;  ic = ic, tspan = tspan), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])

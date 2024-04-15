@@ -5,15 +5,18 @@ using DecisionTree, Random
 
 data_tspan = [0, 10050]
 
-@time if "C:/DDM/cached_hrnm.csv" |> isfile
-    data = CSV.read("C:/DDM/cached_hrnm.csv", DataFrame)
+@time if "G:/DDM/cached_hrnm.csv" |> isfile
+    data = CSV.read("G:/DDM/cached_hrnm.csv", DataFrame)
 else
-    data = factory_HR(DataFrame, 0, 1, tspan = data_tspan)
-    CSV.write("C:/DDM/cached_hrnm.csv", data)
+    data = factory_hrnm(DataFrame, 0, 1, tspan = data_tspan)
+    CSV.write("G:/DDM/cached_hrnm.csv", data)
 end
 
+data = data[1:1000000,:]
+plot(data.dz)
+plot(normeddf)
 normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, [:dx, :dy, :dz]]), dims = 1)))
-jumpt = [1; findall(normeddf .> 0.02)]
+jumpt = [1; findall(normeddf .> 2e-2)]
 # plot(trng.t, trng.z)
 # hline!([1, -1], color = :blue)
 # vline!(trng.t[jumpt], color = :red, ls = :dash)
@@ -21,20 +24,16 @@ jumpt = [1; findall(normeddf .> 0.02)]
 subsystem = zeros(Int64, nrow(data));
 sets = collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1))); pop!(sets); sets = UnitRange.(first.(sets), last.(sets))
 for id_subsys in 1:4
-# id_subsys = 1
-# theset = [1, 4]
-    # idx_long = argmax(length.(sets))
-
     candy_ = []
     for n in 2:3
         for theset = combinations(eachindex(sets), n)
             # if idx_long ∉ theset continue end
             if 1 ∈ diff(theset) continue end
-            println(theset)
+            print(theset)
 
             sliced = data[reduce(vcat, sets[theset]), :]
             X = Θ(sliced[:, [:t, :x, :y, :z]], N = 3, f_ = [cos])
-            if rank(X) ≥ max(size(X, 2))
+            if rank(X) ≥ size(X, 2)
                 candy = SINDy(sliced,
                         [:dt, :dx, :dy, :dz], [:t, :x, :y, :z],
                         N = 3, f_ = [cos])
