@@ -24,21 +24,20 @@ function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)
     L₂ = norm.(eachcol(ΘX))
     ΘX = ΘX ./ L₂'
     # L₂ is for column-wise normalization to ensure restricted isometry property
+    # Due to this L₂, λ thresholding would be doesn't work as expected
 
-    Ξ = ΘX \ Ẋ
-    dim = size(Ξ, 2)
-    __🚫 = 0
-    
+    Ξ = ΘX \ Ẋ; dim = size(Ξ, 2)
+    _🚫 = 0
     while true
         verbose && print(".")
-        🚫 = abs.(Ξ) .< λ
+        🚫 = abs.(Ξ) .< (λ * L₂)
         Ξ[🚫] .= 0
         for j in 1:dim
             i_ = .!🚫[:, j]
             Ξ[i_, j] = ΘX[:,i_] \ Ẋ[:,j]
         end
-        if __🚫 == 🚫 verbose && println("Stopped!"); break end # Earl_X stopping
-        __🚫 = deepcopy(🚫)
+        if _🚫 == 🚫 verbose && println("Stopped!"); break end # Earl_X stopping
+        _🚫 = deepcopy(🚫)
     end
     Ξ =  sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     MSE = sum(abs2, Ẋ - _ΘX * Ξ) / length(Ẋ) # compare to original data
