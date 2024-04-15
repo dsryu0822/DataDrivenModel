@@ -1,7 +1,71 @@
-include("../src/DDM.jl")
-include("../src/factorio.jl")
-include("../src/visual.jl")
+include("../core/DDM.jl")
+include("../core/factorio.jl")
+include("../core/visual.jl")
 using DecisionTree, Random
+θ1 = 2e-2
+θ2 = 1e-5
+scatter(error_, yscale = :log10)
+normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+plot(normeddf)
+jumpt = [1; findall(normeddf .> θ1)]
+sets = collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1))); pop!(sets); sets = UnitRange.(first.(sets), last.(sets))
+
+subsystem = zeros(Int64, nrow(data));
+id_subsys = 2
+# for id_subsys = 1:4
+#     if sets |> isempty
+#         @info "all data points are labeled!"
+#         break
+#     end
+    longest = sets[argmax(length.(sets))]
+
+    candy = SINDy(data[longest,:], vrbl...; cnfg..., λ = 1e-3)
+    print(candy, last(vrbl))
+
+    @time error_ = norm.(eachrow(Matrix(data[:, first(vrbl)])) .- candy.(eachrow(Matrix(data[:, last(vrbl)]))))
+    bit_pass = error_ .< θ2
+    subsystem[bit_pass] .= id_subsys
+    sets = sets[rand.(sets) .∉ Ref(findall(bit_pass))]
+end
+data[!, :subsystem] = subsystem;
+function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-1)
+    normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+    jumpt = [1; findall(normeddf .> θ1)]
+    sets = collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1))); pop!(sets); sets = UnitRange.(first.(sets), last.(sets))
+
+    subsystem = zeros(Int64, nrow(data));
+    for id_subsys = 1:4
+        if sets |> isempty
+            @info "all data points are labeled!"
+            break
+        end
+        longest = sets[argmax(length.(sets))]
+
+        candy = SINDy(data[longest,:], vrbl...; cnfg...)
+        print(candy, last(vrbl))
+    
+        @time error_ = norm.(eachrow(Matrix(data[:, first(vrbl)])) .- candy.(eachrow(Matrix(data[:, last(vrbl)]))))
+        bit_pass = error_ .< θ2
+        subsystem[bit_pass] .= id_subsys
+        sets = sets[rand.(sets) .∉ Ref(findall(bit_pass))]
+    end
+    data[!, :subsystem] = subsystem;
+    return data
+end
+
+function dryad(data, vrbl) # fairy of tree and forest
+    labels = data.subsystem
+    features = Matrix(data[:, last(vrbl)])
+    acc_ = []
+    for seed in 1:10
+        Dtree = build_tree(data.subsystem, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
+        push!(acc_, count(labels .== apply_tree(Dtree, features)) / length(labels))
+        if maximum(acc_) ≈ 1 break; else print("█") end
+    end
+    Dtree = build_tree(data.subsystem, features, rng = argmax(acc_))
+    println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
+    return Dtree
+end
 
 schedule = CSV.read("G:/DDM/bifurcation/buck_schedule.csv", DataFrame)[1:end,:]
 
@@ -125,114 +189,50 @@ idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
     idx_sampled = diff(abs.(data.u) .> (dr.d/2)) .> 0
     sampledv = data[Not(1), :v][idx_sampled]
     append!(idcs, fill(dr.idx, length(sampledv)))
-    append!(vrtc, fill(dr.d, length(sampledv)))
-    append!(hrzn, sampledv)
+    append!(hrzn, fill(dr.d, length(sampledv)))
+    append!(vrtc, sampledv)
 end
 CSV.write("G:/DDM/bifurcation/soft_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
-scatter(vrtc, hrzn, ms = 1, legend = :none, msw = 0, ma = 0.1, ylims = [-1, 1]);
+scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1, ylims = [-1, 1]);
 png("G:/DDM/bifurcation/soft_recovered.png")
 # rm.(string.("G:/DDM/bifurcation/soft_rcvd/", lpad.(unique(idcs[abs.(hrzn) .> .64]), 5, '0'), ".csv"))
 
-schedule = CSV.read("G:/DDM/bifurcation/hrnm_schedule.csv", DataFrame)[1:1:end,:]
+schedule = CSV.read("G:/DDM/bifurcation/hrnm_schedule.csv", DataFrame)[1:100:end,:]
 
-dr = first(eachrow(schedule))
-theset = [1,5]
-plot(data.z)
-plot(data.dz)
-plot(normeddf)
-# @showprogress for dr in eachrow(schedule)
-    isfile("G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv") && continue
-
-    data = CSV.read("G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
-
-    normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, [:dx, :dy, :dz]]), dims = 1)))
-    jumpt = [1; findall(normeddf .> 2e-2)]
-    # plot(trng.t, trng.z)
-    # hline!([1, -1], color = :blue)
-    # vline!(trng.t[jumpt], color = :red, ls = :dash)
-    
-    subsystem = zeros(Int64, nrow(data));
-    sets = collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1))); pop!(sets); sets = UnitRange.(first.(sets), last.(sets))
-    for id_subsys in 1:4
-        candy_ = []
-        for n in 2:3
-            for theset = combinations(eachindex(sets), n)
-                # if idx_long ∉ theset continue end
-                if 1 ∈ diff(theset) continue end
-                print(theset)
-    
-                sliced = data[reduce(vcat, sets[theset]), :]
-                X = Θ(sliced[:, [:t, :x, :y, :z]], N = 3, f_ = [cos])
-                if rank(X) ≥ size(X, 2)
-                    candy = SINDy(sliced,
-                            [:dt, :dx, :dy, :dz], [:t, :x, :y, :z],
-                            N = 3, f_ = [cos])
-                    print(candy, ["t", "x", "y", "z"])
-                    push!(candy_, theset => candy.MSE)
-                    if candy.MSE < 1e-28 break end
-                end
-            end
-        end
-        picked = first(candy_[argmin(last.(candy_))])
-        f = SINDy(data[reduce(vcat, sets[picked]), :],
-            [:dt, :dx, :dy, :dz], [:t, :x, :y, :z],
-            N = 3, f_ = [cos])
-        print(f, ["t", "x", "y", "z"])
-    
-        @time error_ = norm.(eachrow(Matrix(data[:, [:dt, :dx, :dy, :dz]])) .- f.(eachrow(Matrix(data[:, [:t, :x, :y, :z]]))))
-        bit_alien = error_ .> 1e-8
-        # scatter(log10.(error_)[1:100:100000], ylabel = L"\log_{10} | r |", title = "Residuals", legend = :none, xlabel = "Index")
-        idx_alien = findall(.!bit_alien)
-        subsystem[idx_alien] .= id_subsys
-        # plot(data.u[1:100:100000], data.v[1:100:100000], color=data.subsystem[1:100:100000], xlabel=L"u", ylabel=L"v", label=:none, ms=1, alpha=0.5, size=(800, 800))
-    
-        # sets = filter(!isempty, [setdiff(set, idx_alien) for set in sets])
-        # sets = filter(x -> isdisjoint(x, idx_alien), sets)
-        idx_unlabled = []
-        for i in eachindex(sets)
-            if first(sets[i]) ∉ idx_alien
-                push!(idx_unlabled, i)
-            end
-        end
-        sets = sets[idx_unlabled]
-        if isempty(sets)
-            @info "all data points are exhausted!"
-            break
-        end
-    end
-    data[:, :subsystem] = subsystem;
-    
-
-    test = data
-    _trng = data
-    gdf_ = groupby(_trng, :subsystem)
-    f_ = [SINDy(gdf, [:dt, :dx, :dy, :dz], [:t, :x, :y, :z], N = 3, f_ = [cos]) for gdf in gdf_]
-
-    labels = _trng.subsystem
-    features = Matrix(_trng[:, [:t, :x, :y, :z]])
-    acc_ = []
-    for seed in 1:10
-        Dtree = build_tree(_trng.subsystem, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
-        push!(acc_, count(labels .== apply_tree(Dtree, features)) / length(labels))
-        if maximum(acc_) ≈ 1 break; else print("█") end
-    end
-    Dtree = build_tree(_trng.subsystem, features, rng = argmax(acc_))
-    println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
-
-    dt = 1e-3
-    x = collect(test[1, [:t, :x, :y, :z]])
-    y = test
-    ŷ = DataFrame(solve(f_, x, dt, y.t, Dtree), ["t", "x", "y", "z"])
-
-    CSV.write("G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv", ŷ)
-# end
-
-vrtc = Float64[]; hrzn = Float64[]
+dr = eachrow(schedule)[10]
 @showprogress for dr in eachrow(schedule)
-    idx_sampled = abs.(diff(data.dz)) .> 0.1
-    sampledx = data[Not(1), :x][idx_sampled]
-    append!(vrtc, fill(dr.f, length(sampledx)))
-    append!(hrzn, sampledx)
+    filename = "G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv"
+    isfile(filename) && continue
+    data = CSV.read(filename, DataFrame)
+
+    vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
+    cnfg = (; N = 3, f_ = [cos], λ = 1e-2)
+    dt = 1e-3
+
+    add_subsystem!(data, vrbl, cnfg; θ1 = 2e-2, θ2 = 1e-5)
+    f_ = [SINDy(data, vrbl...; cnfg...) for gdf in groupby(data, :subsystem)]
+    print(f_[1], last(vrbl))
+    Dtree = dryad(data, vrbl)
+
+    ic = collect(data[1, last(vrbl)])
+    try
+        ŷ = DataFrame(solve(f_, ic, dt, data.t, Dtree), last(vrbl))
+        CSV.write(filename, ŷ)
+    catch
+        println("Error: $(lpad(dr.idx, 5, '0'))")
+    end
 end
-scatter(vrtc, hrzn, color = :black, ms = 1, legend = :none, msw = 0, ma = 1)
+
+idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
+@showprogress for dr in eachrow(schedule)
+    data = CSV.read("G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
+
+    idx_sampled = abs.(diff(diff(data.z) ./ 1e-3)) .> 0.001
+    sampledx = data[Not(1, end), :x][idx_sampled]
+    append!(idcs, fill(dr.idx, length(sampledx)))
+    append!(hrzn, fill(dr.f, length(sampledx)))
+    append!(vrtc, sampledx)
+end
+CSV.write("G:/DDM/bifurcation/hrnm_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
+scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1)
 png("G:/DDM/bifurcation/hrnm_recovered.png")

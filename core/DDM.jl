@@ -123,12 +123,13 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[])
 end
 
 import Base: print
-function print(s::STLSQresult, vals)
+function print(s::STLSQresult, vals::AbstractVector{String})
     @assert !isempty(vals) "empty vals"
     table = [1:size(s.matrix, 1) Θ(vals, N = s.N, M = s.M, f_ = s.f_) s.matrix]
     table[table .== 0] .= ""
     return pretty_table(table; header = ["idx"; "basis"; "d" .* vals[1:size(s.matrix, 2)]])
 end
+print(S::STLSQresult, vals::AbstractVector{Symbol}) = print(S, string.(vals))
 
 function FDM1(M::AbstractMatrix, dt = 0.1)
     d = size(M, 2)
