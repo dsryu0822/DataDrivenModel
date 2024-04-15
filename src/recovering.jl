@@ -2,32 +2,7 @@ include("../core/DDM.jl")
 include("../core/factorio.jl")
 include("../core/visual.jl")
 using DecisionTree, Random
-θ1 = 2e-2
-θ2 = 1e-5
-scatter(error_, yscale = :log10)
-normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
-plot(normeddf)
-jumpt = [1; findall(normeddf .> θ1)]
-sets = collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1))); pop!(sets); sets = UnitRange.(first.(sets), last.(sets))
 
-subsystem = zeros(Int64, nrow(data));
-id_subsys = 2
-# for id_subsys = 1:4
-#     if sets |> isempty
-#         @info "all data points are labeled!"
-#         break
-#     end
-    longest = sets[argmax(length.(sets))]
-
-    candy = SINDy(data[longest,:], vrbl...; cnfg..., λ = 1e-3)
-    print(candy, last(vrbl))
-
-    @time error_ = norm.(eachrow(Matrix(data[:, first(vrbl)])) .- candy.(eachrow(Matrix(data[:, last(vrbl)]))))
-    bit_pass = error_ .< θ2
-    subsystem[bit_pass] .= id_subsys
-    sets = sets[rand.(sets) .∉ Ref(findall(bit_pass))]
-end
-data[!, :subsystem] = subsystem;
 function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-1)
     normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
     jumpt = [1; findall(normeddf .> θ1)]
@@ -199,19 +174,18 @@ png("G:/DDM/bifurcation/soft_recovered.png")
 
 schedule = CSV.read("G:/DDM/bifurcation/hrnm_schedule.csv", DataFrame)[1:100:end,:]
 
-dr = eachrow(schedule)[10]
+# dr = eachrow(schedule)[10]
 @showprogress for dr in eachrow(schedule)
     filename = "G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv"
     isfile(filename) && continue
-    data = CSV.read(filename, DataFrame)
+    data = CSV.read(replace(filename, "hrnm_rcvd" => "hrnm"), DataFrame)
 
     vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
     cnfg = (; N = 3, f_ = [cos], λ = 1e-2)
     dt = 1e-3
 
     add_subsystem!(data, vrbl, cnfg; θ1 = 2e-2, θ2 = 1e-5)
-    f_ = [SINDy(data, vrbl...; cnfg...) for gdf in groupby(data, :subsystem)]
-    print(f_[1], last(vrbl))
+    f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
     Dtree = dryad(data, vrbl)
 
     ic = collect(data[1, last(vrbl)])
@@ -227,7 +201,7 @@ idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
 @showprogress for dr in eachrow(schedule)
     data = CSV.read("G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
 
-    idx_sampled = abs.(diff(diff(data.z) ./ 1e-3)) .> 0.001
+    idx_sampled = abs.(diff(diff(data.z) ./ 1e-3)) .> 0.01
     sampledx = data[Not(1, end), :x][idx_sampled]
     append!(idcs, fill(dr.idx, length(sampledx)))
     append!(hrzn, fill(dr.f, length(sampledx)))
