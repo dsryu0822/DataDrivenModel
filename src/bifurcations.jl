@@ -6,7 +6,7 @@ packages = [:CSV, :DataFrames, :Plots, :Colors, :ColorSchemes]
 end
 mm = Plots.mm
 cm = Plots.cm
-
+using Base.Threads: @threads
 
 
 E_range = 15:0.01:40
@@ -22,11 +22,11 @@ CSV.write("G:/DDM/bifurcation/buck_schedule.csv", schedule)
     
     idx_sampled = diff(data.Vr) .< 0
     sampledV = data[Not(1), :V][idx_sampled]
-    append!(vrtc, fill(dr.E, length(sampledV)))
-    append!(hrzn, sampledV)
+    append!(hrzn, fill(dr.E, length(sampledV)))
+    append!(vrtc, sampledV)
 end
 CSV.write("G:/DDM/bifurcation/buck_bifurcation.csv", DataFrame(; vrtc, hrzn))
-scatter(vrtc, hrzn, color = :black, ms = 1, legend = :none, msw = 0, ma = 0.1);
+scatter(hrzn, vrtc, color = :black, ms = 1, legend = :none, msw = 0, ma = 0.1);
 png("G:/DDM/bifurcation/buck_bifurcation.png")
 
 # 
@@ -42,11 +42,11 @@ CSV.write("G:/DDM/bifurcation/soft_schedule.csv", schedule)
     
     idx_sampled = diff(abs.(data.u) .> (dr.d/2)) .> 0
     sampledv = data[Not(1), :v][idx_sampled]
-    append!(vrtc, fill(dr.d, length(sampledv)))
-    append!(hrzn, sampledv)
+    append!(hrzn, fill(dr.d, length(sampledv)))
+    append!(vrtc, sampledv)
 end
 CSV.write("G:/DDM/bifurcation/soft_bifurcation.csv", DataFrame(; vrtc, hrzn))
-scatter(vrtc, hrzn, color = :black, ms = 1, legend = :none, msw = 0, ma = 0.1);
+scatter(hrzn, vrtc, color = :black, ms = 1, legend = :none, msw = 0, ma = 0.1);
 png("G:/DDM/bifurcation/soft_bifurcation.png")
 
 
@@ -55,9 +55,9 @@ schedule = DataFrame(idx = eachindex(f_range), f = f_range)
 
 # vrtc = Float64[]; hrzn = Float64[]
 CSV.write("G:/DDM/bifurcation/hrnm_schedule.csv", schedule)
-@showprogress for dr in eachrow(schedule)
-    data = factory_hrnm(DataFrame, dr.idx, dr.f, tspan = [0, 1000])
-    data = data[800(nrow(data) ÷ 1000):end, :]
+@showprogress @threads for dr in eachrow(schedule)
+    data = factory_hrnm(DataFrame, dr.idx, dr.f, tspan = [0, 1500])
+    data = data[1000(nrow(data) ÷ 1500):end, :]
     CSV.write("G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv", data)
 end
 CSV.write("G:/DDM/bifurcation/hrnm_bifurcation.csv", DataFrame(; vrtc, hrzn))
@@ -70,8 +70,8 @@ dr = first(eachrow(schedule))
 
     idx_sampled = abs.(diff(data.dz)) .> 0.1
     sampledx = data[Not(1), :x][idx_sampled]
-    append!(vrtc, fill(dr.f, length(sampledx)))
-    append!(hrzn, sampledx)
+    append!(hrzn, fill(dr.f, length(sampledx)))
+    append!(vrtc, sampledx)
 end
-scatter(vrtc, hrzn, color = :black, ms = 1, legend = :none, msw = 0, ma = 0.1);
+scatter(hrzn, vrtc, color = :black, ms = 1, legend = :none, msw = 0, ma = 0.1);
 png("G:/DDM/bifurcation/hrnm_bifurcation.png")
