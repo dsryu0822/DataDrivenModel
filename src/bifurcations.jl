@@ -11,11 +11,11 @@ using Base.Threads: @threads
 
 E_range = 15:0.01:40
 # E_range = [collect(15:0.1:29); collect(29.001:0.001:40)]
-schedule = DataFrame(idx = eachindex(E_range), E = E_range)
+schedules = DataFrame(idx = eachindex(E_range), E = E_range)
 
 vrtc = Float64[]; hrzn = Float64[]
-CSV.write("G:/DDM/bifurcation/buck_schedule.csv", schedule)
-@showprogress for dr in eachrow(schedule)
+CSV.write("G:/DDM/bifurcation/buck_schedules.csv", schedules)
+@showprogress for dr in eachrow(schedules)
     data = factory_buck(DataFrame, dr.idx, dr.E, tspan = [0, 0.30])
     data = data[29(nrow(data) ÷ 30):end, :]
     CSV.write("G:/DDM/bifurcation/buck/$(lpad(dr.idx, 5, '0')).csv", data)
@@ -31,11 +31,11 @@ png("G:/DDM/bifurcation/buck_bifurcation.png")
 
 # 
 d_range = 0.1:0.0001:0.3
-schedule = DataFrame(idx = eachindex(d_range), d = d_range)
+schedules = DataFrame(idx = eachindex(d_range), d = d_range)
 
 vrtc = Float64[]; hrzn = Float64[]
-CSV.write("G:/DDM/bifurcation/soft_schedule.csv", schedule)
-@showprogress for dr in eachrow(schedule)
+CSV.write("G:/DDM/bifurcation/soft_schedules.csv", schedules)
+@showprogress for dr in eachrow(schedules)
     data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 50])
     data = data[30(nrow(data) ÷ 50):end, :]
     CSV.write("G:/DDM/bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv", data)
@@ -51,11 +51,11 @@ png("G:/DDM/bifurcation/soft_bifurcation.png")
 
 
 f_range = 0:0.001:1
-schedule = DataFrame(idx = eachindex(f_range), f = f_range)
+schedules = DataFrame(idx = eachindex(f_range), f = f_range)
 
 # vrtc = Float64[]; hrzn = Float64[]
-CSV.write("G:/DDM/bifurcation/hrnm_schedule.csv", schedule)
-@showprogress @threads for dr in eachrow(schedule)
+CSV.write("G:/DDM/bifurcation/hrnm_schedules.csv", schedules)
+@showprogress @threads for dr in eachrow(schedules)
     data = factory_hrnm(DataFrame, dr.idx, dr.f, tspan = [0, 1500])
     data = data[1000(nrow(data) ÷ 1500):end, :]
     CSV.write("G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv", data)
@@ -64,8 +64,8 @@ CSV.write("G:/DDM/bifurcation/hrnm_bifurcation.csv", DataFrame(; vrtc, hrzn))
 
 
 vrtc = Float64[]; hrzn = Float64[]
-dr = first(eachrow(schedule))
-@showprogress for dr in eachrow(schedule)
+dr = first(eachrow(schedules))
+@showprogress for dr in eachrow(schedules)
     data = CSV.read("G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
 
     idx_sampled = abs.(diff(data.dz)) .> 0.1
