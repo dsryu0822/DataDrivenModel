@@ -65,7 +65,7 @@ end
 # STLSQ(X,v,0.1)
 
 
-function Θ(X::AbstractMatrix; N = 1, M = 0, f_ = Function[])
+function Θ(X::AbstractMatrix; N = 1, M = 0, f_ = Function[], λ = 0)
     dim = size(X, 2)
     ansatz = []
 
