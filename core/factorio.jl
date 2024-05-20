@@ -21,15 +21,17 @@ function RK4(f::Function, v::AbstractVector, h=10^(-2), nonsmooth=0.0)
 end
 function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
     bit_anc = anc_ |> isnothing
-    V = zeros(1+length(t_), length(v))
+    V = zeros(length(t_), length(v))
     V[1, :] = v
-    for k in 1:length(t_)
+    for k in eachindex(t_)
+        (k == length(t_)) && break
+
         _v = bit_anc ? v : [v; anc_[k]]
         s = apply_tree(DT, _v)
         v, _ = RK4(f_[s], v, h)
         V[k+1, :] = v
     end
-    return V[1:(end-1), :]
+    return V
 end
 
 
@@ -125,7 +127,7 @@ const _k = 0.9
 const _ω = 1.0
 const _α = 0.1
 const _β = 0.8 
-function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 20])
+function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100])
     function HR(txyz::AbstractVector, nonsmooth::Real)
         t,x,y,z=txyz
     
