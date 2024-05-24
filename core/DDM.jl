@@ -1,6 +1,5 @@
-using Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables
-@info "Packages Combinatorics, LinearAlgebra, SparseArrays
-      DataFrames, PrettyTables loaded"
+using Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables, Symbolics
+@info "Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables, Symbolics loaded"
 
 struct STLSQresult
     N::Int64
@@ -22,7 +21,6 @@ function (s::STLSQresult)(x)
 end
 
 function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)
-    _ΘX = deepcopy(ΘX)
     L₂ = norm.(eachcol(ΘX))
     ΘX = ΘX ./ L₂'
     # L₂ is for column-wise normalization to ensure restricted isometry property
@@ -120,6 +118,13 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[])
     # ΘX = lpad.(ΘX, maximum(length.(ΘX)))
     replace!(ΘX, "" => "1")
     return ΘX
+end
+
+function jacobian(s::STLSQresult)
+    # lname = eval(Meta.parse("@variables $(join(string.(s.lname), " "))"))
+    rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
+    fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_)' .* s.matrix, dims = 1))
+    return Symbolics.jacobian(fnexp, rname)
 end
 
 import Base: print
