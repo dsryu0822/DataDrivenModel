@@ -1,22 +1,22 @@
 using CSV, DataFrames, ProgressMeter
 @info "Packages CSV, DataFrames, ProgressMeter loaded"
 
-# function Euler(f::Function, v::AbstractVector, h=10^(-2))
-#     V1 = f(v)
-#     return v + h*V1, V1
-# end
-function RK4(f, v::AbstractVector, h=10^(-2))
+function euler(f::Function, v::AbstractVector, h=10^(-2))
     V1 = f(v)
-    V2 = f(v + (h/2)*V1)
-    V3 = f(v + (h/2)*V2)
-    V4 = f(v + h*V3)
-    return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
+    return v + h*V1, V1
 end
 function RK4(f::Function, v::AbstractVector, h=10^(-2), nonsmooth=0.0)
     V1 = f(v, nonsmooth)
     V2 = f(v + (h/2)*V1, nonsmooth)
     V3 = f(v + (h/2)*V2, nonsmooth)
     V4 = f(v + h*V3, nonsmooth)
+    return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
+end
+function RK4(f::Function, v::AbstractVector, h=10^(-2))
+    V1 = f(v)
+    V2 = f(v + (h/2)*V1)
+    V3 = f(v + (h/2)*V2)
+    V4 = f(v + h*V3)
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
 function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
@@ -166,5 +166,5 @@ function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan =
 
     return traj
 end
-factory_hrnm(T::Type, args...; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 20]) = 
+factory_hrnm(T::Type, args...; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100]) = 
 DataFrame(factory_hrnm(args...;  ic = ic, tspan = tspan), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])

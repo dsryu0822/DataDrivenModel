@@ -120,7 +120,7 @@ png("G:/DDM/bifurcation/buck_recovered.png")
 
 #         add_subsystem!(data, vrbl, cnfg; θ1 = 3e-2, θ2 = 1e-10, min_rank = 20); # 30 sec
 #         f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)];
-#         Dtree = dryad(last(data), vrbl)
+#         Dtree = dryad(data, last(vrbl))
 
 #         ic = collect(data[1, last(vrbl)])
 #         try
