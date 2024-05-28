@@ -140,12 +140,6 @@ function FDM1(M::AbstractMatrix, dt = 0.1)
     return DataFrame([diff(M, dims = 1)/dt M[2:end, :]], names)
 end
 
-# ets = SINDy(rand(10, 3), rand(10, 3), N = 2, M = 3, f_ = [tan])
-# print(ets, ["u", "v", "x"])
-# ets([1,2,3])
-
-
-
 function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, min_rank = 0)
     normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
     jumpt = [1; findall(normeddf .> θ1)]
@@ -160,18 +154,21 @@ function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, 
             for (A, B) = combinations(sets, 2)
                 candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
                 # A = first(sets); B = last(sets);
-                if candy.MSE < θ2 print(candy); break; else @info "move on to the next pair!" end
+                if candy.MSE < θ2 break end
             end
-            @warn "No pair found!"
-            for (A, B, C) = combinations(sets, 3)
-                candy = SINDy([data[A, :]; data[B, :]; data[C, :]], vrbl...; cnfg...)
-                # A = first(sets); B = last(sets);
-                if candy.MSE < θ2 print(candy); break; else @info "move on to the next pair!" end
-            end
+            # @warn "No pair found!"
+            # if candy.MSE ≥ θ2
+                for (A, B, C) = combinations(sets, 3)
+                    candy = SINDy([data[A, :]; data[B, :]; data[C, :]], vrbl...; cnfg...)
+                    # A = first(sets); B = last(sets);
+                    if candy.MSE < θ2 break end
+                end
+            # end
         else
             meaningful = sets[argmax(rank_)]
-            candy = SINDy(data[meaningful,:], vrbl...; cnfg...); print(candy)
+            candy = SINDy(data[meaningful,:], vrbl...; cnfg...)
         end
+        # print(candy)
 
         idx_blank = findall(iszero.(subsystem))
         residual = norm.(eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
@@ -183,7 +180,8 @@ function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, 
         subsystem[idx_blank] .= id_subsys
         sets = sets[rand.(sets) .∉ Ref(idx_blank)]
         
-        if sets |> isempty @info "sets exhausted"; break end
+        if sets |> isempty break end
+        # if sets |> isempty @info "sets exhausted"; break end
     end
     data[!, :subsystem] = subsystem;
     return data
@@ -195,7 +193,7 @@ function dryad(data, vrbl) # fairy of tree and forest
     for seed in 1:10
         Dtree = build_tree(data.subsystem, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
         push!(acc_, count(labels .== apply_tree(Dtree, features)) / length(labels))
-        if maximum(acc_) ≈ 1 break; else print("█") end
+        if maximum(acc_) ≈ 1 break end #; else print("█") end
     end
     Dtree = build_tree(data.subsystem, features, rng = argmax(acc_))
     # println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
