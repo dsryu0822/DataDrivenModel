@@ -4,41 +4,56 @@ include("../core/visual.jl")
 using DecisionTree, Random, StatsBase
 using Base.Threads: @threads # Base.Threads.nthreads()
 
-function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.])
-    σ = 10
-    β = 8/3
-    function lorenz(v::AbstractVector)
-        x, y, z = v
-        dx = σ*(y - x)
-        dy = x*(ρ - z) - y
-        dz = x*y - β*z
-        return [dx, dy, dz]
-    end
-
-    dt = 10^(-3)
-    t_ = first(tspan):dt:last(tspan)
+function lyapunov_soft()
+    schedules = CSV.read("G:/DDM/bifurcation/soft_schedules.csv", DataFrame)
+    vrbl = [:dt, :du, :dv], [:t, :u, :v]
+    cnfg = (; f_ = [cospi, sign], λ = 1e-2)
+    dt = 1e-5; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
     
-    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
-    len_t_ = length(t_)
+    result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
+    @showprogress @threads for dr = eachrow(schedules)[1:end]
+        try
+            filename = "G:/DDM/bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
+            !isfile(filename) && continue
+            
+            data = CSV.read(filename, DataFrame)
+            add_subsystem!(data, vrbl, cnfg; (; θ1, θ2, θ3, min_rank)...); # 15~
+            f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+            # Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
+            J_ = jacobian.(f_)
 
-    v = ic; DIM = length(v)
-    traj = zeros(2DIM, len_t_+1)
-    traj[1:DIM, 1] = v
+            λ = zeros(3);
+            J = substitute(J_[data.subsystem[1]], Dict(t => data.t[1]))
+            Q, _ = qr(J)
+            for i in 1:nrow(data)
+                J = substitute(J_[data.subsystem[i]], Dict(t => data.t[i]))
+                # Q = (I(3) + dt*J)*Q
+                Q = Matrix(Q)
+                V1 = J*Q
+                V2 = J*(Q + (dt/2)*V1)
+                V3 = J*(Q + (dt/2)*V2)
+                V4 = J*(Q + dt*V3)
+                Q += (dt/6)*(V1 + 2V2 + 2V3 + V4)
 
-    for tk in eachindex(t_)
-        v, dv = RK4(lorenz, v, dt)
-        if tk+1 ≥ (len_t_ - ndatapoints)
-            traj[        1:DIM , tk+1] =  v
-            traj[DIM .+ (1:DIM), tk  ] = dv
+                Q, R = qr(Q)
+                λ += R .|> abs |> diag .|> log
+            end
+
+            λ ./= dt*nrow(data)
+            push!(result, [dr.d, λ...])
+        catch
+            @warn "Error at $(dr.idx)"
         end
     end
-    traj = traj[:, 1:(end-1)]'
-    traj = traj[(end-ndatapoints):end, :]
-
-    return traj
+    sort!(result, :d)
+    CSV.write("G:/DDM/lyapunov/soft.csv", result)
+    plot(legend = :none, size = [600, 300])
+    plot!(result.d, result.λ1, lw = 2, color = 1)
+    plot!(result.d, result.λ2, lw = 2, color = 2)
+    plot!(result.d, result.λ3, lw = 2, color = 3)
+    png("G:/DDM/lyapunov/soft_lyapunov.png")
 end
-factory_lorenz(T::Type, args...; ic = [10,10,10.], tspan = [0., 100.]) =
-DataFrame(factory_lorenz(args...; ic = ic, tspan), ["x", "y", "z", "dx", "dy", "dz"])
+lyapunov_soft()
 
 # function lorenz(v::AbstractVector; ρ = 28)
 #     x, y, z = v
@@ -101,48 +116,3 @@ DataFrame(factory_lorenz(args...; ic = ic, tspan), ["x", "y", "z", "dx", "dy", "
 # print(f_[2])
 # jacobian.(f_)[1]
 # jacobian.(f_)[2]
-
-
-function lyapunov_soft()
-    schedules = CSV.read("G:/DDM/bifurcation/soft_schedules.csv", DataFrame)
-    vrbl = [:dt, :du, :dv], [:t, :u, :v]
-    cnfg = (; f_ = [cospi, sign], λ = 1e-2)
-    dt = 1e-5; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
-    
-    result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
-    @showprogress @threads for dr = eachrow(schedules)[1:end]
-        try
-            filename = "G:/DDM/bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
-            !isfile(filename) && continue
-            
-            data = CSV.read(filename, DataFrame)
-            add_subsystem!(data, vrbl, cnfg; (; θ1, θ2, θ3, min_rank)...); # 15~
-            f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
-            # Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
-            J_ = jacobian.(f_)
-
-            λ = zeros(3);
-            J = substitute(J_[data.subsystem[1]], Dict(t => data.t[1]))
-            Q, _ = qr(J)
-            for i in 1:nrow(data)
-                J = substitute(J_[data.subsystem[i]], Dict(t => data.t[i]))
-                Q = (I(3) + dt*J)*Q
-                Q, R = qr(Q)
-                λ += R .|> abs |> diag .|> log
-            end
-
-            λ ./= dt*nrow(data)
-            push!(result, [dr.d, λ...])
-        catch
-            @warn "Error at $(dr.idx)"
-        end
-    end
-    sort!(result, :d)
-    CSV.write("G:/DDM/lyapunov/soft.csv", result)
-    plot(legend = :none, size = [600, 300])
-    plot!(result.d, result.λ1, lw = 2, color = 1)
-    plot!(result.d, result.λ2, lw = 2, color = 2)
-    plot!(result.d, result.λ3, lw = 2, color = 3)
-    png("G:/DDM/lyapunov/soft_lyapunov.png")
-end
-lyapunov_soft()
