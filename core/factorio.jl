@@ -5,6 +5,13 @@ function euler(f::Function, v::AbstractVector, h=10^(-2))
     V1 = f(v)
     return v + h*V1, V1
 end
+function RK4(J::AbstractMatrix, U::AbstractMatrix, dt=10^(-2))
+    V1 = J*U
+    V2 = J*(U + (dt/2)*V1)
+    V3 = J*(U + (dt/2)*V2)
+    V4 = J*(U + dt*V3)
+    return U + (dt/6)*(V1 + 2V2 + 2V3 + V4)
+end
 function RK4(f::Function, v::AbstractVector, h=10^(-2), nonsmooth=0.0)
     V1 = f(v, nonsmooth)
     V2 = f(v + (h/2)*V1, nonsmooth)
