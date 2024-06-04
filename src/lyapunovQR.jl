@@ -81,25 +81,19 @@ function lyapunov_lorenz()
     result = DataFrame(ρ = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
     dt = 1e-3 #; tend = 1_000_000
     @showprogress @threads for dr = eachrow(schedules)[1:1:end]
-        filename = "G:/DDM/lyapunov/_lorenz/$(lpad(dr.idx, 5, '0')).csv"
+        filename = "G:/DDM/lyapunov/lorenz/$(lpad(dr.idx, 5, '0')).csv"
         !isfile(filename) && continue
         
         λ = zeros(3);
         data = CSV.read(filename, DataFrame)
         J = J_lorenz(collect(data[1, 1:3])..., dr.r)
-        Q, _ = qr(J)
+        Q, _ = qr(J); Q = Matrix(Q)
         for i in 2:nrow(data)
-            J = J_lorenz(collect(data[i, 1:3])..., dr.r)
-
-            Q = Matrix(Q)
-            V1 = J*Q
-            V2 = J*(Q + (dt/2)*V1)
-            V3 = J*(Q + (dt/2)*V2)
-            V4 = J*(Q + dt*V3)
-            Q += (dt/6)*(V1 + 2V2 + 2V3 + V4)
-
-            Q, R = qr(Q)
+            Q, R = qr(Q); Q = Matrix(Q)
             λ += R .|> abs |> diag .|> log
+            
+            Q = RK4(J, Q, dt)
+            J = J_lorenz(collect(data[i, 1:3])..., dr.r)
         end
 
         λ ./= dt*nrow(data)

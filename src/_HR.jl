@@ -1,6 +1,6 @@
-include("../src/DDM.jl")
-include("../src/factorio.jl")
-include("../src/visual.jl")
+include("../core/DDM.jl")
+include("../core/factorio.jl")
+include("../core/visual.jl")
 using DecisionTree, Random
 
 data_tspan = [0, 10050]
