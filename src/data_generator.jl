@@ -1,14 +1,8 @@
+using DecisionTree, Random, StatsBase, Dates; @info now()
+using Base.Threads: @threads # Base.Threads.nthreads()
 include("../core/DDM.jl")
 include("../core/factorio.jl")
-using ProgressMeter
-packages = [:CSV, :DataFrames, :Plots, :Colors, :ColorSchemes]
-for package in packages
-    @eval using $(package)
-end
-mm = Plots.mm
-cm = Plots.cm
-using Base.Threads: @threads
-
+include("../core/visual.jl")
 
 # E_range = 15:0.01:40
 # schedules = DataFrame(idx = eachindex(E_range), E = E_range)
@@ -31,13 +25,13 @@ using Base.Threads: @threads
 d_range = 0.1:0.0001:0.3
 schedules = DataFrame(idx = eachindex(d_range), d = d_range)
 vrtc = Float64[]; hrzn = Float64[]
-CSV.write("G:/DDM/lyapunov/soft_schedules.csv", schedules)
+CSV.write("G:/DDM/bifurcation/soft_schedules.csv", schedules)
 @showprogress @threads for dr in eachrow(schedules)
     # 30~50: enough to get bifurcation
     # 30~100: not enough to get lyaunov exponent
-    data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 150])
-    data = data[30(nrow(data) ÷ 150):end, :]
-    CSV.write("G:/DDM/lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv", data)
+    data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 50])
+    data = data[30(nrow(data) ÷ 50):end, :]
+    CSV.write("G:/DDM/bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv", data)
     
     # idx_sampled = diff(abs.(data.u) .> (dr.d/2)) .> 0
     # sampledv = data[Not(1), :v][idx_sampled]

@@ -1,7 +1,8 @@
-using Plots, LaTeXStrings
-@info "Packages Plots, LaTeXStrings loaded"
+using Plots, LaTeXStrings, Colors, ColorSchemes
+@info "Packages Plots, LaTeXStrings, Colors, ColorSchemes loaded"
 default(msw=0, color=:black)
 mm = Plots.mm
+cm = Plots.cm
 
 function look(data)
     vn = names(data)

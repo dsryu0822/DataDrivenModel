@@ -4,70 +4,14 @@ include("../core/DDM.jl")
 include("../core/factorio.jl")
 include("../core/visual.jl")
 
-function gram_schmidt(J)
-    N = size(J, 1)
-    U, V = deepcopy(J), deepcopy(J)
-    U[:,1] = V[:,1] / norm(V[:,1])
-    for j in 2:N
-        for jp in 1:(j-1)
-            V[:,j] -= (J[:,j]'U[:,jp])*U[:,jp]
-        end
-        U[:,j] = V[:,j] / norm(V[:,j])
-    end
-    return U, V
-end
-
-# J_lorenz(x,y,z,ρ) = [
-#      -10   10  0
-#       ρ-z -1  -x
-#         y  x  -8/3
-# ]
-# function lyapunov_lorenz()
-#     r_range = 0:0.1:100
-#     schedules = DataFrame(idx = eachindex(r_range), r = r_range)
-#     result = DataFrame(ρ = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
-#     dt = 1e-3
-#     @showprogress @threads for dr = eachrow(schedules)[1:10:end]
-#         filename = "G:/DDM/lyapunov/lorenz/$(lpad(dr.idx, 5, '0')).csv"
-#         !isfile(filename) && continue
-        
-#         λ = zeros(3);
-#         data = CSV.read(filename, DataFrame)
-#         J = J_lorenz(collect(data[1, 1:3])..., dr.r)
-#         U, _ = qr(J); U = Matrix(U)
-#         for i in 2:nrow(data)
-#             U, V = gram_schmidt(U)
-#             λ += V |> eachcol .|> norm .|> log          
-
-#             U = RK4(J, U, dt)
-#             J = J_lorenz(collect(data[i, 1:3])..., dr.r)
-#         end
-
-#         λ ./= dt*nrow(data)
-#         push!(result, [dr.r, λ...])
-#     end
-#     sort!(result, :ρ)
-#     CSV.write("G:/DDM/lyapunov/lorenz.csv", result)
-#     plot(xticks = 0:20:100, legend = :none, size = [600, 300])
-#     plot!(result.ρ, result.λ1, lw = 2, color = 1)
-#     plot!(result.ρ, result.λ2, lw = 2, color = 2)
-#     plot!(result.ρ, result.λ3, lw = 2, color = 3)
-#     png("lyapunovGS")
-# end
-# lyapunov_lorenz()
-
-
 J_soft(t, u, v, d) = [
                0                                0                                 0
                0                                0                                 1
      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0)
 ]
-# J_soft(u, v, d) = [ # 240607 autonomous: 3차원이든 2차원이든 그런건 전혀 관계없음
-#                                     0                                 1
-#      ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0)
-# ]
 
-
+@time data = CSV.read(filename, DataFrame)
+test = factory_soft(DataFrame, 1, 0.2; ic = [8, .05853, .47898], tspan = [2, 5])
 # 현재 dt = 1e-6으로 돌려놓은 상황
 function lyapunov_soft()
     schedules = CSV.read("G:/DDM/lyapunov/soft_schedules.csv", DataFrame)
@@ -82,7 +26,7 @@ function lyapunov_soft()
     result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
     # @showprogress @threads for dr = eachrow(schedules)[883:3:1167]
     @showprogress @threads for dr = eachrow(schedules)[1:1:end]
-        data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 100])
+        data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 100], dt)
         data = data[30(nrow(data) ÷ 100):end, :]
         
         λ = zeros(3);

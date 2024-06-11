@@ -199,3 +199,16 @@ function dryad(data, vrbl) # fairy of tree and forest
     # println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
     return Dtree
 end
+
+function gram_schmidt(J)
+    N = size(J, 1)
+    U, V = deepcopy(J), deepcopy(J)
+    U[:,1] = V[:,1] / norm(V[:,1])
+    for j in 2:N
+        for jp in 1:(j-1)
+            V[:,j] -= (J[:,j]'U[:,jp])*U[:,jp]
+        end
+        U[:,j] = V[:,j] / norm(V[:,j])
+    end
+    return U, V
+end

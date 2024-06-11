@@ -59,10 +59,9 @@ function buck(VI::AbstractVector, nonsmooth::Real)
     return [V̇, İ]
 end
 Vr(t) = _γ + _η * (mod(t, _T))
-function factory_buck(idx::Int64, E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01])
+function factory_buck(idx::Int64, E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7)
     EdL = E/_L
     
-    dt = 1e-7
     t_ = first(tspan):dt:last(tspan)
     Vr_ = Vr.(t_)
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
@@ -85,8 +84,8 @@ function factory_buck(idx::Int64, E::Number; ic = [12.0, 0.55], tspan = [0.00, 0
 
     return traj
 end
-factory_buck(T::Type, args...; ic = [12.0, 0.55], tspan = [0.00, 0.01]) = 
-DataFrame(factory_buck(args...;  ic = ic, tspan = tspan), ["t", "V", "I", "dV", "dI", "Vr"])
+factory_buck(T::Type, args...; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7) = 
+DataFrame(factory_buck(args...;  ic, tspan, dt), ["t", "V", "I", "dV", "dI", "Vr"])
 
 const __κ = 400.0
 const __μ = 172.363
@@ -98,10 +97,9 @@ function soft(tuv::AbstractVector, nonsmooth::Real)
     v̇ = cospi(t) + nonsmooth
     return [ṫ, u̇, v̇]
 end
-function factory_soft(idx::Int64, d::Number; ic = [.0, .05853, .47898], tspan = [0, 10])
+function factory_soft(idx::Int64, d::Number; ic = [.0, .05853, .47898], tspan = [0, 10], dt = 1e-5)
     d2 = d/2
     
-    dt = 1e-6
     t_ = first(tspan):dt:last(tspan)
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
     len_t_ = length(t_)
@@ -122,8 +120,8 @@ function factory_soft(idx::Int64, d::Number; ic = [.0, .05853, .47898], tspan = 
 
     return traj
 end
-factory_soft(T::Type, args...; ic = [.0, .05853, .47898], tspan = [0, 10]) =
-DataFrame(factory_soft(args...; ic = ic, tspan), ["t", "u", "v", "dt", "du", "dv"])
+factory_soft(T::Type, args...; ic = [.0, .05853, .47898], tspan = [0, 10], dt = 1e-5) =
+DataFrame(factory_soft(args...; ic, tspan, dt), ["t", "u", "v", "dt", "du", "dv"])
 
 const _a = 1.0
 const _b = 3.0
@@ -134,7 +132,7 @@ const _k = 0.9
 const _ω = 1.0
 const _α = 0.1
 const _β = 0.8 
-function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100])
+function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
     function HR(txyz::AbstractVector, nonsmooth::Real)
         t,x,y,z=txyz
     
@@ -145,7 +143,7 @@ function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan =
         return [ṫ, ẋ, ẏ, ż]
     end
 
-    dt = 1e-3
+    
     t_ = first(tspan):dt:last(tspan)
 
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
@@ -173,8 +171,8 @@ function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan =
 
     return traj
 end
-factory_hrnm(T::Type, args...; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100]) = 
-DataFrame(factory_hrnm(args...;  ic = ic, tspan = tspan), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
+factory_hrnm(T::Type, args...; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3) = 
+DataFrame(factory_hrnm(args...;  ic, tspan, dt), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
 
 
 
