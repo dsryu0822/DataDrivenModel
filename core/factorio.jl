@@ -62,7 +62,7 @@ Vr(t) = _γ + _η * (mod(t, _T))
 function factory_buck(idx::Int64, E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01])
     EdL = E/_L
     
-    dt = 10^(-7)
+    dt = 1e-7
     t_ = first(tspan):dt:last(tspan)
     Vr_ = Vr.(t_)
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
@@ -101,7 +101,7 @@ end
 function factory_soft(idx::Int64, d::Number; ic = [.0, .05853, .47898], tspan = [0, 10])
     d2 = d/2
     
-    dt = 10^(-5)
+    dt = 1e-6
     t_ = first(tspan):dt:last(tspan)
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
     len_t_ = length(t_)
@@ -145,7 +145,7 @@ function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan =
         return [ṫ, ẋ, ẏ, ż]
     end
 
-    dt = 10^(-3)
+    dt = 1e-3
     t_ = first(tspan):dt:last(tspan)
 
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))

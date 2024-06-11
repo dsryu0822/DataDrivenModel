@@ -62,19 +62,11 @@ using Base.Threads: @threads # Base.Threads.nthreads()
 # end
 # lyapunov_soft()
 
-function lorenz(v::AbstractVector; ρ = 28)
-    x, y, z = v
-    dx = 10*(y - x)
-    dy = x*(ρ - z) - y
-    dz = x*y - (8/3)*z
-    return [dx, dy, dz]
-end
 J_lorenz(x,y,z,ρ) = [
      -10   10  0
       ρ-z -1  -x
         y  x  -8/3
 ]
-
 function lyapunov_lorenz()
     r_range = 0:0.1:100
     schedules = DataFrame(idx = eachindex(r_range), r = r_range)
