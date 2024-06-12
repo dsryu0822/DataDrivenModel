@@ -11,7 +11,7 @@ function lyapunov_soft()
     dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
     result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
-    @showprogress @threads for dr = eachrow(schedules)[1:end]
+    @showprogress for dr = eachrow(schedules)
     # for dr = eachrow(schedules)[1]
         try
             filename = "G:/DDM/bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -41,24 +41,22 @@ function lyapunov_soft()
 
             λ ./= dt*nrow(data)
             push!(result, [dr.d, λ...])
-
-            sort!(result, :d)
-            CSV.write("G:/DDM/lyapunov/soft_lyapunov.csv", result, bom = true)
-            plot(legend = :none, size = [600, 300])
-            plot!(result.d, result.λ1, lw = 2, color = 1)
-            plot!(result.d, result.λ2, lw = 2, color = 2)
-            plot!(result.d, result.λ3, lw = 2, color = 3)
-            png("G:/DDM/lyapunov/soft_lyapunov.png")
-            
-            
-            open("soft.log", "a") do logfile
+            open("G:/DDM/lyapunov/soft.log", "a") do logfile
                 println(logfile, now(), ",good,$(lpad(dr.idx, 5, '0'))")
             end
         catch
-            open("soft.log", "a") do logfile
+            open("G:/DDM/lyapunov/soft.log", "a") do logfile
                 println(logfile, now(), ",error,$(lpad(dr.idx, 5, '0'))")
             end
         end
     end
+
+    sort!(result, :d)
+    CSV.write("G:/DDM/lyapunov/soft_lyapunov.csv", result, bom = true)
+    plot(legend = :none, size = [600, 300])
+    plot!(result.d, result.λ1, lw = 2, color = 1)
+    plot!(result.d, result.λ2, lw = 2, color = 2)
+    plot!(result.d, result.λ3, lw = 2, color = 3)
+    png("G:/DDM/lyapunov/soft_lyapunov.png")
 end
 lyapunov_soft()
