@@ -10,11 +10,8 @@ J_soft(t, u, v, d) = [
      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0)
 ]
 
-@time data = CSV.read(filename, DataFrame)
-test = factory_soft(DataFrame, 1, 0.2; ic = [8, .05853, .47898], tspan = [2, 5])
-# 현재 dt = 1e-6으로 돌려놓은 상황
 function lyapunov_soft()
-    schedules = CSV.read("G:/DDM/lyapunov/soft_schedules.csv", DataFrame)
+    schedules = CSV.read("G:/DDM/lyapunov/soft_schedules_cache.csv", DataFrame)
     # vrbl = [:dt, :du, :dv], [:t, :u, :v]
     # cnfg = (; f_ = [cospi, sign], λ = 1e-2)
     dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
@@ -26,15 +23,14 @@ function lyapunov_soft()
     result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
     # @showprogress @threads for dr = eachrow(schedules)[883:3:1167]
     @showprogress @threads for dr = eachrow(schedules)[1:1:end]
-        data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 100], dt)
-        data = data[30(nrow(data) ÷ 100):end, :]
+        data = factory_soft(DataFrame, dr.idx, dr.d; ic = [dr.t, dr.u, dr.v], tspan = [0, 100], dt)[:, 1:3]
         
         λ = zeros(3);
         J = J_soft(collect(data[1, 1:3])..., dr.d)
         U, _ = qr(J); U = Matrix(U)
         for i in 2:nrow(data)
             U, V = gram_schmidt(U)
-            λ += V |> eachcol .|> norm .|> log          
+            λ += V |> eachcol .|> norm .|> log
 
             U = RK4(J, U, dt)
             J = J_soft(collect(data[i, 1:3])..., dr.d)

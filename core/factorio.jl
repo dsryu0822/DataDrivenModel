@@ -26,20 +26,45 @@ function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=10^(-2))
     V4 = f(v + h*V3)
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
+# function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
+#     bit_anc = anc_ |> isnothing
+#     V = zeros(length(t_), length(v))
+#     V[1, :] = v
+#     for k in eachindex(t_)
+#         (k == length(t_)) && break
+
+#         _v = bit_anc ? v : [v; anc_[k]]
+#         s = apply_tree(DT, _v)
+#         v, _ = RK4(f_[s], v, h)
+#         V[k+1, :] = v
+#     end
+#     return V
+# end
 function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
-    bit_anc = anc_ |> isnothing
     V = zeros(length(t_), length(v))
     V[1, :] = v
     for k in eachindex(t_)
         (k == length(t_)) && break
 
-        _v = bit_anc ? v : [v; anc_[k]]
-        s = apply_tree(DT, _v)
+        s = apply_tree(DT, [v; anc_[k]])
         v, _ = RK4(f_[s], v, h)
         V[k+1, :] = v
     end
     return V
 end
+function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing)
+    V = zeros(length(t_), length(v))
+    V[1, :] = v
+    for k in eachindex(t_)
+        (k == length(t_)) && break
+
+        s = apply_tree(DT, v)
+        v, _ = RK4(f_[s], v, h)
+        V[k+1, :] = v
+    end
+    return V
+end
+
 
 
 const _m = 10^(-3)
