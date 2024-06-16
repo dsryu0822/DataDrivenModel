@@ -24,7 +24,7 @@ function lyapunov_soft()
     dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
     sync = 0
-    @showprogress @threads for dr = eachrow(schedules)[1:100:end]
+    @showprogress @threads for dr = eachrow(schedules)[1:1:end]
         # dr = eachrow(schedules)[1]
         
         filename = "G:/DDM/lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -51,7 +51,7 @@ function lyapunov_soft()
         # J = substitute(J_[1], Dict(t => note.t[1]))
         # U = Float64[0 0 -1; 0 1 0; -1 0 0]
         U, J = rand(3, 3), rand(3, 3)
-        for _t = round(Int64, note.t[end]):60
+        for _t = round(Int64, note.t[end]):100
             # _t = 50
             # println(dr)
             data = DataFrame(solve(f_, collect(note[end, 3:5]), dt, _t:dt:(_t+1), Dtree), last(vrbl))
