@@ -45,6 +45,7 @@ end
 function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
     N = 1, M = 0, f_ = Function[],
     λ = 10^(-6), verbose = false)
+
     ΘX = Θ(X; N = N, M = M, f_ = f_)
     Ξ = STLSQ(ΘX, Ẋ, λ = λ, verbose = verbose)
     MSE = sum(abs2, Ẋ - _ΘX * Ξ) / length(Ẋ) # compare to original data
@@ -55,6 +56,7 @@ end
 function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
     N = 1, M = 0, f_ = Function[],
     λ = 10^(-6), verbose = false) where T <: Union{Integer, Symbol}
+
     X = Θ(df[:, Xsyms], N = N, M = M, f_ = f_)
     Y = Matrix(df[:, Ysyms])
     Ξ = STLSQ(X, Y, λ = λ, verbose = verbose)
@@ -89,7 +91,7 @@ end
      Θ(X::DataFrameRow; N = 1, M = 0, f_ = Function[]) = 
           Θ(collect(X), N = N, M = M, f_ = f_)
 
-supdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
+const supdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
 function num2sup(num)
     if (num == 0) || (num == 1)
         return ""
@@ -97,7 +99,6 @@ function num2sup(num)
         return reduce(*, (getindex.(Ref(supdigit), reverse(digits(num, base = 10)))))
     end
 end
-
 function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[])
     dim = length(X)
     ΘX = []
@@ -119,6 +120,12 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[])
     replace!(ΘX, "" => "1")
     return ΘX
 end
+import Base: print
+function print(s::STLSQresult)
+    table = [1:size(s.matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_) s.matrix]
+    table[table .== 0] .= ""
+    return pretty_table(table; header = ["idx"; "basis"; string.(s.lname)])
+end
 
 function jacobian(s::STLSQresult)
     # lname = eval(Meta.parse("@variables $(join(string.(s.lname), " "))"))
@@ -127,18 +134,12 @@ function jacobian(s::STLSQresult)
     return Symbolics.jacobian(fnexp, rname)
 end
 
-import Base: print
-function print(s::STLSQresult)
-    table = [1:size(s.matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_) s.matrix]
-    table[table .== 0] .= ""
-    return pretty_table(table; header = ["idx"; "basis"; string.(s.lname)])
-end
 
-function FDM1(M::AbstractMatrix, dt = 0.1)
-    d = size(M, 2)
-    names = [fill("x", d) .* string.(1:d); fill("dx", d) .* string.(1:d)]
-    return DataFrame([diff(M, dims = 1)/dt M[2:end, :]], names)
-end
+# function FDM1(M::AbstractMatrix, dt = 0.1)
+#     d = size(M, 2)
+#     names = [fill("x", d) .* string.(1:d); fill("dx", d) .* string.(1:d)]
+#     return DataFrame([diff(M, dims = 1)/dt M[2:end, :]], names)
+# end
 
 function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, min_rank = 0)
     normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)

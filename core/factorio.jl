@@ -42,25 +42,19 @@ end
 # end
 function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
     V = zeros(length(t_), length(v))
-    V[1, :] = v
     for k in eachindex(t_)
-        (k == length(t_)) && break
-
+        V[k, :] = v
         s = apply_tree(DT, [v; anc_[k]])
         v, _ = RK4(f_[s], v, h)
-        V[k+1, :] = v
     end
     return V
 end
 function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing)
     V = zeros(length(t_), length(v))
-    V[1, :] = v
     for k in eachindex(t_)
-        (k == length(t_)) && break
-
+        V[k, :] = v
         s = apply_tree(DT, v)
         v, _ = RK4(f_[s], v, h)
-        V[k+1, :] = v
     end
     return V
 end
