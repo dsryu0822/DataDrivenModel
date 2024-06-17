@@ -13,7 +13,9 @@ include("../core/visual.jl")
     # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
     # for i = 1:2001
     #     dr = schedules[[i], :]
-    #     CSV.write("G:/DDM/lyapunov/soft/$(lpad(i, 5, '0')).csv", dr, bom = true)
+    #     if !isfile("G:/DDM/lyapunov/soft/$(lpad(i, 5, '0')).csv")
+    #         CSV.write("G:/DDM/lyapunov/soft/$(lpad(i, 5, '0')).csv", dr, bom = true)
+    #     end
     # end
 # end
 
@@ -24,7 +26,7 @@ function lyapunov_soft()
     dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
     sync = 0
-    @showprogress @threads for dr = eachrow(schedules)[1:1:end]
+    @showprogress @threads for dr = eachrow(schedules)[1:1:1000]
         # dr = eachrow(schedules)[1]
         
         filename = "G:/DDM/lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -50,7 +52,9 @@ function lyapunov_soft()
         
         # J = substitute(J_[1], Dict(t => note.t[1]))
         # U = Float64[0 0 -1; 0 1 0; -1 0 0]
-        U, J = rand(3, 3), rand(3, 3)
+        # U, J = rand(3, 3), rand(3, 3)
+        J = substitute(J_[apply_tree(Dtree, collect(note[end, 3:5]))], Dict(t => note.t[end]))
+        U, _ = qr(J); U = Matrix(U)
         for _t = round(Int64, note.t[end]):100
             # _t = 50
             # println(dr)
@@ -68,7 +72,7 @@ function lyapunov_soft()
             CSV.write(filename, note, bom = true)
         end
     end
-    open("G:/DDM/lyapunov/done!", "w") do io
+    open("G:/DDM/lyapunov/$(ENV["COMPUTERNAME"]) done!", "w") do io
         println(io, Dates.now())
     end
 end
