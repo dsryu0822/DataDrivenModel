@@ -26,7 +26,7 @@ function lyapunov_soft()
     dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
     sync = 0
-    @showprogress @threads for dr = eachrow(schedules)[3:3:1000]
+    @showprogress @threads for dr = eachrow(schedules)[1:1000]
         # dr = eachrow(schedules)[1]
         
         filename = "G:/DDM/lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -41,7 +41,9 @@ function lyapunov_soft()
 
         try
             if sync ≤ nthreads()
-                sleep(dr.idx/10); sync += 1 # It's technical trick for threading
+                # sleep(dr.idx/10); sync += 1 # It's technical trick for threading
+                # sleep(nthreads()*rand()) # It's technical trick for threading
+                sleep(dr.idx % 109) # It's technical trick for threading
                 J_ = jacobian.(f_)
             end
         catch
@@ -52,7 +54,7 @@ function lyapunov_soft()
         
         J = substitute(J_[apply_tree(Dtree, collect(note[end, 3:5]))], Dict(t => note.t[end]))
         U, _ = qr(J); U = Matrix(U)
-        for _t = round(Int64, note.t[end]):90
+        for _t = round(Int64, note.t[end]):10:90
             
             data = DataFrame(solve(f_, collect(note[end, 3:5]), dt, _t:dt:(_t+10), Dtree), last(vrbl))
             λ = collect(note[end, 6:end])
@@ -65,8 +67,8 @@ function lyapunov_soft()
                 J = Float64.(substitute(J_[s], Dict(t => data.t[i])))
             end
             push!(note, [dr.idx, dr.d, data[end, 1:3]..., λ...])
-            CSV.write("archive/$(lpad(dr.idx, 5, '0')).csv", note, bom = true)
             CSV.write(filename, note, bom = true)
+            CSV.write("archive/$(lpad(dr.idx, 5, '0')).csv", note, bom = true)
         end
     end
     open("G:/DDM/lyapunov/$(ENV["COMPUTERNAME"]) done!", "w") do io
