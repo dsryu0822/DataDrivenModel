@@ -40,7 +40,11 @@ function lyapunov_soft()
 
     sync = 0
     # for dr = eachrow(schedules)[[1563]]
-    @showprogress @threads for dr = eachrow(schedules)[1:10]
+    # chaos1    -    1:500
+    # chaos2    -  501:1000
+    # chaos3    - 1001:1500
+    # sicklinux - 1501:end 
+    @showprogress @threads for dr = eachrow(schedules)[1:end]
         # dr = eachrow(schedules)[1563]
         
         filename = "lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -77,7 +81,7 @@ function lyapunov_soft()
             U, _ = qr(J); U = Matrix(U)
         end
         @info "$(now()) lyapunov start"
-        for _t = round(Int64, note.t[end]):10:100
+        for _t = round(Int64, note.t[end]):10:40
             
             data = DataFrame(solve(f_, collect(note[end, 3:5]), dt, _t:dt:(_t+10), Dtree), last(vrbl))
             # λ = collect(note[end, ((end-2):end)])
