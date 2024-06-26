@@ -46,10 +46,10 @@ function lyapunov_soft()
         filename = "lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
         !isfile(filename) && continue
         note = CSV.read(filename, DataFrame); note[!, Not(1)] .= Float64.(note[!, Not(1)])
-        # data = CSV.read(replace(filename, "lyapunov" => "bifurcation"), DataFrame)
+        data = CSV.read(replace(filename, "soft" => "big"), DataFrame)
         
-        data = factory_soft(DataFrame, dr.idx, dr.d; ic = collect(note[end, 3:5]), tspan = [0, 20], dt)
-        add_subsystem!(data, vrbl, cnfg; (; θ1, θ2, θ3, min_rank)...); # 30 sec
+        # data = factory_soft(DataFrame, dr.idx, dr.d; ic = collect(note[end, 3:5]), tspan = [0, 20], dt)
+        # add_subsystem!(data, vrbl, cnfg; (; θ1, θ2, θ3, min_rank)...); # 30 sec
 
         f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
         Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
