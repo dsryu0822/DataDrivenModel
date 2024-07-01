@@ -6,10 +6,10 @@ include("../core/visual.jl")
 
 if Sys.iswindows()
     cd("G:/DDM")
-    device = ENV["COMPUTERNAME"]
+    device = ENV["COMPUTERNAME"];
 elseif Sys.islinux()
     cd("/home/$(ENV["LOGNAME"])/g/DDM")
-    device = ENV["HOSTNAME"]
+    device = ENV["LOGNAME"];
 end
 
 # canonicalize(2001*100*50sec)
@@ -76,7 +76,7 @@ function lyapunov_soft()
         if U |> isone
             U, _ = qr(J); U = Matrix(U)
         end
-        for _t = round(Int64, note.t[end]):10:40
+        for _t = round(Int64, note.t[end]):10:90
             
             data = DataFrame(solve(f_, collect(note[end, 3:5]), dt, _t:dt:(_t+10), Dtree), last(vrbl))
             λ = zeros(3)
