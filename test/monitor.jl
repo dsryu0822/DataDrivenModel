@@ -9,7 +9,7 @@ cd("G:/DDM/lyapunov")
 
 
 @time files = CSV.read.(readdir("soft", join = true), DataFrame)
-
+count(nrow.(files) .< 11)
 scatter(nrow.(files))
 histogram(nrow.(files))
 

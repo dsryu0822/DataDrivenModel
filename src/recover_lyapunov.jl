@@ -38,17 +38,18 @@ function lyapunov_soft()
     cnfg = (; f_ = [cospi, sign], λ = 1e-2)
     dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
+    tend = 90
     sync = 0
     # chaos1    -    1:500
     # chaos2    -  501:1000
     # chaos3    - 1001:1500
-    # sicklinux - 1501:end 
-    @showprogress @threads for dr = eachrow(schedules)[1:1000]
+    # sicklinux - 1501:end
+    @showprogress for dr = eachrow(schedules)
         # dr = eachrow(schedules)[1563]
         
         filename = "lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
-        !isfile(filename) && continue
         note = CSV.read(filename, DataFrame); note[!, Not(1)] .= Float64.(note[!, Not(1)])
+        note.t[end] > tend && continue
         data = CSV.read(replace(filename, "soft" => "big"), DataFrame)
         
         # data = factory_soft(DataFrame, dr.idx, dr.d; ic = collect(note[end, 3:5]), tspan = [0, 20], dt)
@@ -58,9 +59,11 @@ function lyapunov_soft()
         Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
         data = nothing; GC.gc()
 
+        
+        sleep(rand()); sync += 1
         try
             if sync ≤ nthreads()
-                sleep(dr.idx % 109) # It's technical trick for threading
+                sleep((dr.idx % 109) + rand(1:nthreads())) # It's technical trick for threading
                 J_ = jacobian.(f_)
             end
         catch
