@@ -63,7 +63,7 @@ function init_ANN(data)
         # Flux.Scale(p, bias = false),
         # Fourier(100),
         # Dense(p+1=> 50, relu),
-        # Modulo(400*(10^(-6))),
+        # Modulo(400*(1e-6)),
         Dense(p => 100, relu),
         Dense(100 => 100, relu),
         Dense(100 => 100, relu),

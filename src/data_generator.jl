@@ -4,10 +4,10 @@ function lyapunov_exponent(_data, J_, bf_param;
     U = Matrix(qr(J_(collect(_data[1, :])..., bf_param)).Q))
 
     λ = zeros(size(U, 1))
-    for i = 1:nrow(_data)
-        J = J_(collect(_data[i, :])..., bf_param)
+    for k = 1:nrow(_data)
+        J = J_(collect(_data[k, :])..., bf_param)
         U, V = gram_schmidt(U)
-        if 2i > nrow(_data)
+        if 2k > nrow(_data)
             λ += V |> eachcol .|> norm .|> log
         end
         U = RK4(J, U, dt)
@@ -77,7 +77,8 @@ end
 #                           Hindmarsh-Rose model                         #
 #                                                                        #
 ##########################################################################
-schedules = CSV.read("G:/DDM/bifurcation/hrnm_schedules.csv", DataFrame)
+# schedules = CSV.read("G:/DDM/bifurcation/hrnm_schedules.csv", DataFrame)
+schedules = CSV.read("G:/DDM/lyapunov/hrnm_schedules_cache.csv", DataFrame)
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 cnfg = (; N = 3, f_ = [cos])
 dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
@@ -91,34 +92,36 @@ function J_(t, x, y, z, _f)
 end
 
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
-@showprogress @threads for dr = eachrow(schedules)[62]
+@showprogress @threads for dr = eachrow(schedules)
     try
         filename = "G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
-        data = CSV.read(filename, DataFrame)
+        # data = CSV.read(filename, DataFrame)
         # data = factory_hrnm(DataFrame, dr.idx, dr.f, tspan = [0, 1500]); data = data[1000(nrow(data) ÷ 1500):end , :]
-        if !hasproperty(data, :subsystem)
-            add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
-            CSV.write(filename, data)
-        end
+        data = factory_hrnm(DataFrame, dr.idx, dr.f, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 500]; dt = 1e-4)
+        add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
+        # CSV.write(filename, data)
+        CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
 
         # idx_sampled = abs.(diff(data.dz)) .> 0.1
         # sampledx = data[Not(1), :x][idx_sampled]
         # append!(hrzn, fill(dr.f, length(sampledx)))
         # append!(vrtc, sampledx)
         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
-        dr[3:end] .= λ
+        dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
     catch
         @error "Error in $(dr.idx)"
     end
 end
-# plot(data.z[1:10:end], color = data.subsystem[1:10:end])
 CSV.write("G:/DDM/lyapunov/hrnm.csv", schedules, bom = true)
+# plot(data.z[1:10:end], color = data.subsystem[1:10:end])
 
-for i in 1:nrow(schedules)
-    schedules[i, 3:end] .= sort(collect(schedules[i, 3:end]), rev = true)
-end
-plot(ylims = [-1, 1])
-plot(schedules.λ1)
-plot!(schedules.λ2)
-plot!(schedules.λ3)
-plot!(schedules.λ4)
+
+
+
+# schedules[!, :t] .= .0; schedules[!, :x] .= .0; schedules[!, :y] .= .0; schedules[!, :z] .= .0;
+# for dr = eachrow(schedules)
+#     filename = "G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
+#     data = CSV.read(filename, DataFrame)
+#     dr[(end-3):end] .= collect(data[end, 1:4])
+# end
+# CSV.write("G:/DDM/lyapunov/hrnm_schedules_cache.csv", schedules, bom = true)

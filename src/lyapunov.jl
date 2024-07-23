@@ -4,13 +4,20 @@ include("../core/DDM.jl")
 include("../core/factorio.jl")
 include("../core/visual.jl")
 
-J_soft(t, u, v, d) = [
-               0                                0                                 0
-               0                                0                                 1
-     -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0)
-]
-
+# J_soft(t, u, v, d) = [
+#                0                                0                                 0
+#                0                                0                                 1
+#      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0)
+# ]
 function lyapunov_soft()
+    function J_(t, u, v, d)
+        _bit = abs(u) ≥ d/2
+        __κ2 = 160000
+        __μ = 172.363
+        return [          0          0         0
+                          0          0         1
+                -π*sinpi(t) -__κ2*_bit -__μ*_bit]
+    end    
     schedules = CSV.read("G:/DDM/lyapunov/soft_schedules_cache.csv", DataFrame)
     # vrbl = [:dt, :du, :dv], [:t, :u, :v]
     # cnfg = (; f_ = [cospi, sign], λ = 1e-2)

@@ -20,7 +20,7 @@ function (s::STLSQresult)(x)
     return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_) * s.matrix)
 end
 
-function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)
+function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
     L₂ = norm.(eachcol(ΘX))
     ΘX = ΘX ./ L₂'
     # L₂ is for column-wise normalization to ensure restricted isometry property
@@ -44,7 +44,7 @@ function STLSQ(ΘX, Ẋ; λ = 10^(-6), verbose = false)
 end
 function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
     N = 1, M = 0, f_ = Function[],
-    λ = 10^(-6), verbose = false)
+    λ = 1e-6, verbose = false)
 
     ΘX = Θ(X; N = N, M = M, f_ = f_)
     Ξ = STLSQ(ΘX, Ẋ, λ = λ, verbose = verbose)
@@ -55,7 +55,7 @@ function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
 end
 function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
     N = 1, M = 0, f_ = Function[],
-    λ = 10^(-6), verbose = false) where T <: Union{Integer, Symbol}
+    λ = 1e-6, verbose = false) where T <: Union{Integer, Symbol}
 
     X = Θ(df[:, Xsyms], N = N, M = M, f_ = f_)
     Y = Matrix(df[:, Ysyms])

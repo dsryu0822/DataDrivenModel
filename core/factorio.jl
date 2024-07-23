@@ -61,8 +61,8 @@ end
 
 
 
-const _m = 10^(-3)
-const _μ = 10^(-6)
+const _m = 1e-3
+const _μ = 1e-6
 const _R = 22 # 22
 const _L = 20_m # 20m
 const _C = 47_μ # 22μ
@@ -206,7 +206,7 @@ function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0.,
         return [dx, dy, dz]
     end
 
-    dt = 10^(-3)
+    dt = 1e-3
     t_ = first(tspan):dt:last(tspan)
     
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
