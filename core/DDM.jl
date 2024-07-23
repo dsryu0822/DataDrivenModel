@@ -1,5 +1,5 @@
 using Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables, Symbolics
-@info "Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables, Symbolics loaded"
+# @info "Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables, Symbolics loaded"
 
 struct STLSQresult
     N::Int64
@@ -159,11 +159,11 @@ function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, 
             end
             # @warn "No pair found!"
             # if candy.MSE ≥ θ2
-                for (A, B, C) = combinations(sets, 3)
-                    candy = SINDy([data[A, :]; data[B, :]; data[C, :]], vrbl...; cnfg...)
-                    # A = first(sets); B = last(sets);
-                    if candy.MSE < θ2 break end
-                end
+            for (A, B, C) = combinations(sets, 3)
+                candy = SINDy([data[A, :]; data[B, :]; data[C, :]], vrbl...; cnfg...)
+                # A = first(sets); B = last(sets);
+                if candy.MSE < θ2 break end
+            end
             # end
         else
             meaningful = sets[argmax(rank_)]

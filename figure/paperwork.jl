@@ -1,12 +1,4 @@
-using ProgressMeter
-packages = [:CSV, :DataFrames,
-            :Plots, :Colors, :ColorSchemes]
-@showprogress for package in packages
-    @eval using $(package)
-end
-mm = Plots.mm
-cm = Plots.cm
-default(color = :black, label = :none)
+include("../core/visual.jl")
 
 data_buck = CSV.read("G:/DDM/cached_buck.csv", DataFrame)[1:50000,:]
 blt_b0 = plot(xticks = [0, 0.005])

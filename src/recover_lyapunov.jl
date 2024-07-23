@@ -1,19 +1,9 @@
-using DecisionTree, Random, StatsBase, Dates; @info now(); sec = Second(1);
-using Base.Threads: @threads, nthreads # Base.Threads.nthreads()
-include("../core/DDM.jl")
-include("../core/factorio.jl")
-include("../core/visual.jl")
+include("../core/header.jl")
 
-if Sys.iswindows()
-    cd("G:/DDM")
-    device = ENV["COMPUTERNAME"];
-elseif Sys.islinux()
-    cd("/home/$(ENV["LOGNAME"])/g/DDM")
-    device = ENV["LOGNAME"];
-end
-
+# sec = Second(1)
 # canonicalize(2001*100*50sec)
 # canonicalize((201*50÷20)*50sec)
+
 
 # function initialize_soft()
     # schedules = CSV.read("G:/DDM/lyapunov/soft_schedules_cache.csv", DataFrame)
@@ -26,11 +16,6 @@ end
     # end
 # end
 
-# J_soft(t, u, v, d) = [
-#                0                                0                                 0
-#                0                                0                                 1
-#      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0)
-# ]
 
 function lyapunov_soft()
     schedules = CSV.read("lyapunov/soft_schedules_cache.csv", DataFrame)
@@ -49,7 +34,7 @@ function lyapunov_soft()
         
         filename = "lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
         note = CSV.read(filename, DataFrame); note[!, Not(1)] .= Float64.(note[!, Not(1)])
-        note.t[end] > tend && continue
+        length(note.t) ≥ 11 && continue
         data = CSV.read(replace(filename, "soft" => "big"), DataFrame)
         
         # data = factory_soft(DataFrame, dr.idx, dr.d; ic = collect(note[end, 3:5]), tspan = [0, 20], dt)

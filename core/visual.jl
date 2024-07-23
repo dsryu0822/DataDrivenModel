@@ -1,6 +1,6 @@
 using Plots, LaTeXStrings, Colors, ColorSchemes
 @info "Packages Plots, LaTeXStrings, Colors, ColorSchemes loaded"
-default(msw=0, color=:black)
+default(msw = 0, color = :black, legend = :none)
 mm = Plots.mm
 cm = Plots.cm
 

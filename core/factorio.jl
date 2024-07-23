@@ -1,32 +1,32 @@
 using CSV, DataFrames, ProgressMeter
-@info "Packages CSV, DataFrames, ProgressMeter loaded"
+# @info "Packages CSV, DataFrames, ProgressMeter loaded"
 
-function euler(f::Function, v::AbstractVector, h=10^(-2))
+function euler(f::Function, v::AbstractVector, h=1e-2)
     V1 = f(v)
     return v + h*V1, V1
 end
-function RK4(J::AbstractMatrix, U::AbstractMatrix, dt=10^(-2))
+function RK4(J::AbstractMatrix, U::AbstractMatrix, dt=1e-2)
     V1 = J*U
     V2 = J*(U + (dt/2)*V1)
     V3 = J*(U + (dt/2)*V2)
     V4 = J*(U + dt*V3)
     return U + (dt/6)*(V1 + 2V2 + 2V3 + V4)
 end
-function RK4(f::Function, v::AbstractVector, h=10^(-2), nonsmooth=0.0)
+function RK4(f::Function, v::AbstractVector, h=1e-2, nonsmooth=0.0)
     V1 = f(v, nonsmooth)
     V2 = f(v + (h/2)*V1, nonsmooth)
     V3 = f(v + (h/2)*V2, nonsmooth)
     V4 = f(v + h*V3, nonsmooth)
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
-function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=10^(-2))
+function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2)
     V1 = f(v)
     V2 = f(v + (h/2)*V1)
     V3 = f(v + (h/2)*V2)
     V4 = f(v + h*V3)
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
-# function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
+# function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing, anc_ = nothing)
 #     bit_anc = anc_ |> isnothing
 #     V = zeros(length(t_), length(v))
 #     V[1, :] = v
@@ -40,7 +40,7 @@ end
 #     end
 #     return V
 # end
-function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
+function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing, anc_ = nothing)
     V = zeros(length(t_), length(v))
     for k in eachindex(t_)
         V[k, :] = v
@@ -49,7 +49,7 @@ function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing, anc_ = nothing)
     end
     return V
 end
-function solve(f_, v, h = 10^(-2), t_ = nothing, DT = nothing)
+function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing)
     V = zeros(length(t_), length(v))
     for k in eachindex(t_)
         V[k, :] = v
