@@ -15,7 +15,7 @@ function lyapunov_lorenz_GS()
     result = DataFrame(ρ = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
     dt = 1e-3
     @showprogress @threads for dr = eachrow(schedules)
-        filename = "G:/DDM/lyapunov/lorenz/$(lpad(dr.idx, 5, '0')).csv"
+        filename = "lyapunov/lorenz/$(lpad(dr.idx, 5, '0')).csv"
         !isfile(filename) && continue
         
         λ = zeros(3);
@@ -34,7 +34,7 @@ function lyapunov_lorenz_GS()
         push!(result, [dr.r, λ...])
     end
     sort!(result, :ρ)
-    CSV.write("G:/DDM/lyapunov/lorenz.csv", result)
+    CSV.write("lyapunov/lorenz.csv", result)
     plot(xticks = 0:20:100, legend = :none, size = [600, 300])
     plot!(result.ρ, result.λ1, lw = 2, color = 1)
     plot!(result.ρ, result.λ2, lw = 2, color = 2)
@@ -49,7 +49,7 @@ function lyapunov_lorenz_QR()
     result = DataFrame(ρ = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
     dt = 1e-3
     @showprogress @threads for dr = eachrow(schedules)
-        filename = "G:/DDM/lyapunov/lorenz/$(lpad(dr.idx, 5, '0')).csv"
+        filename = "lyapunov/lorenz/$(lpad(dr.idx, 5, '0')).csv"
         !isfile(filename) && continue
         
         λ = zeros(3);
@@ -68,7 +68,7 @@ function lyapunov_lorenz_QR()
         push!(result, [dr.r, λ...])
     end
     sort!(result, :ρ)
-    CSV.write("G:/DDM/lyapunov/lorenz.csv", result)
+    CSV.write("lyapunov/lorenz.csv", result)
     plot(xticks = 0:20:100, legend = :none, size = [600, 300])
     plot!(result.ρ, result.λ1, lw = 2, color = 1)
     plot!(result.ρ, result.λ2, lw = 2, color = 2)

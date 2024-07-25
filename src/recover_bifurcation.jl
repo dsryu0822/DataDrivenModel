@@ -4,7 +4,7 @@ include("../core/visual.jl")
 using DecisionTree, Random, StatsBase
 using Base.Threads: @threads # Base.Threads.nthreads()
 
-schedules = CSV.read("G:/DDM/bifurcation/buck_schedules.csv", DataFrame)[1:1:end,:]
+schedules = CSV.read("bifurcation/buck_schedules.csv", DataFrame)[1:1:end,:]
 function buck_recovery()
     vrbl = [:dV, :dI], [:V, :I]
     cnfg = (; N = 1)
@@ -12,7 +12,7 @@ function buck_recovery()
     θ1 = 1e+1; θ2 = 1e+0; θ3 = 1e+0; min_rank = 2;
 
     @threads for dr in eachrow(schedules) # dr = eachrow(schedules)[end]
-        filename = "G:/DDM/bifurcation/buck_rcvd/$(lpad(dr.idx, 5, '0')).csv"
+        filename = "bifurcation/buck_rcvd/$(lpad(dr.idx, 5, '0')).csv"
         isfile(filename) && continue
         data = CSV.read(replace(filename, "buck_rcvd" => "buck"), DataFrame);
 
@@ -32,10 +32,10 @@ function buck_recovery()
 end
 buck_recovery()
 
-_Vr = CSV.read("G:/DDM/bifurcation/buck/00001.csv", DataFrame).Vr
+_Vr = CSV.read("bifurcation/buck/00001.csv", DataFrame).Vr
 idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
 @showprogress for dr in eachrow(schedules)
-    filename = "G:/DDM/bifurcation/buck_rcvd/$(lpad(dr.idx, 5, '0')).csv"
+    filename = "bifurcation/buck_rcvd/$(lpad(dr.idx, 5, '0')).csv"
     isfile(filename) || continue
     data = CSV.read(filename, DataFrame)
 
@@ -46,10 +46,10 @@ idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
     append!(vrtc, sampledV)
 end
 scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1)
-CSV.write("G:/DDM/bifurcation/buck_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
-png("G:/DDM/bifurcation/buck_recovered.png")
+CSV.write("bifurcation/buck_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
+png("bifurcation/buck_recovered.png")
 
-# schedules = CSV.read("G:/DDM/bifurcation/soft_schedules.csv", DataFrame)
+# schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
 # function soft_recovery()
 #     vrbl = [:dt, :du, :dv], [:t, :u, :v]
 #     cnfg = (; f_ = [cospi, sign], λ = 1e-2)
@@ -57,7 +57,7 @@ png("G:/DDM/bifurcation/buck_recovered.png")
 #     dt = 1e-5; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
 #     @threads for dr in eachrow(schedules)[1:1:end,:] # dr = eachrow(schedules)[192]
-#         filename = "G:/DDM/bifurcation/soft_rcvd/$(lpad(dr.idx, 5, '0')).csv"
+#         filename = "bifurcation/soft_rcvd/$(lpad(dr.idx, 5, '0')).csv"
 #         isfile(filename) && continue
 #         data = CSV.read(replace(filename, "soft_rcvd" => "soft"), DataFrame);
 
@@ -80,7 +80,7 @@ png("G:/DDM/bifurcation/buck_recovered.png")
 # idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
 # @time for dr in eachrow(schedules)[1:1:end]
 #     try
-#         filename = "G:/DDM/bifurcation/soft_rcvd/$(lpad(dr.idx, 5, '0')).csv"
+#         filename = "bifurcation/soft_rcvd/$(lpad(dr.idx, 5, '0')).csv"
 #         isfile(filename) || continue
 #         data = CSV.read(filename, DataFrame)
 
@@ -94,9 +94,9 @@ png("G:/DDM/bifurcation/buck_recovered.png")
 #         @error "Error: $(lpad(dr.idx, 5, '0'))"
 #     end
 # end
-# CSV.write("G:/DDM/bifurcation/soft_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
+# CSV.write("bifurcation/soft_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
 # scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = .1);
-# png("G:/DDM/bifurcation/soft_recovered.png")
+# png("bifurcation/soft_recovered.png")
 # scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = .1, ylims = [-1, 1]);
 # scatter(idcs, vrtc, ms = 1, legend = :none, msw = 0, ma = 1, xlims = [430, 440])
 # scatter(idcs, vrtc, ms = 1, legend = :none, msw = 0, ma = 1, xlims = [440, 450], ticks = 440:450)
@@ -107,14 +107,14 @@ png("G:/DDM/bifurcation/buck_recovered.png")
 # png("temp")
 # @info ""
 
-# schedules = CSV.read("G:/DDM/bifurcation/hrnm_schedules.csv", DataFrame)[1:1:end,:]
+# schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)[1:1:end,:]
 # function hrnm_recovery()
 #     vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 #     cnfg = (; N = 3, f_ = [cos])
 #     dt = 1e-3
 
 #     @threads for dr in eachrow(schedules) # dr = eachrow(schedules)[171]
-#         filename = "G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv"
+#         filename = "bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv"
 #         isfile(filename) && continue
 #         data = CSV.read(replace(filename, "hrnm_rcvd" => "hrnm"), DataFrame);
 
@@ -135,7 +135,7 @@ png("G:/DDM/bifurcation/buck_recovered.png")
 
 # idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
 # @showprogress for dr in eachrow(schedules)
-#     filename = "G:/DDM/bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv"
+#     filename = "bifurcation/hrnm_rcvd/$(lpad(dr.idx, 5, '0')).csv"
 #     isfile(filename) || continue
 #     data = CSV.read(filename, DataFrame)
 
@@ -146,5 +146,5 @@ png("G:/DDM/bifurcation/buck_recovered.png")
 #     append!(vrtc, sampledx)
 # end
 # scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1)
-# CSV.write("G:/DDM/bifurcation/hrnm_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
-# png("G:/DDM/bifurcation/hrnm_recovered.png")
+# CSV.write("bifurcation/hrnm_recovered.csv", DataFrame(; idcs, vrtc, hrzn))
+# png("bifurcation/hrnm_recovered.png")

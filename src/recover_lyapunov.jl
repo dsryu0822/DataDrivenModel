@@ -6,12 +6,12 @@ include("../core/header.jl")
 
 
 # function initialize_soft()
-    # schedules = CSV.read("G:/DDM/lyapunov/soft_schedules_cache.csv", DataFrame)
+    # schedules = CSV.read("lyapunov/soft_schedules_cache.csv", DataFrame)
     # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
     # for i = 1:2001
     #     dr = schedules[[i], :]
-    #     if !isfile("G:/DDM/lyapunov/soft/$(lpad(i, 5, '0')).csv")
-    #         CSV.write("G:/DDM/lyapunov/soft/$(lpad(i, 5, '0')).csv", dr, bom = true)
+    #     if !isfile("lyapunov/soft/$(lpad(i, 5, '0')).csv")
+    #         CSV.write("lyapunov/soft/$(lpad(i, 5, '0')).csv", dr, bom = true)
     #     end
     # end
 # end

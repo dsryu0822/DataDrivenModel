@@ -18,13 +18,13 @@ function lyapunov_soft()
                           0          0         1
                 -π*sinpi(t) -__κ2*_bit -__μ*_bit]
     end    
-    schedules = CSV.read("G:/DDM/lyapunov/soft_schedules_cache.csv", DataFrame)
+    schedules = CSV.read("lyapunov/soft_schedules_cache.csv", DataFrame)
     # vrbl = [:dt, :du, :dv], [:t, :u, :v]
     # cnfg = (; f_ = [cospi, sign], λ = 1e-2)
     dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
     # @showprogress @threads for dr = eachrow(schedules)[1:1:end]
-    # filename = "G:/DDM/lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
+    # filename = "lyapunov/soft/$(lpad(dr.idx, 5, '0')).csv"
     # !isfile(filename) && continue
     # data = CSV.read(filename, DataFrame)
     result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
@@ -47,21 +47,21 @@ function lyapunov_soft()
         push!(result, [dr.d, λ...])
     end
     sort!(result, :d)
-    CSV.write("G:/DDM/lyapunov/soft_lyapunov.csv", result, bom = true)
+    CSV.write("lyapunov/soft_lyapunov.csv", result, bom = true)
     plot(legend = :none, size = [600, 300])
     plot!(result.d, result.λ1, lw = 2, color = 1)
     plot!(result.d, result.λ2, lw = 2, color = 2)
     plot!(result.d, result.λ3, lw = 2, color = 3)
-    png("G:/DDM/lyapunov/soft_lyapunov.png")
+    png("lyapunov/soft_lyapunov.png")
 end
 lyapunov_soft()
 
 # plot(data.u[1:100:end])
 
-# bfcn = CSV.read("G:/DDM/bifurcation/soft_bifurcation.csv", DataFrame)
+# bfcn = CSV.read("bifurcation/soft_bifurcation.csv", DataFrame)
 # plt_bfcn = scatter(bfcn.vrtc, bfcn.hrzn, ms = .5, legend = :none);
 
-# lpnv = CSV.read("G:/DDM/lyapunov/soft.csv", DataFrame)
+# lpnv = CSV.read("lyapunov/soft.csv", DataFrame)
 # plt_lpnv = plot(legend = :none);
 # plot!(lpnv.d, lpnv.λ1, lw = 2, color = 1);
 # plot!(lpnv.d, lpnv.λ2, lw = 2, color = 2);

@@ -4,7 +4,7 @@ packages = [:CSV, :DataFrames, :Plots]
     @eval using $(package)
 end
 
-cd("G:/DDM/lyapunov")
+cd("lyapunov")
 
 
 

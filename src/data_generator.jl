@@ -20,7 +20,7 @@ end
 #                            Soft impact model                           #
 #                                                                        #
 ##########################################################################
-schedules = CSV.read("G:/DDM/bifurcation/soft_schedules.csv", DataFrame)
+schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi, sign], λ = 1e-2)
 dt = 1e-5; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
@@ -30,7 +30,7 @@ function J_(t, u, v, d)
      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
 end
 @showprogress @threads for dr = eachrow(schedules)
-    filename = "G:/DDM/bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
+    filename = "bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
     # data = factory_soft(DataFrame, dr.idx, dr.d, tspan = [0, 50]); data = data[30(nrow(data) ÷ 50):end , :]
     add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
@@ -47,7 +47,7 @@ end
 #                           DC-DC buck converter                         #
 #                                                                        #
 ##########################################################################
-schedules = CSV.read("G:/DDM/bifurcation/buck_schedules.csv", DataFrame)
+schedules = CSV.read("bifurcation/buck_schedules.csv", DataFrame)
 vrbl = [:dV, :dI], [:V, :I]
 cnfg = (; N = 1)
 dt = 1e-7; θ1 = 1e+1; θ2 = 1e+0; θ3 = 1e+0; min_rank = 2;
@@ -60,7 +60,7 @@ function J_(V, I, Vr, E)
 end
 
 @showprogress @threads for dr = eachrow(schedules)
-    filename = "G:/DDM/bifurcation/buck/$(lpad(dr.idx, 5, '0')).csv"
+    filename = "bifurcation/buck/$(lpad(dr.idx, 5, '0')).csv"
     # data = CSV.read(filename, DataFrame)
     data = factory_buck(DataFrame, dr.idx, dr.E, tspan = [0, .30]); # data = data[29(nrow(data) ÷ 30):end , :]
     add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
@@ -77,8 +77,8 @@ end
 #                           Hindmarsh-Rose model                         #
 #                                                                        #
 ##########################################################################
-# schedules = CSV.read("G:/DDM/bifurcation/hrnm_schedules.csv", DataFrame)
-schedules = CSV.read("G:/DDM/lyapunov/hrnm_schedules_cache.csv", DataFrame)
+# schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
+schedules = CSV.read("lyapunov/hrnm_schedules_cache.csv", DataFrame)
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 cnfg = (; N = 3, f_ = [cos])
 dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
@@ -92,9 +92,12 @@ function J_(t, x, y, z, _f)
 end
 
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
-@showprogress @threads for dr = eachrow(schedules)
+
+
+@showprogress @threads for dr = eachrow(schedules)[.!isfile.(["lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv" for dr = eachrow(schedules)])]
     try
-        filename = "G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
+        # filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
+        filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
         # data = CSV.read(filename, DataFrame)
         # data = factory_hrnm(DataFrame, dr.idx, dr.f, tspan = [0, 1500]); data = data[1000(nrow(data) ÷ 1500):end , :]
         data = factory_hrnm(DataFrame, dr.idx, dr.f, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 500]; dt = 1e-4)
@@ -112,16 +115,16 @@ schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; sc
         @error "Error in $(dr.idx)"
     end
 end
-CSV.write("G:/DDM/lyapunov/hrnm.csv", schedules, bom = true)
-# plot(data.z[1:10:end], color = data.subsystem[1:10:end])
+CSV.write("lyapunov/hrnm.csv", schedules, bom = true)
+# plot(data.z[1:100:end], color = data.subsystem[1:100:end])
 
 
 
 
 # schedules[!, :t] .= .0; schedules[!, :x] .= .0; schedules[!, :y] .= .0; schedules[!, :z] .= .0;
 # for dr = eachrow(schedules)
-#     filename = "G:/DDM/bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
+#     filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
 #     data = CSV.read(filename, DataFrame)
 #     dr[(end-3):end] .= collect(data[end, 1:4])
 # end
-# CSV.write("G:/DDM/lyapunov/hrnm_schedules_cache.csv", schedules, bom = true)
+# CSV.write("lyapunov/hrnm_schedules_cache.csv", schedules, bom = true)
