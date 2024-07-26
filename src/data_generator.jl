@@ -12,7 +12,7 @@ function lyapunov_exponent(_data, J_, bf_param;
         end
         U = RK4(J, U, dt)
     end
-    return sort(2λ / (last(data.t) - first(data.t)))
+    return sort(2λ / (last(_data.t) - first(_data.t)))
 end
 
 ##########################################################################
@@ -79,6 +79,7 @@ end
 ##########################################################################
 # schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
 schedules = CSV.read("lyapunov/hrnm_schedules_cache.csv", DataFrame)
+schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 cnfg = (; N = 3, f_ = [cos])
 dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
@@ -91,19 +92,16 @@ function J_(t, x, y, z, _f)
                             0                            _β   0  -_α]
 end
 
-schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
-
-
-@showprogress @threads for dr = eachrow(schedules)[.!isfile.(["lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv" for dr = eachrow(schedules)])]
-    try
+# [.!isfile.(["lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv" for dr = eachrow(schedules)])]
+@showprogress @threads for dr = eachrow(schedules)
         # filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
         filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
-        # data = CSV.read(filename, DataFrame)
+        data = CSV.read(filename, DataFrame)
         # data = factory_hrnm(DataFrame, dr.idx, dr.f, tspan = [0, 1500]); data = data[1000(nrow(data) ÷ 1500):end , :]
-        data = factory_hrnm(DataFrame, dr.idx, dr.f, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 500]; dt = 1e-4)
-        add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
+        # data = factory_hrnm(DataFrame, dr.idx, dr.f, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 500]; dt = 1e-4)
+        # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
         # CSV.write(filename, data)
-        CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
+        # CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
 
         # idx_sampled = abs.(diff(data.dz)) .> 0.1
         # sampledx = data[Not(1), :x][idx_sampled]
@@ -111,9 +109,7 @@ schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; sc
         # append!(vrtc, sampledx)
         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
         dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
-    catch
-        @error "Error in $(dr.idx)"
-    end
+
 end
 CSV.write("lyapunov/hrnm.csv", schedules, bom = true)
 # plot(data.z[1:100:end], color = data.subsystem[1:100:end])
