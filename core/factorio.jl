@@ -12,18 +12,18 @@ function RK4(J::AbstractMatrix, U::AbstractMatrix, dt=1e-2)
     V4 = J*(U + dt*V3)
     return U + (dt/6)*(V1 + 2V2 + 2V3 + V4)
 end
-function RK4(f::Function, v::AbstractVector, h=1e-2, nonsmooth=0.0)
-    V1 = f(v, nonsmooth)
-    V2 = f(v + (h/2)*V1, nonsmooth)
-    V3 = f(v + (h/2)*V2, nonsmooth)
-    V4 = f(v + h*V3, nonsmooth)
-    return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
-end
-function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2)
-    V1 = f(v)
-    V2 = f(v + (h/2)*V1)
-    V3 = f(v + (h/2)*V2)
-    V4 = f(v + h*V3)
+function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2, nonsmooth=nothing)
+    if nonsmooth |> isnothing
+        V1 = f(v)
+        V2 = f(v + (h/2)*V1)
+        V3 = f(v + (h/2)*V2)
+        V4 = f(v + h*V3)
+    else
+        V1 = f(v, nonsmooth)
+        V2 = f(v + (h/2)*V1, nonsmooth)
+        V3 = f(v + (h/2)*V2, nonsmooth)
+        V4 = f(v + h*V3, nonsmooth)
+    end
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
 # function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing, anc_ = nothing)
@@ -195,7 +195,7 @@ DataFrame(factory_hrnm(args...;  ic, tspan, dt), ["t", "x", "y", "z", "dt", "dx"
 
 
 
-function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.])
+function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
     σ = 10
     β = 8/3
     function lorenz(v::AbstractVector)
@@ -206,7 +206,6 @@ function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0.,
         return [dx, dy, dz]
     end
 
-    dt = 1e-3
     t_ = first(tspan):dt:last(tspan)
     
     ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
@@ -228,5 +227,5 @@ function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0.,
 
     return traj
 end
-factory_lorenz(T::Type, args...; ic = [10,10,10.], tspan = [0., 100.]) =
+factory_lorenz(T::Type, args...; ic = [10,10,10.], tspan = [0., 100.], dt = 1e-4) =
 DataFrame(factory_lorenz(args...; ic = ic, tspan), ["x", "y", "z", "dx", "dy", "dz"])

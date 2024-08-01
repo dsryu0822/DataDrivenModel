@@ -1,7 +1,8 @@
 include("../core/header.jl")
 
 function lyapunov_exponent(_data, J_, bf_param;
-    U = Matrix(qr(J_(collect(_data[1, :])..., bf_param)).Q))
+    # U = Matrix(qr(J_(collect(_data[1, :])..., bf_param)).Q))
+    U = I(ncol(_data)))
 
     λ = zeros(size(U, 1))
     for k = 1:nrow(_data)
@@ -12,8 +13,54 @@ function lyapunov_exponent(_data, J_, bf_param;
         end
         U = RK4(J, U, dt)
     end
-    return sort(2λ / (last(_data.t) - first(_data.t)))
+    return sort(2λ / (last(_data.t) - first(_data.t)), rev=true)
+    # return sort(2λ / 2000)
 end
+
+# schedules = CSV.read("lyapunov/lorenz_schedules_cache.csv", DataFrame)
+# schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
+# dt = 1e-4
+# vrbl = [:dx, :dy, :dz], [:x, :y, :z]
+# J_(x,y,z,ρ) = [
+#      -10   10  0
+#       ρ-z -1  -x
+#         y  x  -8/3
+# ]
+# @showprogress @threads for dr = eachrow(schedules)
+#         # filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
+#         filename = "lyapunov/lorenz/$(lpad(dr.idx, 5, '0')).csv"
+#         # data = CSV.read(filename, DataFrame)
+#         data = factory_lorenz(DataFrame, dr.idx, dr.ρ; tspan = [0, 2000.], dt = 1e-4)
+
+#         # data = factory_hrnm(DataFrame, dr.idx, dr.f; tspan = [0, 1500], dt = 1e-4); data = data[1000(nrow(data) ÷ 1500):end , :]
+#         # data = factory_hrnm(DataFrame, dr.idx, dr.f, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 1000]; dt = 1e-4)
+#         # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
+#         # CSV.write(filename, data)
+#         # CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
+
+#         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.ρ)
+
+#         # data = data[(nrow(data) ÷ 2:end), :]
+#         # idx_sampled = abs.(diff(data.dz)) .> 0.1
+#         # sampledx = data[Not(1), :x][idx_sampled]
+#         # append!(hrzn, fill(dr.f, length(sampledx)))
+#         # append!(vrtc, sampledx)
+#         dr[[:λ1, :λ2, :λ3]] .= λ
+# end
+# # plot(schedules.λ1)
+# using Plots
+# plot(legend = :none)
+# plot!(schedules.λ1)
+# plot!(schedules.λ2)
+# plot!(schedules.λ3)
+# png("lyapunov/lorenz_laypunov.png")
+# CSV.write("lyapunov/lorenz.csv", schedules, bom = true)
+# temp = CSV.read("lyapunov/lorenz.csv", DataFrame)
+# plot(legend = :none, xlabel = "ρ", ylabel = "λ")
+# plot!(temp.ρ, temp.λ1)
+# plot!(temp.ρ, temp.λ2)
+# plot!(temp.ρ, temp.λ3)
+# png("lyapunov/lorenz_laypunov2.png")
 
 # ##########################################################################
 # #                                                                        #
@@ -78,7 +125,7 @@ end
 #                                                                        #
 ##########################################################################
 # schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
-schedules = CSV.read("lyapunov/hrnm_schedules_cache.csv", DataFrame)
+schedules = CSV.read("lyapunov/hrnm_schedules_cache.csv", DataFrame)[1:10:401, :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 cnfg = (; N = 3, f_ = [cos])
@@ -100,15 +147,15 @@ end
 # end
 # [.!isfile.(["lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv" for dr = eachrow(schedules)])]
 
-hrzn = []; vrtc = [];
-@showprogress for dr = eachrow(schedules)
+# hrzn = []; vrtc = [];
+@showprogress @threads for dr = eachrow(schedules)
         # filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
-        filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
+        # filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
         # data = CSV.read(filename, DataFrame)
-        data = factory_hrnm(DataFrame, dr.idx, dr.f; tspan = [0, 1500], dt = 1e-4); data = data[1000(nrow(data) ÷ 1500):end , :]
+        data = factory_hrnm(DataFrame, dr.idx, dr.f; tspan = [0, 1500], dt = 1e-5); data = data[1000(nrow(data) ÷ 1500):end , :]
         # data = factory_hrnm(DataFrame, dr.idx, dr.f, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 1000]; dt = 1e-4)
         # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
-        CSV.write(filename, data)
+        # CSV.write(filename, data)
         # CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
 
         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
@@ -122,9 +169,9 @@ hrzn = []; vrtc = [];
         # dr[[:λ1, :λ2, :λ3]] .= λ
 end
 # CSV.write("lyapunov/hrnm_bifurcation_test.csv", DataFrame(; hrzn, vrtc), bom = true)
+# scatter(hrzn, vrtc, legend = false, alpha = .5, ms = .1, xlabel = "f", ylabel = "x")
 CSV.write("lyapunov/hrnm.csv", schedules, bom = true)
 # plot(data.z[1:100:end], color = data.subsystem[1:100:end])
-
 
 
 
