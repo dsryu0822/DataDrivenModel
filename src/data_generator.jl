@@ -126,7 +126,7 @@ end
 #                                                                        #
 ##########################################################################
 schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
-schedules = schedules[.!isfile.(["lyapunov/hrnm_traj/$(lpad(idx, 5, '0')).csv" for idx in 1:nrow(schedules)]), :]
+# schedules = schedules[.!isfile.(["lyapunov/hrnm_traj/$(lpad(idx, 5, '0')).csv" for idx in 1:nrow(schedules)]), :]
 # schedules = CSV.read("lyapunov/hrnm_schedules_cache.csv", DataFrame)[1:10:401, :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
@@ -144,7 +144,7 @@ end
 
 
 # bfcn = DataFrame(hrzn = [], vrtc = [])
-@showprogress @threads for dr = eachrow(schedules)[288]
+@showprogress @threads for dr = eachrow(schedules)
         # filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
         filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
         # data = CSV.read(filename, DataFrame)
@@ -154,7 +154,7 @@ end
         # CSV.write(filename, data)
 
         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
-        # dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+        dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
         # idx_sampled = abs.(diff(data.dz)) .> 0.1
         # sampledx = data[Not(1), :x][idx_sampled]
         # hrzn, vrtc = fill(dr.f, length(sampledx)), sampledx
