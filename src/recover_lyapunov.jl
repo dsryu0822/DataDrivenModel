@@ -37,7 +37,7 @@ function lyapunov_soft()
         length(note.t) ≥ 11 && continue
         data = CSV.read(replace(filename, "soft" => "big"), DataFrame)
         
-        # data = factory_soft(DataFrame, dr.idx, dr.d; ic = collect(note[end, 3:5]), tspan = [0, 20], dt)
+        # data = factory_soft(DataFrame, dr.d; ic = collect(note[end, 3:5]), tspan = [0, 20], dt)
         # add_subsystem!(data, vrbl, cnfg; (; θ1, θ2, θ3, min_rank)...); # 30 sec
 
         f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]

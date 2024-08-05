@@ -30,7 +30,7 @@ function lyapunov_soft()
     result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
     # @showprogress @threads for dr = eachrow(schedules)[883:3:1167]
     @showprogress @threads for dr = eachrow(schedules)[1:1:end]
-        data = factory_soft(DataFrame, dr.idx, dr.d; ic = [dr.t, dr.u, dr.v], tspan = [0, 100], dt)[:, 1:3]
+        data = factory_soft(DataFrame, dr.d; ic = [dr.t, dr.u, dr.v], tspan = [0, 100], dt)[:, 1:3]
         
         λ = zeros(3);
         J = J_soft(collect(data[1, 1:3])..., dr.d)

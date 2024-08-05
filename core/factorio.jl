@@ -1,6 +1,4 @@
-using CSV, DataFrames, ProgressMeter
-# @info "Packages CSV, DataFrames, ProgressMeter loaded"
-
+include("DDM.jl")
 function euler(f::Function, v::AbstractVector, h=1e-2)
     V1 = f(v)
     return v + h*V1, V1
@@ -26,20 +24,7 @@ function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2, nonsmoo
     end
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
-# function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing, anc_ = nothing)
-#     bit_anc = anc_ |> isnothing
-#     V = zeros(length(t_), length(v))
-#     V[1, :] = v
-#     for k in eachindex(t_)
-#         (k == length(t_)) && break
 
-#         _v = bit_anc ? v : [v; anc_[k]]
-#         s = apply_tree(DT, _v)
-#         v, _ = RK4(f_[s], v, h)
-#         V[k+1, :] = v
-#     end
-#     return V
-# end
 function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing, anc_ = nothing)
     V = zeros(length(t_), length(v))
     for k in eachindex(t_)
@@ -78,12 +63,15 @@ function buck(VI::AbstractVector, nonsmooth::Real)
     return [V̇, İ]
 end
 Vr(t) = _γ + _η * (mod(t, _T))
-function factory_buck(idx::Int64, E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7)
+function factory_buck(E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7)
     EdL = E/_L
     
     t_ = first(tspan):dt:last(tspan)
+    if first(tspan) |> !iszero
+        ic[1] = first(tspan)
+    end
     Vr_ = Vr.(t_)
-    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
+    ndatapoints = count(first(tspan) .≤ t_ .< last(tspan))
     len_t_ = length(t_)
 
     x = ic; DIM = length(x)
@@ -116,11 +104,14 @@ function soft(tuv::AbstractVector, nonsmooth::Real)
     v̇ = cospi(t) + nonsmooth
     return [ṫ, u̇, v̇]
 end
-function factory_soft(idx::Int64, d::Number; ic = [.0, .05853, .47898], tspan = [0, 10], dt = 1e-5)
+function factory_soft(d::Number; ic = [.0, .05853, .47898], tspan = [0, 10], dt = 1e-5)
     d2 = d/2
     
     t_ = first(tspan):dt:last(tspan)
-    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
+    if first(tspan) |> !iszero
+        ic[1] = first(tspan)
+    end
+    ndatapoints = count(first(tspan) .≤ t_ .< last(tspan))
     len_t_ = length(t_)
 
     x = ic; DIM = length(x)
@@ -151,7 +142,7 @@ const _k = 0.9
 const _ω = 1.0
 const _α = 0.1
 const _β = 0.8 
-function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
+function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
     function HR(txyz::AbstractVector, nonsmooth::Real)
         t,x,y,z=txyz
     
@@ -161,41 +152,33 @@ function factory_hrnm(idx::Int64, _f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan =
         ż = _α*nonsmooth + _β*x
         return [ṫ, ẋ, ẏ, ż]
     end
-
     
     t_ = first(tspan):dt:last(tspan)
-
-    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
-
     len_t_ = length(t_)
-    x = ic; DIM = length(x)
-    traj = zeros(2DIM, len_t_+1)
-    traj[1:DIM, 1] = x
-
     
-    for tk in 1:len_t_
-        nonsmooth = sign(x[4]+1) + sign(x[4]-1) - x[4]
-        # if x[4] < -1
-        #     nonsmooth = -2 -x[4]
-        # elseif x[4] > 1
-        #     nonsmooth = 2 - x[4]
-        # end
-        x, dx = RK4(HR, x, dt, nonsmooth)
-        if tk+1 ≥ (len_t_ - ndatapoints)
-            traj[        1:DIM , tk+1] =  x
-            traj[DIM .+ (1:DIM), tk  ] = dx
+    t, tk = .0, 0
+    v = ic; DIM = length(v)
+    traj = zeros(len_t_+2, 2DIM)
+    # traj[1, 1:DIM] = v
+    while tk ≤ len_t_
+        t,x,y,z = v
+        nonsmooth = sign(z+1) + sign(z-1) - z
+        v, dv = RK4(HR, v, dt, nonsmooth)
+
+        if t ≥ first(t_)
+            # print(t)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  v
+            traj[tk  , DIM .+ (1:DIM)] = dv
         end
     end
-    traj = traj[:, (end-ndatapoints):(end-1)]'
-
-    return traj
+    return traj[2:(end-2), :]
 end
 factory_hrnm(T::Type, args...; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3) = 
 DataFrame(factory_hrnm(args...;  ic, tspan, dt), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
 
 
-
-function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
+function factory_lorenz(ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
     σ = 10
     β = 8/3
     function lorenz(v::AbstractVector)
@@ -207,8 +190,11 @@ function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0.,
     end
 
     t_ = first(tspan):dt:last(tspan)
+    if first(tspan) |> !iszero
+        ic[1] = first(tspan)
+    end
     
-    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
+    ndatapoints = count(first(tspan) .≤ t_ .< last(tspan))
     len_t_ = length(t_)
 
     v = ic; DIM = length(v)
