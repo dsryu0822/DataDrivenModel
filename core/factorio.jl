@@ -91,8 +91,8 @@ function factory_buck(E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1
 
     return traj
 end
-factory_buck(T::Type, args...; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7) = 
-DataFrame(factory_buck(args...;  ic, tspan, dt), ["t", "V", "I", "dV", "dI", "Vr"])
+factory_buck(T::Type, args...; kargs...) = 
+DataFrame(factory_buck(args...; kargs...), ["t", "V", "I", "dV", "dI", "Vr"])
 
 const __κ = 400.0
 const __μ = 172.363
@@ -130,8 +130,8 @@ function factory_soft(d::Number; ic = [.0, .05853, .47898], tspan = [0, 10], dt 
 
     return traj
 end
-factory_soft(T::Type, args...; ic = [.0, .05853, .47898], tspan = [0, 10], dt = 1e-5) =
-DataFrame(factory_soft(args...; ic, tspan, dt), ["t", "u", "v", "dt", "du", "dv"])
+factory_soft(T::Type, args...; kargs...) =
+DataFrame(factory_soft(args...; kargs...), ["t", "u", "v", "dt", "du", "dv"])
 
 const _a = 1.0
 const _b = 3.0
@@ -174,9 +174,8 @@ function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], d
     end
     return traj[2:(end-2), :]
 end
-factory_hrnm(T::Type, args...; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3) = 
-DataFrame(factory_hrnm(args...;  ic, tspan, dt), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
-
+factory_hrnm(T::Type, args...; kargs...) = 
+DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
 
 function factory_lorenz(ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
     σ = 10
@@ -213,5 +212,5 @@ function factory_lorenz(ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 
 
     return traj
 end
-factory_lorenz(T::Type, args...; ic = [10,10,10.], tspan = [0., 100.], dt = 1e-4) =
-DataFrame(factory_lorenz(args...; ic = ic, tspan), ["x", "y", "z", "dx", "dy", "dz"])
+factory_lorenz(T::Type, args...; kargs...) =
+DataFrame(factory_lorenz(args...; kargs...), ["x", "y", "z", "dx", "dy", "dz"])
