@@ -5,6 +5,22 @@ include("../core/header.jl")
 # canonicalize((201*50÷20)*50sec)
 
 
+function lyapunov_exponent(_data, J_, bf_param;
+    # U = Matrix(qr(J_(collect(_data[1, :])..., bf_param)).Q),
+    U = I(ncol(_data)))
+
+    λ = zeros(size(U, 1))
+    for k = 1:nrow(_data)
+        J = J_(collect(_data[k, :])..., bf_param)
+        U, V = gram_schmidt(U)
+        if 2k > nrow(_data)
+            λ += V |> eachcol .|> norm .|> log
+        end
+        U = RK4(J, U, dt)
+    end
+    return sort(2λ / (last(_data.t) - first(_data.t)), rev=true)
+end
+
 # function initialize_soft()
     # schedules = CSV.read("lyapunov/soft_schedules_cache.csv", DataFrame)
     # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
@@ -87,3 +103,30 @@ function lyapunov_soft()
     end
 end
 lyapunov_soft()
+
+
+
+##########################################################################
+#                                                                        #
+#                           Hindmarsh-Rose model                         #
+#                                                                        #
+##########################################################################
+schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
+schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
+vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
+eval(Meta.parse("@variables $(join(string.(last(vrbl)), " "))"))
+cnfg = (; N = 3, f_ = [cos])
+
+@showprogress @threads for dr = eachrow(schedules)
+        filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
+        data = CSV.read(filename, DataFrame)
+        
+        f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+        J_ = jacobian.(f_)
+        Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
+        s = apply_tree(Dtree, collect(note[end, 3:5]))
+
+        λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
+        dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+end
+CSV.write("lyapunov/!linux hrnm_lyapunov 1e-3 t = [0, 4000].csv", schedules, bom = true)

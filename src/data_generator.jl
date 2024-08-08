@@ -3,19 +3,17 @@ include("../core/header.jl")
 function lyapunov_exponent(_data, J_, bf_param;
     # U = Matrix(qr(J_(collect(_data[1, :])..., bf_param)).Q),
     U = I(ncol(_data)))
-    # dt = _data.t[2] - _data.t[1])
 
     λ = zeros(size(U, 1))
     for k = 1:nrow(_data)
         J = J_(collect(_data[k, :])..., bf_param)
         U, V = gram_schmidt(U)
-        if 2k > nrow(_data)
+        # if 2k > nrow(_data)
             λ += V |> eachcol .|> norm .|> log
-        end
+        # end
         U = RK4(J, U, dt)
     end
-    return sort(2λ / (last(_data.t) - first(_data.t)), rev=true)
-    # return sort(2λ / 2000)
+    return sort(λ / (last(_data.t) - first(_data.t)), rev=true)
 end
 
 # schedules = CSV.read("lyapunov/lorenz_schedules_cache.csv", DataFrame)
@@ -131,7 +129,7 @@ schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 cnfg = (; N = 3, f_ = [cos])
-dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
+dt = 1e-4; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
 function J_(t, x, y, z, _f)
     return [                0                             0   0    0
              -_ω*_f*sin(_ω*t) (-3*_a*(x^2) + 2*_b*x + _k*z)   1 _k*x
@@ -144,7 +142,7 @@ bfcn = DataFrame(hrzn = [], vrtc = [])
         # filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
         # filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
         # data = CSV.read(filename, DataFrame)
-        data = factory_hrnm(DataFrame, dr.f; tspan = [0, 4000], dt)
+        data = factory_hrnm(DataFrame, dr.f; tspan = [0, 10000], dt)
         # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
         # CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
         # CSV.write(filename, data)
@@ -152,16 +150,16 @@ bfcn = DataFrame(hrzn = [], vrtc = [])
         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
         dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
 
-        data = data[data.t .> 3000, :]
-        idx_sampled = abs.(diff(data.dz)) .> 0.1
-        sampledx = data[Not(1), :x][idx_sampled]
-        hrzn, vrtc = fill(dr.f, length(sampledx)), sampledx
-        append!(bfcn, DataFrame(; hrzn, vrtc))
+        # data = data[data.t .> 3000, :]
+        # idx_sampled = abs.(diff(data.dz)) .> 0.1
+        # sampledx = data[Not(1), :x][idx_sampled]
+        # hrzn, vrtc = fill(dr.f, length(sampledx)), sampledx
+        # append!(bfcn, DataFrame(; hrzn, vrtc))
 end
-scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "f", ylabel = "x")
-png("lyapunov/!linux hrnm_bifurcation 1e-3 t = [0, 4000].csv")
-CSV.write("lyapunov/!linux hrnm_bifurcation 1e-3 t = [0, 4000].csv", bfcn, bom = true)
-CSV.write("lyapunov/!linux hrnm_lyapunov 1e-3 t = [0, 4000].csv", schedules, bom = true)
+# scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "f", ylabel = "x")
+# png("lyapunov/!linux hrnm_bifurcation 1e-4 t = [0, 4000].csv")
+# CSV.write("lyapunov/!linux hrnm_bifurcation 1e-4 t = [0, 4000].csv", bfcn, bom = true)
+CSV.write("lyapunov/!linux hrnm_lyapunov 1e-4 t = [0, 10000].csv", schedules, bom = true)
 # CSV.write("lyapunov/hrnm_bifurcation_test.csv", DataFrame(; hrzn, vrtc), bom = true)
 # scatter(hrzn, vrtc, legend = false, alpha = .5, ms = .1, xlabel = "f", ylabel = "x")
 # CSV.write("lyapunov/hrnm_bifurcation_test.csv", bfcn, bom = true)
