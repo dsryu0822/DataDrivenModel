@@ -36,7 +36,7 @@ function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
             i_ = .!🚫[:, j]
             Ξ[i_, j] = ΘX[:,i_] \ Ẋ[:,j]
         end
-        if _🚫 == 🚫 verbose && println("Stopped!"); break end # Earl_X stopping
+        if _🚫 == 🚫 verbose && println("Stopped!"); break end
         _🚫 = deepcopy(🚫)
     end
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
@@ -48,7 +48,7 @@ function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
 
     ΘX = Θ(X; N = N, M = M, f_ = f_)
     Ξ = STLSQ(ΘX, Ẋ, λ = λ, verbose = verbose)
-    MSE = sum(abs2, Ẋ - _ΘX * Ξ) / length(Ẋ) # compare to original data
+    MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ) # compare to original data
     lname = "dx" .* string.(axes(Ẋ, 2))
     rname =  "x" .* string.(axes(X, 2))
     return STLSQresult(N, M, f_, Ξ, MSE, lname, rname)
