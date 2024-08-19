@@ -160,16 +160,58 @@ end
 factory_soft(T::Type, args...; kargs...) =
 DataFrame(factory_soft(args...; kargs...), ["t", "u", "v", "dt", "du", "dv"])
 
+# const _a = 1.0
+# const _b = 3.0
+# const _c = 1.0
+# const _d = 5.0
+# const _k = 0.9
+# # const _f = 0.1
+# const _ω = 1.0
+# const _α = 0.1
+# const _β = 0.8 
+# function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
+#     function sys(txyz::AbstractVector, nonsmooth::Real)
+#         t,x,y,z=txyz
+    
+#         ṫ = 1
+#         ẋ = y - _a*x^3 + _b*x^2 + _k*x*z + _f*cos(_ω*t)
+#         ẏ = _c - _d*x^2 - y
+#         ż = _α*nonsmooth + _β*x
+#         return [ṫ, ẋ, ẏ, ż]
+#     end
+    
+#     t_ = first(tspan):dt:last(tspan)
+#     len_t_ = length(t_)
+    
+#     t, tk = .0, 0
+#     v = ic; DIM = length(v)
+#     traj = zeros(len_t_+2, 2DIM)
+#     while tk ≤ len_t_
+#         t,x,y,z = v
+#         nonsmooth = sign(z+1) + sign(z-1) - z
+#         v, dv = RK4(sys, v, dt, nonsmooth)
+
+#         if t ≥ first(t_)
+#             tk += 1
+#             traj[tk+1,         1:DIM ] =  v
+#             traj[tk  , DIM .+ (1:DIM)] = dv
+#         end
+#     end
+#     return traj[2:(end-2), :]
+# end
+# factory_hrnm(T::Type, args...; kargs...) = 
+# DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
+
 const _a = 1.0
 const _b = 3.0
 const _c = 1.0
 const _d = 5.0
 const _k = 0.9
-# const _f = 0.1
+const _f = 0.1
 const _ω = 1.0
 const _α = 0.1
-const _β = 0.8 
-function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
+# const _β = 0.8 
+function factory_hrnm(_β::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
     function sys(txyz::AbstractVector, nonsmooth::Real)
         t,x,y,z=txyz
     
@@ -201,6 +243,7 @@ function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], d
 end
 factory_hrnm(T::Type, args...; kargs...) = 
 DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
+
 
 const __b = 1
 const ζ = 0.06

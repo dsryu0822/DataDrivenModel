@@ -1,4 +1,4 @@
-using ProgressMeter, CSV, DecisionTree, Random, StatsBase, Dates;
+using ProgressMeter, CSV, DecisionTree, Random, StatsBase, Dates, Plots;
 using Base.Threads: @threads, nthreads # Base.Threads.nthreads()
 
 if Sys.iswindows()
