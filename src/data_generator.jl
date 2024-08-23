@@ -135,15 +135,15 @@ CSV.write("lyapunov/!linux soft t = [0, 1000].csv", schedules, bom = true)
 # #                           Hindmarsh-Rose model                         #
 # #                                                                        #
 # ##########################################################################
-# # schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
-# schedules = CSV.read("bifurcation/hrnm_schedules_b.csv", DataFrame)[1:1:end, :]
+# schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
+# # schedules = CSV.read("bifurcation/hrnm_schedules_b.csv", DataFrame)[1:1:end, :]
 # # schedules = schedules[.!isfile.(["lyapunov/hrnm_traj/$(lpad(idx, 5, '0')).csv" for idx in 1:nrow(schedules)]), :]
 # # schedules = CSV.read("lyapunov/hrnm_schedules_cache.csv", DataFrame)[1:10:401, :]
 # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 # vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 # cnfg = (; N = 3, f_ = [cos])
 # dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
-# function J_(t, x, y, z, _β)
+# function J_(t, x, y, z, _f)
 #     return [                0                             0   0    0
 #              -_ω*_f*sin(_ω*t) (-3*_a*(x^2) + 2*_b*x + _k*z)   1 _k*x
 #                             0                       -2*_d*x  -1    0
@@ -156,36 +156,29 @@ CSV.write("lyapunov/!linux soft t = [0, 1000].csv", schedules, bom = true)
 #         # filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
 #         # data = CSV.read(filename, DataFrame)
 #         # data = factory_hrnm(DataFrame, dr.f; tspan = [0, 1000], dt)
-#         data = factory_hrnm(DataFrame, dr.b; tspan = [0, 10000], dt)
+#         data = factory_hrnm(DataFrame, dr.f; tspan = [0, 10000], dt)
 #         # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
 #         # CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
 #         # CSV.write(filename, data)
 
-#         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.b)
+#         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
 #         dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
 
 #         data = data[data.t .> 9000, :]
 #         idx_sampled = abs.(diff(data.dz)) .> 0.1
 #         sampledx = data[Not(1), :x][idx_sampled]
-#         push!(hrzn, dr.idx => fill(dr.b, length(sampledx)))
+#         push!(hrzn, dr.idx => fill(dr.f, length(sampledx)))
 #         push!(vrtc, dr.idx => sampledx)
 # end
 # bfcn = DataFrame(hrzn = vcat(values(hrzn)...), vrtc = vcat(values(vrtc)...))
 # CSV.write("lyapunov/hrnm_lyapunov.csv", schedules, bom = true)
 # CSV.write("lyapunov/hrnm_bifurcation.csv", bfcn, bom = true)
 
-# p1 = plot(xticks = [0.36, .52, .68, .84, 1.0])
-# scatter!(p1, bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "f", ylabel = "x")
-# png("lyapunov/hrnm_bifurcation.png")
+# @time eg_period = factory_hrnm(DataFrame, 0.14; tspan = [0, 10000])
+# lyapunov_exponent(eg_period[:, last(vrbl)], J_, 0.14)
+# plot(eg_period.x[1:100:end], eg_period.y[1:100:end], eg_period.z[1:100:end])
+# scatter!(eg_period.x[[end]], eg_period.y[[end]], eg_period.z[[end]], shape = :x)
 
-# p2 = plot(xticks = [0.36, .52, .68, .84, 1.0])
-# plot!(p2, schedules.b, schedules.λ1)
-# png("lyapunov/hrnm_lyapunov.png")
-# plot(p1, p2, layout = (2, 1))
-# png("lyapunov/hrnm_compare.png")
-# # plot!(schedules.b, schedules.λ2)
-# # plot!(schedules.b, schedules.λ3)
-# # plot!(schedules.b, schedules.λ4)
 
 # ##########################################################################
 # #                                                                        #

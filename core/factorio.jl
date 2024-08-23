@@ -45,85 +45,85 @@ function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing)
 end
 
 
-const σ = 10
-const β = 8/3
-function factory_lorenz(ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
-    function sys(v::AbstractVector)
-        x, y, z = v
-        dx = σ*(y - x)
-        dy = x*(ρ - z) - y
-        dz = x*y - β*z
-        return [dx, dy, dz]
-    end
+# const σ = 10
+# const β = 8/3
+# function factory_lorenz(ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
+#     function sys(v::AbstractVector)
+#         x, y, z = v
+#         dx = σ*(y - x)
+#         dy = x*(ρ - z) - y
+#         dz = x*y - β*z
+#         return [dx, dy, dz]
+#     end
 
-    t_ = first(tspan):dt:last(tspan)
-    if first(tspan) |> !iszero
-        ic[1] = first(tspan)
-    end
+#     t_ = first(tspan):dt:last(tspan)
+#     if first(tspan) |> !iszero
+#         ic[1] = first(tspan)
+#     end
     
-    ndatapoints = count(first(tspan) .≤ t_ .< last(tspan))
-    len_t_ = length(t_)
+#     ndatapoints = count(first(tspan) .≤ t_ .< last(tspan))
+#     len_t_ = length(t_)
 
-    v = ic; DIM = length(v)
-    traj = zeros(2DIM, len_t_+1)
-    traj[1:DIM, 1] = v
+#     v = ic; DIM = length(v)
+#     traj = zeros(2DIM, len_t_+1)
+#     traj[1:DIM, 1] = v
 
-    for tk in eachindex(t_)
-        v, dv = RK4(sys, v, dt)
-        if tk+1 ≥ (len_t_ - ndatapoints)
-            traj[        1:DIM , tk+1] =  v
-            traj[DIM .+ (1:DIM), tk  ] = dv
-        end
-    end
-    traj = traj[:, 1:(end-1)]'
-    traj = traj[(end-ndatapoints):end, :]
+#     for tk in eachindex(t_)
+#         v, dv = RK4(sys, v, dt)
+#         if tk+1 ≥ (len_t_ - ndatapoints)
+#             traj[        1:DIM , tk+1] =  v
+#             traj[DIM .+ (1:DIM), tk  ] = dv
+#         end
+#     end
+#     traj = traj[:, 1:(end-1)]'
+#     traj = traj[(end-ndatapoints):end, :]
 
-    return traj
-end
-factory_lorenz(T::Type, args...; kargs...) =
-DataFrame(factory_lorenz(args...; kargs...), ["x", "y", "z", "dx", "dy", "dz"])
+#     return traj
+# end
+# factory_lorenz(T::Type, args...; kargs...) =
+# DataFrame(factory_lorenz(args...; kargs...), ["x", "y", "z", "dx", "dy", "dz"])
 
-const _m = 1e-3
-const _μ = 1e-6
-const _R = 22 # 22
-const _L = 20_m # 20m
-const _C = 47_μ # 22μ
-const _T = 400_μ
-const _γ = 11.7 # 11.75238
-const _η = 1309.5 # 1309.524
-const _RC = _R*_C
-Vr(t) = _γ + _η * (mod(t, _T))
-function factory_buck(E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7)    
-    function sys(VI::AbstractVector, nonsmooth::Real)
-        V, I = VI
+# const _m = 1e-3
+# const _μ = 1e-6
+# const _R = 22 # 22
+# const _L = 20_m # 20m
+# const _C = 47_μ # 22μ
+# const _T = 400_μ
+# const _γ = 11.7 # 11.75238
+# const _η = 1309.5 # 1309.524
+# const _RC = _R*_C
+# Vr(t) = _γ + _η * (mod(t, _T))
+# function factory_buck(E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7)    
+#     function sys(VI::AbstractVector, nonsmooth::Real)
+#         V, I = VI
 
-        V̇ = - V/(_RC) + I/_C
-        İ = - (V/_L) + nonsmooth
-        return [V̇, İ]
-    end
-    EdL = E/_L
+#         V̇ = - V/(_RC) + I/_C
+#         İ = - (V/_L) + nonsmooth
+#         return [V̇, İ]
+#     end
+#     EdL = E/_L
     
-    t_ = first(tspan):dt:last(tspan)
-    len_t_ = length(t_)
+#     t_ = first(tspan):dt:last(tspan)
+#     len_t_ = length(t_)
 
-    t, tk = .0, 0, 0
-    v = ic; DIM = length(v)
-    traj = zeros(len_t_+2, 2DIM)
-    while tk ≤ len_t_
-        V, I = v
-        nonsmooth = ifelse(V < Vr(t), EdL, 0); t += dt
-        v, dv = RK4(sys, v, dt, nonsmooth)
+#     t, tk = .0, 0, 0
+#     v = ic; DIM = length(v)
+#     traj = zeros(len_t_+2, 2DIM)
+#     while tk ≤ len_t_
+#         V, I = v
+#         nonsmooth = ifelse(V < Vr(t), EdL, 0); t += dt
+#         v, dv = RK4(sys, v, dt, nonsmooth)
 
-        if t ≥ first(t_)
-            tk += 1
-            traj[tk+1,         1:DIM ] =  v
-            traj[tk  , DIM .+ (1:DIM)] = dv
-        end
-    end
-    return traj[2:(end-2), :]
-end
-factory_buck(T::Type, args...; kargs...) = 
-DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI"])
+#         if t ≥ first(t_)
+#             tk += 1
+#             traj[tk+1,         1:DIM ] =  v
+#             traj[tk  , DIM .+ (1:DIM)] = dv
+#         end
+#     end
+#     return traj[2:(end-2), :]
+# end
+# factory_buck(T::Type, args...; kargs...) = 
+# DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI"])
 
 const __κ = 400.0
 const __μ = 172.363
@@ -160,58 +160,16 @@ end
 factory_soft(T::Type, args...; kargs...) =
 DataFrame(factory_soft(args...; kargs...), ["t", "u", "v", "dt", "du", "dv"])
 
-# const _a = 1.0
-# const _b = 3.0
-# const _c = 1.0
-# const _d = 5.0
-# const _k = 0.9
-# # const _f = 0.1
-# const _ω = 1.0
-# const _α = 0.1
-# const _β = 0.8 
-# function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
-#     function sys(txyz::AbstractVector, nonsmooth::Real)
-#         t,x,y,z=txyz
-    
-#         ṫ = 1
-#         ẋ = y - _a*x^3 + _b*x^2 + _k*x*z + _f*cos(_ω*t)
-#         ẏ = _c - _d*x^2 - y
-#         ż = _α*nonsmooth + _β*x
-#         return [ṫ, ẋ, ẏ, ż]
-#     end
-    
-#     t_ = first(tspan):dt:last(tspan)
-#     len_t_ = length(t_)
-    
-#     t, tk = .0, 0
-#     v = ic; DIM = length(v)
-#     traj = zeros(len_t_+2, 2DIM)
-#     while tk ≤ len_t_
-#         t,x,y,z = v
-#         nonsmooth = sign(z+1) + sign(z-1) - z
-#         v, dv = RK4(sys, v, dt, nonsmooth)
-
-#         if t ≥ first(t_)
-#             tk += 1
-#             traj[tk+1,         1:DIM ] =  v
-#             traj[tk  , DIM .+ (1:DIM)] = dv
-#         end
-#     end
-#     return traj[2:(end-2), :]
-# end
-# factory_hrnm(T::Type, args...; kargs...) = 
-# DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
-
 const _a = 1.0
 const _b = 3.0
 const _c = 1.0
 const _d = 5.0
 const _k = 0.9
-const _f = 0.1
+# const _f = 0.1
 const _ω = 1.0
 const _α = 0.1
-# const _β = 0.8 
-function factory_hrnm(_β::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
+const _β = 0.8 
+function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
     function sys(txyz::AbstractVector, nonsmooth::Real)
         t,x,y,z=txyz
     
@@ -243,7 +201,6 @@ function factory_hrnm(_β::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], 
 end
 factory_hrnm(T::Type, args...; kargs...) = 
 DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
-
 
 const __b = 1
 const ζ = 0.06
