@@ -91,12 +91,12 @@ end
      Θ(X::DataFrameRow; N = 1, M = 0, f_ = Function[]) = 
           Θ(collect(X), N = N, M = M, f_ = f_)
 
-const supdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
+const superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
 function num2sup(num)
     if (num == 0) || (num == 1)
         return ""
     else
-        return reduce(*, (getindex.(Ref(supdigit), reverse(digits(num, base = 10)))))
+        return reduce(*, (getindex.(Ref(superdigit), reverse(digits(num, base = 10)))))
     end
 end
 function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[])

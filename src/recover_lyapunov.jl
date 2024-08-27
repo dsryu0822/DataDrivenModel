@@ -26,10 +26,10 @@ schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)[1:10:end, :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi, sign], λ = 1e-2)
-dt = 1e-5; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
+dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
 @showprogress @threads for dr = eachrow(schedules)
-    filename = "bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
+    filename = "lyapunov/soft_traj/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
     
     # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
@@ -45,8 +45,9 @@ dt = 1e-5; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
         end
     end
 
-    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:1000, Dtree), last(vrbl))
+    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl))
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.d)
     dr[[:λ1, :λ2, :λ3]] .= λ
+    CSV.write("lyapunov/!$(device)ing soft_lyapunov_rcvd.csv", schedules, bom = true)
 end
-CSV.write("lyapunov/soft_lyapunov_rcvd.csv", schedules, bom = true)
+CSV.write("lyapunov/!$(device) soft_lyapunov_rcvd.csv", schedules, bom = true)

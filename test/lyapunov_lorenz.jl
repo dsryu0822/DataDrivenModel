@@ -21,7 +21,7 @@ function lyapunov_lorenz_GS()
         λ = zeros(3);
         data = CSV.read(filename, DataFrame)
         J = J_lorenz(collect(data[1, 1:3])..., dr.r)
-        U, _ = qr(J); U = Matrix(U)
+        U = I(3)
         for i in 2:nrow(data)
             U, V = gram_schmidt(U)
             λ += V |> eachcol .|> norm .|> log          

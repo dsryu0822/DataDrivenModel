@@ -73,7 +73,8 @@ schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi, sign], λ = 1e-2)
-dt = 1e-5; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
+dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
+# dt = 1e-5 is good to bifurcation diagram but not for lyapunov spectrum, 1e-6 is needed
 function J_(t, u, v, d)
     return [   0                                0                                 0
                0                                0                                 1
@@ -82,7 +83,7 @@ end
 @showprogress @threads for dr = eachrow(schedules)
     # filename = "bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
     # data = CSV.read(filename, DataFrame)
-    data = factory_soft(DataFrame, dr.d, tspan = [0, 1000])
+    data = factory_soft(DataFrame, dr.d, tspan = [0, 150])
     # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
     # CSV.write(filename, data)
 
@@ -93,7 +94,7 @@ end
     # append!(hrzn, fill(dr.d, length(sampledv)))
     # append!(vrtc, sampledv)
 end
-CSV.write("lyapunov/!linux soft t = [0, 1000].csv", schedules, bom = true)
+CSV.write("lyapunov/!linux soft t = [0, 150].csv", schedules, bom = true)
 
 # ##########################################################################
 # #                                                                        #
@@ -258,3 +259,51 @@ CSV.write("lyapunov/!linux soft t = [0, 1000].csv", schedules, bom = true)
 # data = factory_gear(DataFrame, -0.06; tspan = [0, 100])
 # plot(data.x, data.v)
 # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
+
+
+# ##########################################################################
+# #                                                                        #
+# #                   Murali-Lakshmanan-Chua Circuit                       #
+# #                                                                        #
+# ##########################################################################
+# schedules = CSV.read("bifurcation/mlcc_schedules.csv", DataFrame)[1:50:end, :]
+# schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
+# vrbl = [:dx1, :dx2, :dx3, :dx4], [:x1, :x2, :x3, :x4]
+# dt = 1e-2; tend = 2000;
+# function J_(x1, x2, x3, x4, β)
+#     L = 19.1_m  ; Ga1 = -0.0009302325
+#     C = 12.5_n  ; Ga2 = -0.000240577
+#     ν = 8300    ; F = 0.3535533654213462
+
+#     G = √(C/(L*β))
+#     R = 1/G
+#     a₁ = Ga1*R
+#     a₂ = Ga2*R
+#     f = F*β
+#     ω = 2π*ν*C/G
+#     return [ 0                           1  0              0
+#              0 ifelse(abs(x1) ≤ 1, a₁, a₂)  1              0
+#              0                          -β -β -f*ω*cos(ω*x4)
+#              0                           0  0              0 ]
+# end
+
+# hrzn, vrtc = Dict(), Dict()
+# @showprogress for dr = eachrow(schedules)
+#         data = factory_mlcc(DataFrame, dr.bp; dt, tspan = [0, tend])
+
+#         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp, T = tend)
+#         dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+
+#         data = data[data.x4 .> (tend-200), :]
+#         idx_sampled = abs.(diff(data.dx2)) .> 0.01
+#         sampled = data[Not(1), :x3][idx_sampled]
+#         push!(hrzn, dr.idx => fill(dr.bp, length(sampled)))
+#         push!(vrtc, dr.idx => sampled)
+# end
+# bfcn = DataFrame(hrzn = vcat(values(hrzn)...), vrtc = vcat(values(vrtc)...))
+# # CSV.write("lyapunov/mlcc_lyapunov.csv", schedules, bom = true)
+# # CSV.write("lyapunov/mlcc_bifurcation.csv", bfcn, bom = true)
+# scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "β", ylabel = "x3")
+# # png("lyapunov/mlcc_bifurcation.png")
+# plot(legend = :none); plot!(schedules.λ1); plot!(schedules.λ1); plot!(schedules.λ1)
+# # png("lyapunov/mlcc_lyapunov.png")
