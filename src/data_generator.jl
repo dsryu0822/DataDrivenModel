@@ -34,8 +34,8 @@ end
 #         # data = CSV.read(filename, DataFrame)
 #         data = factory_lorenz(DataFrame, dr.ρ; tspan = [0, 2000.], dt = 1e-4)
 
-#         # data = factory_hrnm(DataFrame, dr.f; tspan = [0, 1500], dt = 1e-4); data = data[1000(nrow(data) ÷ 1500):end , :]
-#         # data = factory_hrnm(DataFrame, dr.f, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 1000]; dt = 1e-4)
+#         # data = factory_hrnm(DataFrame, dr.bp; tspan = [0, 1500], dt = 1e-4); data = data[1000(nrow(data) ÷ 1500):end , :]
+#         # data = factory_hrnm(DataFrame, dr.bp, ic = [dr.t, dr.x, dr.y, dr.z], tspan = [0, 1000]; dt = 1e-4)
 #         # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
 #         # CSV.write(filename, data)
 #         # CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
@@ -45,7 +45,7 @@ end
 #         # data = data[(nrow(data) ÷ 2:end), :]
 #         # idx_sampled = abs.(diff(data.dz)) .> 0.1
 #         # sampledx = data[Not(1), :x][idx_sampled]
-#         # append!(hrzn, fill(dr.f, length(sampledx)))
+#         # append!(hrzn, fill(dr.bp, length(sampledx)))
 #         # append!(vrtc, sampledx)
 #         dr[[:λ1, :λ2, :λ3]] .= λ
 # end
@@ -156,19 +156,19 @@ CSV.write("lyapunov/!linux soft t = [0, 150].csv", schedules, bom = true)
 #         # filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
 #         # filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
 #         # data = CSV.read(filename, DataFrame)
-#         # data = factory_hrnm(DataFrame, dr.f; tspan = [0, 1000], dt)
-#         data = factory_hrnm(DataFrame, dr.f; tspan = [0, 10000], dt)
+#         # data = factory_hrnm(DataFrame, dr.bp; tspan = [0, 1000], dt)
+#         data = factory_hrnm(DataFrame, dr.bp; tspan = [0, 10000], dt)
 #         # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
 #         # CSV.write(replace(filename, "bifurcation/hrnm" => "lyapunov/hrnm_traj"), data)
 #         # CSV.write(filename, data)
 
-#         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.f)
+#         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp)
 #         dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
 
 #         data = data[data.t .> 9000, :]
 #         idx_sampled = abs.(diff(data.dz)) .> 0.1
 #         sampledx = data[Not(1), :x][idx_sampled]
-#         push!(hrzn, dr.idx => fill(dr.f, length(sampledx)))
+#         push!(hrzn, dr.idx => fill(dr.bp, length(sampledx)))
 #         push!(vrtc, dr.idx => sampledx)
 # end
 # bfcn = DataFrame(hrzn = vcat(values(hrzn)...), vrtc = vcat(values(vrtc)...))
@@ -230,15 +230,15 @@ CSV.write("lyapunov/!linux soft t = [0, 150].csv", schedules, bom = true)
 
 # bfcn = DataFrame(hrzn = [], vrtc = [])
 # @showprogress for dr = eachrow(schedules)
-#     data = factory_gear(DataFrame, dr.Fe; tspan = [0, tend])
+#     data = factory_gear(DataFrame, dr.bpe; tspan = [0, tend])
 
-#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.Fe, T = tend)
+#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bpe, T = tend)
 #     dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
 
 #     data = data[data.Ω .> 5000, :]
 #     idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
 #     sampledx = data.v[idx_sampled]
-#     hrzn, vrtc = fill(dr.Fe, length(sampledx)), sampledx
+#     hrzn, vrtc = fill(dr.bpe, length(sampledx)), sampledx
 #     append!(bfcn, DataFrame(; hrzn, vrtc))
 # end
 # CSV.write("lyapunov/gear_bifurcation.csv", bfcn, bom = true)

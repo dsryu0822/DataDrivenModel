@@ -260,18 +260,6 @@ function J_(x1, x2, x3, x4, β)
              0                           0  0              0 ]
 end
 
-β = 0.163613
-data = factory_mlcc(DataFrame, β, ic = [4.5, 4.5, 4.5, 0]; tspan = [0, tend], dt = 1e-3);
-plot(data[900000:100:end,:].x1, data[900000:100:end,:].x2, color = :black, xlims = [-20, 140], xticks = -20:40:140)
-vline!([-1, 1], color = :blue)
-plot(data[900000:100:end,:].x1, data[900000:100:end,:].x2, color = :black, xlims = [-2, 3])
-vline!([-1, 1], color = :blue)
-@time λ = lyapunov_exponent(data[:, last(vrbl)], J_, β, T = tend)
-# data = factory_mlcc(DataFrame, 0.339267; tspan = [0, 10000], dt = 0.013387)
-
-data = factory_mlcc(DataFrame, .339267, ic = [0.0, 0.0, 0.0, 0]; tspan = [0, tend], dt);
-plot(data[100000:100:end,:].x2, data[100000:100:end,:].x3)
-
 function factory_mlcc(β::Number; ic = [1.0, -0.1, 0.1, 0.0], tspan = [0, 1000], dt = 1e-2)
     L = 19.1_m  ; Ga1 = -0.0009302325
     C = 12.5_n  ; Ga2 = -0.000240577
@@ -326,3 +314,15 @@ function factory_mlcc(β::Number; ic = [1.0, -0.1, 0.1, 0.0], tspan = [0, 1000],
 end
 factory_mlcc(T::Type, args...; kargs...) = 
 DataFrame(factory_mlcc(args...; kargs...), ["x1", "x2", "x3", "x4", "dx1", "dx2", "dx3", "dx4"])
+
+β = 0.163613
+data = factory_mlcc(DataFrame, β, ic = [4.5, 4.5, 4.5, 0]; tspan = [0, tend], dt = 1e-3);
+plot(data[900000:100:end,:].x1, data[900000:100:end,:].x2, color = :black, xlims = [-20, 140], xticks = -20:40:140)
+vline!([-1, 1], color = :blue)
+plot(data[900000:100:end,:].x1, data[900000:100:end,:].x2, color = :black, xlims = [-2, 3])
+vline!([-1, 1], color = :blue)
+@time λ = lyapunov_exponent(data[:, last(vrbl)], J_, β, T = tend)
+# data = factory_mlcc(DataFrame, 0.339267; tspan = [0, 10000], dt = 0.013387)
+
+data = factory_mlcc(DataFrame, .339267, ic = [0.0, 0.0, 0.0, 0]; tspan = [0, tend], dt);
+plot(data[100000:100:end,:].x2, data[100000:100:end,:].x3)

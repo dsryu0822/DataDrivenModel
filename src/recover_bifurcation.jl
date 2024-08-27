@@ -142,7 +142,7 @@ png("bifurcation/buck_recovered.png")
 #     idx_sampled = abs.(diff(diff(data.z) ./ 1e-3)) .> 0.1
 #     sampledx = data[Not(1, end), :x][idx_sampled]
 #     append!(idcs, fill(dr.idx, length(sampledx)))
-#     append!(hrzn, fill(dr.f, length(sampledx)))
+#     append!(hrzn, fill(dr.bp, length(sampledx)))
 #     append!(vrtc, sampledx)
 # end
 # scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1)
