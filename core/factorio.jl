@@ -240,89 +240,58 @@ DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy"
 # factory_gear(T::Type, args...; kargs...) = 
 # DataFrame(factory_gear(args...; kargs...), ["x", "v", "Ω", "θ", "dx", "dv", "dΩ", "dθ"])
 
-vrbl = [:dx1, :dx2, :dx3, :dx4], [:x1, :x2, :x3, :x4]
-dt = 1e-2; tend = 10000;
-function J_(x1, x2, x3, x4, β)
-    L = 19.1_m  ; Ga1 = -0.0009302325
-    C = 12.5_n  ; Ga2 = -0.000240577
-    ν = 8300    ; # F = 0.3535533654213462
 
-    F = 4.566348639778012
-    G = √(C/(L*β))
-    R = 1/G
-    a₁ = Ga1*R
-    a₂ = Ga2*R
-    f = F*β
-    ω = 2π*ν*C/G
-    return [ 0                           1  0              0
-             0 ifelse(abs(x1) ≤ 1, a₁, a₂)  1              0
-             0                          -β -β -f*ω*cos(ω*x4)
-             0                           0  0              0 ]
-end
-
-function factory_mlcc(β::Number; ic = [1.0, -0.1, 0.1, 0.0], tspan = [0, 1000], dt = 1e-2)
-    L = 19.1_m  ; Ga1 = -0.0009302325
-    C = 12.5_n  ; Ga2 = -0.000240577
-    ν = 8300    ; # F = 0.3535533654213462
+# function factory_mlcc(β::Number; ic = [1.0, -0.1, 0.1, 0.0], tspan = [0, 1000], dt = 1e-2)
+#     L = 19.1_m  ; Ga1 = -0.0009302325
+#     C = 12.5_n  ; Ga2 = -0.000240577
+#     ν = 8300    ; # F = 0.3535533654213462
     
-    F = 4.566348639778012
-    G = √(C/(L*β))
-    R = 1/G
-    a₁ = Ga1*R
-    a₂ = Ga2*R
-    f = F*β
-    ω = 2π*ν*C/G
-    # β = C/(L*(G^2))
-    function sys(𝐱::AbstractVector, nonsmooth::Real)
-        x₁,x₂,x₃,x₄=𝐱
+#     F = 4.566348639778012
+#     G = √(C/(L*β))
+#     R = 1/G
+#     a₁ = Ga1*R
+#     a₂ = Ga2*R
+#     f = F*β
+#     ω = 2π*ν*C/G
+#     # β = C/(L*(G^2))
+#     function sys(𝐱::AbstractVector, nonsmooth::Real)
+#         x₁,x₂,x₃,x₄=𝐱
 
-        ẋ₁ = x₂
-        ẋ₂ = x₃ - nonsmooth*x₂
-        ẋ₃ = -β*(x₂ + x₃) + f*sin(ω*x₄)
-        ẋ₄ = 1
-        return [ẋ₁, ẋ₂, ẋ₃, ẋ₄]
-    end
+#         ẋ₁ = x₂
+#         ẋ₂ = x₃ - nonsmooth*x₂
+#         ẋ₃ = -β*(x₂ + x₃) + f*sin(ω*x₄)
+#         ẋ₄ = 1
+#         return [ẋ₁, ẋ₂, ẋ₃, ẋ₄]
+#     end
     
-    t_ = first(tspan):dt:last(tspan)
-    len_t_ = length(t_)
+#     t_ = first(tspan):dt:last(tspan)
+#     len_t_ = length(t_)
     
-    t, tk = .0, 0
-    v = ic; DIM = length(v)
-    traj = zeros(len_t_+2, 2DIM)
-    println("β = $β")
-    # println("F = $F")
-    # println("G = $G")
-    # println("R = $R")
-    println("a₁ = $a₁")
-    println("a₂ = $a₂")
-    println("f = $f")
-    println("ω = $ω")
-    # println("ν = $ν")
-    while tk ≤ len_t_
-        x₁,x₂,x₃,x₄ = v
-        t += dt
-        nonsmooth = ifelse(abs(x₁) ≤ 1, a₁, a₂)
-        v, dv = RK4(sys, v, dt, nonsmooth)
+#     t, tk = .0, 0
+#     v = ic; DIM = length(v)
+#     traj = zeros(len_t_+2, 2DIM)
+#     println("β = $β")
+#     # println("F = $F")
+#     # println("G = $G")
+#     # println("R = $R")
+#     println("a₁ = $a₁")
+#     println("a₂ = $a₂")
+#     println("f = $f")
+#     println("ω = $ω")
+#     # println("ν = $ν")
+#     while tk ≤ len_t_
+#         x₁,x₂,x₃,x₄ = v
+#         t += dt
+#         nonsmooth = ifelse(abs(x₁) ≤ 1, a₁, a₂)
+#         v, dv = RK4(sys, v, dt, nonsmooth)
 
-        if t ≥ first(t_)
-            tk += 1
-            traj[tk+1,         1:DIM ] =  v
-            traj[tk  , DIM .+ (1:DIM)] = dv
-        end
-    end
-    return traj[2:(end-2), :]
-end
-factory_mlcc(T::Type, args...; kargs...) = 
-DataFrame(factory_mlcc(args...; kargs...), ["x1", "x2", "x3", "x4", "dx1", "dx2", "dx3", "dx4"])
-
-β = 0.163613
-data = factory_mlcc(DataFrame, β, ic = [4.5, 4.5, 4.5, 0]; tspan = [0, tend], dt = 1e-3);
-plot(data[900000:100:end,:].x1, data[900000:100:end,:].x2, color = :black, xlims = [-20, 140], xticks = -20:40:140)
-vline!([-1, 1], color = :blue)
-plot(data[900000:100:end,:].x1, data[900000:100:end,:].x2, color = :black, xlims = [-2, 3])
-vline!([-1, 1], color = :blue)
-@time λ = lyapunov_exponent(data[:, last(vrbl)], J_, β, T = tend)
-# data = factory_mlcc(DataFrame, 0.339267; tspan = [0, 10000], dt = 0.013387)
-
-data = factory_mlcc(DataFrame, .339267, ic = [0.0, 0.0, 0.0, 0]; tspan = [0, tend], dt);
-plot(data[100000:100:end,:].x2, data[100000:100:end,:].x3)
+#         if t ≥ first(t_)
+#             tk += 1
+#             traj[tk+1,         1:DIM ] =  v
+#             traj[tk  , DIM .+ (1:DIM)] = dv
+#         end
+#     end
+#     return traj[2:(end-2), :]
+# end
+# factory_mlcc(T::Type, args...; kargs...) = 
+# DataFrame(factory_mlcc(args...; kargs...), ["x1", "x2", "x3", "x4", "dx1", "dx2", "dx3", "dx4"])

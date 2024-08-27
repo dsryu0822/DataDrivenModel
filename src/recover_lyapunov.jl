@@ -63,12 +63,6 @@ schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; sc
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 cnfg = (; N = 3, f_ = [cos])
 dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
-function J_(t, x, y, z, _f)
-    return [                0                             0   0    0
-             -_ω*_f*sin(_ω*t) (-3*_a*(x^2) + 2*_b*x + _k*z)   1 _k*x
-                            0                       -2*_d*x  -1    0
-                            0                            _β   0  -_α]
-end
 
 hrzn, vrtc = Dict(), Dict()
 @showprogress @threads for dr = eachrow(schedules)
