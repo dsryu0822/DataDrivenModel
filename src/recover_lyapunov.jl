@@ -5,11 +5,13 @@ include("../core/header.jl")
 
 function lyapunov_exponent(_data::DataFrame, J_::Vector{Matrix{Num}}, DT::Root{Float64, Int64}, bf_param;
     U = I(ncol(_data)), T = (last(_data.t) - first(_data.t)))
+    last_vrbl = Symbol.(names(_data))
 
     λ = zeros(size(U, 1))
     for k = 1:nrow(_data)
         s = apply_tree(DT, collect(_data[k, :]))
-        J = Float64.(substitute(J_[s], Dict(t => _data.t[k])))
+        String_Dict = "substitute(J_[$s], Dict($(join(["$vb => $(_data[k, vb])" for vb in last_vrbl], ", "))))"
+        J = Float64.(eval(Meta.parse(String_Dict)))
         U, V = gram_schmidt(U)
         λ += V |> eachcol .|> norm .|> log
         U = RK4(J, U, dt)
@@ -66,24 +68,24 @@ dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
 
 hrzn, vrtc = Dict(), Dict()
 @showprogress @threads for dr = eachrow(schedules)
-        filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
-        data = CSV.read(filename, DataFrame)
+    filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
+    data = CSV.read(filename, DataFrame)
 
-        f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
-        Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
-        J_ = []
-        while true
-            try
-                J_ = jacobian.(f_)
-                break
-            catch
-                print(".")
-            end
+    f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+    Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
+    J_ = []
+    while true
+        try
+            J_ = jacobian.(f_)
+            break
+        catch
+            print(".")
         end
-    
-        data = DataFrame(solve(f_, [eps(), eps(), eps(), 0.1], dt, 0:dt:10000, Dtree), last(vrbl))
-        λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
-        dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
-        CSV.write("lyapunov/!$(device)ing hrnm_lyapunov.csv", schedules, bom = true)
+    end
+
+    data = DataFrame(solve(f_, [eps(), eps(), eps(), 0.1], dt, 0:dt:10000, Dtree), last(vrbl))
+    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
+    dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+    CSV.write("lyapunov/!$(device)ing hrnm_lyapunov.csv", schedules, bom = true)
 end
 CSV.write("lyapunov/!$(device) hrnm_lyapunov.csv", schedules, bom = true)
