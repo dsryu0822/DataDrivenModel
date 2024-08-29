@@ -10,7 +10,7 @@ function lyapunov_exponent(_data::DataFrame, J_::Vector{Matrix{Num}}, DT::Root{F
     λ = zeros(size(U, 1))
     for k = 1:nrow(_data)
         s = apply_tree(DT, collect(_data[k, :]))
-        String_Dict = "substitute(J_[$s], Dict($(join(["$vb => $(_data[k, vb])" for vb in last_vrbl], ", "))))"
+        String_Dict = "substitute($(J_[s]), Dict($(join(["$vb => $(_data[k, vb])" for vb in last_vrbl], ", "))))"
         J = Float64.(eval(Meta.parse(String_Dict)))
         U, V = gram_schmidt(U)
         λ += V |> eachcol .|> norm .|> log
