@@ -68,7 +68,7 @@ dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
 
 hrzn, vrtc = Dict(), Dict()
 @showprogress @threads for dr = eachrow(schedules)
-    filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
+    filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
 
     f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
@@ -83,7 +83,7 @@ hrzn, vrtc = Dict(), Dict()
         end
     end
 
-    data = DataFrame(solve(f_, [eps(), eps(), eps(), 0.1], dt, 0:dt:10000, Dtree), last(vrbl))
+    data = DataFrame(solve(f_, [eps(), eps(), eps(), 0.1], dt, 0:dt:1000, Dtree), last(vrbl))
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
     dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
     CSV.write("lyapunov/!$(device)ing hrnm_lyapunov.csv", schedules, bom = true)
