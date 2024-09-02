@@ -84,10 +84,10 @@ png("bifurcation/buck_recovered.png")
 #         isfile(filename) || continue
 #         data = CSV.read(filename, DataFrame)
 
-#         idx_sampled = diff(abs.(data.u) .> (dr.d/2)) .> 0
+#         idx_sampled = diff(abs.(data.u) .> (dr.bp/2)) .> 0
 #         sampledv = data[Not(1), :v][idx_sampled]
 #         append!(idcs, fill(dr.idx, length(sampledv)))
-#         append!(hrzn, fill(dr.d, length(sampledv)))
+#         append!(hrzn, fill(dr.bp, length(sampledv)))
 #         append!(vrtc, sampledv)
 #         print(dr.idx, "-")
 #     catch

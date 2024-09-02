@@ -30,21 +30,21 @@ function lyapunov_soft()
     result = DataFrame(d = Float64[], λ1 = Float64[], λ2 = Float64[], λ3 = Float64[])
     # @showprogress @threads for dr = eachrow(schedules)[883:3:1167]
     @showprogress @threads for dr = eachrow(schedules)[1:1:end]
-        data = factory_soft(DataFrame, dr.d; ic = [dr.t, dr.u, dr.v], tspan = [0, 100], dt)[:, 1:3]
+        data = factory_soft(DataFrame, dr.bp; ic = [dr.t, dr.u, dr.v], tspan = [0, 100], dt)[:, 1:3]
         
         λ = zeros(3);
-        J = J_soft(collect(data[1, 1:3])..., dr.d)
+        J = J_soft(collect(data[1, 1:3])..., dr.bp)
         U, _ = qr(J); U = Matrix(U)
         for i in 2:nrow(data)
             U, V = gram_schmidt(U)
             λ += V |> eachcol .|> norm .|> log
 
             U = RK4(J, U, dt)
-            J = J_soft(collect(data[i, 1:3])..., dr.d)
+            J = J_soft(collect(data[i, 1:3])..., dr.bp)
         end
 
         λ ./= dt*nrow(data)
-        push!(result, [dr.d, λ...])
+        push!(result, [dr.bp, λ...])
     end
     sort!(result, :d)
     CSV.write("lyapunov/soft_lyapunov.csv", result, bom = true)

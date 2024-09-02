@@ -48,7 +48,7 @@ end
 #     end
 
 #     data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl))
-#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.d)
+#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
 #     dr[[:λ1, :λ2, :λ3]] .= λ
 #     CSV.write("lyapunov/!$(device)ing soft_lyapunov_rcvd.csv", schedules, bom = true)
 # end
