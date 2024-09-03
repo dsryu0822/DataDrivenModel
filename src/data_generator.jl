@@ -69,8 +69,8 @@ end
 #                            Soft impact model                           #
 #                                                                        #
 ##########################################################################
-schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
-schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
+# schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
+# schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi, sign], λ = 1e-2)
 dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
@@ -80,7 +80,10 @@ function J_(t, u, v, d)
                0                                0                                 1
      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
 end
-@showprogress @threads for dr = eachrow(schedules)
+
+schedules = CSV.read("lyapunov/linux_soft.csv", DataFrame)
+@showprogress @threads for dr = eachrow(schedules)[iszero.(schedules.λ1)]
+# @showprogress @threads for dr = eachrow(schedules)
     # filename = "bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
     # data = CSV.read(filename, DataFrame)
     data = factory_soft(DataFrame, dr.bp, tspan = [0, 150]; dt)
