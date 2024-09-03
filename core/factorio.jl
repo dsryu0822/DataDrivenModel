@@ -162,7 +162,7 @@ function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], d
     _b = 3.0
     _c = 1.0
     _d = 5.0
-    __k = 0.9
+    _k = 0.9
     # _f = 0.1
     _ω = 1.0
     _α = 0.1
@@ -171,7 +171,7 @@ function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], d
         t,x,y,z=txyz
     
         ṫ = 1
-        ẋ = y - _a*x^3 + _b*x^2 + __k*x*z + _f*cos(_ω*t)
+        ẋ = y - _a*x^3 + _b*x^2 + _k*x*z + _f*cos(_ω*t)
         ẏ = _c - _d*x^2 - y
         ż = _α*nonsmooth + _β*x
         return [ṫ, ẋ, ẏ, ż]

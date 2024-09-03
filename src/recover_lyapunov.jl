@@ -60,14 +60,32 @@ end
 #                           Hindmarsh-Rose model                         #
 #                                                                        #
 ##########################################################################
-schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)[1:10:end, :]
+# schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
+schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)[1:10:end, :][[1:3; 7:9], :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 cnfg = (; N = 3, f_ = [cos])
 dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
 
-hrzn, vrtc = Dict(), Dict()
+# for dr = eachrow(schedules)[1:250]
+#     try
+#         filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
+#         data = CSV.read(filename, DataFrame)
+#         MM = maximum(data.subsystem)
+#         if MM > 3
+#             print("$(dr.idx)... $(MM) → ")
+#             add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank)
+#             CSV.write(filename, data)
+#             println(maximum(data.subsystem))
+#         end
+#     catch
+#         @error "$(dr.dix)"
+#     end
+# end
+# scatter(tmp)
+
 @showprogress @threads for dr = eachrow(schedules)
+    try
     filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
 
@@ -83,9 +101,14 @@ hrzn, vrtc = Dict(), Dict()
         end
     end
 
-    data = DataFrame(solve(f_, [eps(), eps(), eps(), 0.1], dt, 0:dt:1000, Dtree), last(vrbl))
+    data = DataFrame(solve(f_, [eps(), eps(), eps(), 0.1], dt, 0:dt:10000, Dtree), last(vrbl))
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
     dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
-    CSV.write("lyapunov/!$(device)ing hrnm_lyapunov.csv", schedules, bom = true)
+    # CSV.write("lyapunov/!$(device)ing hrnm_lyapunov.csv", schedules, bom = true)
+    CSV.write("lyapunov/6채우기 hrnm_lyapunov.csv", schedules, bom = true)
+catch
+    @error "Error in $(dr.idx)"
 end
+end
+CSV.write("lyapunov/6채우기 hrnm_lyapunov.csv", schedules, bom = true)
 CSV.write("lyapunov/!$(device) hrnm_lyapunov.csv", schedules, bom = true)

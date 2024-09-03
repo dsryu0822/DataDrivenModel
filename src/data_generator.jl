@@ -137,15 +137,21 @@ CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 # #                           Hindmarsh-Rose model                         #
 # #                                                                        #
 # ##########################################################################
-# schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
-# # schedules = CSV.read("bifurcation/hrnm_schedules_b.csv", DataFrame)[1:1:end, :]
-# # schedules = schedules[.!isfile.(["lyapunov/hrnm_traj/$(lpad(idx, 5, '0')).csv" for idx in 1:nrow(schedules)]), :]
-# # schedules = CSV.read("lyapunov/hrnm_schedules_cache.csv", DataFrame)[1:10:401, :]
+# # schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
 # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 # vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 # cnfg = (; N = 3, f_ = [cos])
 # dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
 # function J_(t, x, y, z, _f)
+#     _a = 1.0
+#     _b = 3.0
+#     _c = 1.0
+#     _d = 5.0
+#     _k = 0.9
+#     # _f = 0.1
+#     _ω = 1.0
+#     _α = 0.1
+#     _β = 0.8 
 #     return [                0                             0   0    0
 #              -_ω*_f*sin(_ω*t) (-3*_a*(x^2) + 2*_b*x + _k*z)   1 _k*x
 #                             0                       -2*_d*x  -1    0
@@ -166,11 +172,11 @@ CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 #         λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp)
 #         dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
 
-#         data = data[data.t .> 9000, :]
-#         idx_sampled = abs.(diff(data.dz)) .> 0.1
-#         sampledx = data[Not(1), :x][idx_sampled]
-#         push!(hrzn, dr.idx => fill(dr.bp, length(sampledx)))
-#         push!(vrtc, dr.idx => sampledx)
+#         # data = data[data.t .> 9000, :]
+#         # idx_sampled = abs.(diff(data.dz)) .> 0.1
+#         # sampledx = data[Not(1), :x][idx_sampled]
+#         # push!(hrzn, dr.idx => fill(dr.bp, length(sampledx)))
+#         # push!(vrtc, dr.idx => sampledx)
 # end
 # bfcn = DataFrame(hrzn = vcat(values(hrzn)...), vrtc = vcat(values(vrtc)...))
 # CSV.write("lyapunov/hrnm_lyapunov.csv", schedules, bom = true)
