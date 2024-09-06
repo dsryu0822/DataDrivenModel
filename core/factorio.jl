@@ -270,15 +270,7 @@ DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy"
 #     t, tk = .0, 0
 #     v = ic; DIM = length(v)
 #     traj = zeros(len_t_+2, 2DIM)
-#     println("β = $β")
-#     # println("F = $F")
-#     # println("G = $G")
-#     # println("R = $R")
-#     println("a₁ = $a₁")
-#     println("a₂ = $a₂")
-#     println("f = $f")
-#     println("ω = $ω")
-#     # println("ν = $ν")
+
 #     while tk ≤ len_t_
 #         x₁,x₂,x₃,x₄ = v
 #         t += dt
@@ -295,3 +287,86 @@ DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy"
 # end
 # factory_mlcc(T::Type, args...; kargs...) = 
 # DataFrame(factory_mlcc(args...; kargs...), ["x1", "x2", "x3", "x4", "dx1", "dx2", "dx3", "dx4"])
+
+function factory_epid(ε::Number; ic = [.0, .0331, .0001, .9668], tspan = [0, 100], dt = 1e-4)
+    σ = 0.01
+    μ = 0.01
+    γ = 50
+    β₀ = 1510
+    T = 1
+    function sys(v::AbstractVector, nonsmooth::Real)
+        t,S,I,R=v
+
+        ṫ = 1
+        Ṡ = σ - μ*S - nonsmooth*S*I
+        İ = nonsmooth*S*I - (γ + μ)*I
+        Ṙ = γ*I - μ*R
+        return [ṫ, Ṡ, İ, Ṙ]
+    end
+    
+    t_ = first(tspan):dt:last(tspan)
+    len_t_ = length(t_)
+    
+    t, tk = .0, 0
+    v = ic; DIM = length(v)
+    traj = zeros(len_t_+2, 2DIM)
+    while tk ≤ len_t_
+        t,S,I,R=v
+        nonsmooth = β₀*(1 + ε*ifelse(mod(t, T) < .5, -1, 1))
+        v, dv = RK4(sys, v, dt, nonsmooth)
+
+        if t ≥ first(t_)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  v
+            traj[tk  , DIM .+ (1:DIM)] = dv
+        end
+    end
+    return traj[2:(end-2), :]
+end
+factory_epid(T::Type, args...; kargs...) = 
+DataFrame(factory_epid(args...; kargs...), ["t", "S", "I", "R", "dt", "dS", "dI", "dR"])
+
+function factory_rkvt(a₁::Number; ic = [.5, .5], tspan = [0, 500], dt = 1e-3)
+    β = 0.5
+    d = 0.05
+    a₂ = 0.05
+    C₁ = 0.2
+    C₂ = 0.2
+    function sys(v::AbstractVector, nonsmooth::Real)
+        x₁,x₂=v
+
+        ẋ₁ = x₁*(1 - x₁ - x₂) - ifelse(x₁ > C₁, a₁, 0)
+        ẋ₂ = x₂*(β*x₁ - d) - ifelse(x₂ > C₂, a₂, 0)
+        return [ẋ₁, ẋ₂]
+    end
+    
+    t_ = first(tspan):dt:last(tspan)
+    len_t_ = length(t_)
+    
+    t, tk = .0, 0
+    v = ic; DIM = length(v)
+    traj = zeros(len_t_+2, 2DIM)
+    while tk ≤ len_t_
+        x₁,x₂=v
+        nonsmooth = 0
+        v, dv = RK4(sys, v, dt, nonsmooth)
+
+        if t ≥ first(t_)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  v
+            traj[tk  , DIM .+ (1:DIM)] = dv
+        end
+    end
+    return traj[2:(end-2), :]
+end
+factory_rkvt(T::Type, args...; kargs...) = 
+DataFrame(factory_rkvt(args...; kargs...), ["x1", "x2", "dx1", "dx2"])
+
+temp_ = []
+@showprogress for a1 = 0:0.001:0.2
+temp = factory_rkvt(DataFrame, a1, ic = [rand(), rand()])
+push!(temp_, temp.x1[end])
+end
+scatter(temp_, ms = 0.5, color = :black)
+plot(temp[:, 1], temp[:, 2])
+using ProgressMeter

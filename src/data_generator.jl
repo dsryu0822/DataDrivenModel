@@ -317,3 +317,25 @@ CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 # # png("lyapunov/mlcc_bifurcation.png")
 # plot(legend = :none); plot!(schedules.λ1); plot!(schedules.λ1); plot!(schedules.λ1)
 # # png("lyapunov/mlcc_lyapunov.png")
+
+
+φ(t) = ifelse(mod(t, 1) > 0.5, 1, -1)
+data_ = []
+for bp = .096:.001:.1073
+    data = factory_epid(DataFrame, bp)
+    push!(data_, data)
+    print(bp)
+end
+
+temp = factory_epid(DataFrame, 0.096)[1:10:end, :]
+plot(temp.S, temp.I, color = :blue)
+plot(temp.S, color = :blue)
+
+plot(data_[2].I[1:200000])
+plot(data_[2].S, data_[2].I)
+idx_sampled = findall([false; diff(φ.(temp.t)) .== -2])
+
+temp.dS + temp.dI + temp.dR
+0.01(1 .- (temp.S + temp.I + temp.R))
+
+scatter(data_[1].S[idx_sampled])
