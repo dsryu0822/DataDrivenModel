@@ -199,46 +199,46 @@ end
 factory_hrnm(T::Type, args...; kargs...) = 
 DataFrame(factory_hrnm(args...; kargs...), ["t", "x", "y", "z", "dt", "dx", "dy", "dz"])
 
-# function factory_gear(Fe::Number; ic = [0.1, 0.1, 0.1, 0.0], tspan = [0, 1000], dt = 1e-2)
-#     __b = 1
-#     ζ = 0.06
-#     k1 = 0.06
-#     ωh = 1
-#     H = ωh^2
-#     Fn = 0.3
-#     φ = (√5 - 1)/2
-#     function sys(xvΩθ::AbstractVector, nonsmooth::Real)
-#         x,v,Ω,θ=xvΩθ
+function factory_gear(Fe::Number; ic = [0.1, 0.1, 0.1, 0.0], tspan = [0, 1000], dt = 1e-2)
+    __b = 1
+    ζ = 0.06
+    k1 = 0.06
+    ωh = 1
+    H = ωh^2
+    Fn = 0.3
+    φ = (√5 - 1)/2
+    function sys(xvΩθ::AbstractVector, nonsmooth::Real)
+        x,v,Ω,θ=xvΩθ
         
-#         ẋ = v
-#         v̇ = Fn + Fe*H*(cos(θ) + cos(Ω)) - (1 + k1*cos(Ω))*nonsmooth - 2*ζ*v
-#         Ω̇ = ωh
-#         θ̇ = φ
-#         return [ẋ, v̇, Ω̇ , θ̇ ]
-#     end
+        ẋ = v
+        v̇ = Fn + Fe*H*(cos(θ) + cos(Ω)) - (1 + k1*cos(Ω))*nonsmooth - 2*ζ*v
+        Ω̇ = ωh
+        θ̇ = φ
+        return [ẋ, v̇, Ω̇ , θ̇ ]
+    end
     
-#     t_ = first(tspan):dt:last(tspan)
-#     len_t_ = length(t_)
+    t_ = first(tspan):dt:last(tspan)
+    len_t_ = length(t_)
     
-#     t, tk = .0, 0
-#     u = ic; DIM = length(u)
-#     traj = zeros(len_t_+2, 2DIM)
-#     while tk ≤ len_t_
-#         x,v,Ω,θ = u
-#         t += dt
-#         nonsmooth = ifelse(x > __b, x - __b, ifelse(x < -__b, x + __b, 0))
-#         u, du = RK4(sys, u, dt, nonsmooth)
+    t, tk = .0, 0
+    u = ic; DIM = length(u)
+    traj = zeros(len_t_+2, 2DIM)
+    while tk ≤ len_t_
+        x,v,Ω,θ = u
+        t += dt
+        nonsmooth = ifelse(x > __b, x - __b, ifelse(x < -__b, x + __b, 0))
+        u, du = RK4(sys, u, dt, nonsmooth)
 
-#         if t ≥ first(t_)
-#             tk += 1
-#             traj[tk+1,         1:DIM ] =  u
-#             traj[tk  , DIM .+ (1:DIM)] = du
-#         end
-#     end
-#     return traj[2:(end-2), :]
-# end
-# factory_gear(T::Type, args...; kargs...) = 
-# DataFrame(factory_gear(args...; kargs...), ["x", "v", "Ω", "θ", "dx", "dv", "dΩ", "dθ"])
+        if t ≥ first(t_)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  u
+            traj[tk  , DIM .+ (1:DIM)] = du
+        end
+    end
+    return traj[2:(end-2), :]
+end
+factory_gear(T::Type, args...; kargs...) = 
+DataFrame(factory_gear(args...; kargs...), ["x", "v", "Ω", "θ", "dx", "dv", "dΩ", "dθ"])
 
 
 # function factory_mlcc(β::Number; ic = [1.0, -0.1, 0.1, 0.0], tspan = [0, 1000], dt = 1e-2)
@@ -361,12 +361,3 @@ function factory_rkvt(a₁::Number; ic = [.5, .5], tspan = [0, 500], dt = 1e-3)
 end
 factory_rkvt(T::Type, args...; kargs...) = 
 DataFrame(factory_rkvt(args...; kargs...), ["x1", "x2", "dx1", "dx2"])
-
-temp_ = []
-@showprogress for a1 = 0:0.001:0.2
-temp = factory_rkvt(DataFrame, a1, ic = [rand(), rand()])
-push!(temp_, temp.x1[end])
-end
-scatter(temp_, ms = 0.5, color = :black)
-plot(temp[:, 1], temp[:, 2])
-using ProgressMeter

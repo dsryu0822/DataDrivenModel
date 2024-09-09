@@ -141,9 +141,14 @@ end
 #     return DataFrame([diff(M, dims = 1)/dt M[2:end, :]], names)
 # end
 
-function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, min_rank = 0)
-    normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-    jumpt = [1; findall(normeddf .> θ1)]
+function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, min_rank = 0, dog = 0)
+    if dog == 0
+        normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+        jumpt = [1; findall(normeddf .> θ1)]
+    elseif dog == 1
+        normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+        jumpt = [1; findall(normeddf .> θ1)]
+    end
     _sets = filter(!isempty, collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1)))); pop!(_sets); _sets = UnitRange.(first.(_sets), last.(_sets))
     sets = filter(!isempty, sort(union(_sets, UnitRange.(last.(_sets)[1:(end-1)] .+ 2, first.(_sets)[2:end] .- 2))))
 
@@ -153,8 +158,8 @@ function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, 
         if maximum(rank_) < min_rank
             # candy = SINDy(data[iszero.(subsystem),:], vrbl...; cnfg...); print(candy, last(vrbl))
             for (A, B) = combinations(sets, 2)
+                # A = sets[1]; B = sets[3];
                 candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
-                # A = first(sets); B = last(sets);
                 if candy.MSE < θ2 break end
             end
             # @warn "No pair found!"

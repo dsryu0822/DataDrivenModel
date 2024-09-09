@@ -1,14 +1,25 @@
 include("../core/header.jl")
+using LaTeXStrings
 
-schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
-schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
+data = CSV.read("lyapunov/soft_lyapunov.csv", DataFrame)
+rcvd = CSV.read("lyapunov/soft_lyapunov_rcvd.csv", DataFrame)
+plot(xlabel = L"d", ylabel = L"\lambda", legend = :none, title = "Lyapunov spectrum of soft impact model")
+plot!(data.bp, data.λ1, color = :black)
+plot!(data.bp, data.λ2, color = :black)
+plot!(data.bp, data.λ3, color = :black)
+scatter!(rcvd.bp, rcvd.λ1, color = :red, shape = :x, ms = 1)
+scatter!(rcvd.bp, rcvd.λ2, color = :red, shape = :x, ms = 1)
+scatter!(rcvd.bp, rcvd.λ3, color = :red, shape = :x, ms = 1)
+png("soft_lyapunov")
 
-for dr = eachrow(schedules)
-    filename = "lyapunov/soft_rcvd/$(lpad(dr.idx, 5, '0')).csv"
-    data = CSV.read(filename, DataFrame)
-    # dr[[:λ1, :λ2, :λ3]] .= sort(collect(data[end, (end-2):end]) / 100, rev=true)
-    dr[[:λ1, :λ2, :λ3]] .= sort(collect(data[end, (end-2):end]) / 10, rev=true)
-end
 
-# CSV.write("lyapunov/soft.csv", schedules, bom = true)
-CSV.write("lyapunov/soft_rcvd.csv", schedules, bom = true)
+data = CSV.read("lyapunov/hrnm_lyapunov.csv", DataFrame)
+rcvd = CSV.read("lyapunov/hrnm_lyapunov_rcvd.csv", DataFrame)
+plot(xlabel = L"f", ylabel = L"\lambda", legend = :none, title = "Lyapunov spectrum of HR model")
+plot!(data.bp, data.λ1, color = :black)
+plot!(data.bp, data.λ2, color = :black)
+plot!(data.bp, data.λ3, color = :black)
+scatter!(rcvd.bp, rcvd.λ1, color = :red, shape = :x, ms = 1)
+scatter!(rcvd.bp, rcvd.λ2, color = :red, shape = :x, ms = 1)
+scatter!(rcvd.bp, rcvd.λ3, color = :red, shape = :x, ms = 1)
+png("hrnm_lyapunov")
