@@ -24,14 +24,12 @@ end
 #                            Soft impact model                           #
 #                                                                        #
 ##########################################################################
-# schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)[1:10:end, :]
-# schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
+schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)[1:10:end, :]
+schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi, sign], λ = 1e-2)
 dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
-
-schedules = CSV.read("lyapunov/linux_soft.csv", DataFrame)
 @showprogress @threads for dr = eachrow(schedules)[iszero.(schedules.λ1)]
 # @showprogress @threads for dr = eachrow(schedules)
     filename = "lyapunov/soft_traj/$(lpad(dr.idx, 5, '0')).csv"

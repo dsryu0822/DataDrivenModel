@@ -64,41 +64,41 @@ end
 # plot!(temp.ρ, temp.λ3)
 # png("lyapunov/lorenz_laypunov2.png")
 
-##########################################################################
-#                                                                        #
-#                            Soft impact model                           #
-#                                                                        #
-##########################################################################
-# schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
-# schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
-vrbl = [:dt, :du, :dv], [:t, :u, :v]
-cnfg = (; f_ = [cospi, sign], λ = 1e-2)
-dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
-# dt = 1e-5 is good to bifurcation diagram but not for lyapunov spectrum, 1e-6 is needed
-function J_(t, u, v, d)
-    return [   0                                0                                 0
-               0                                0                                 1
-     -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
-end
+# ##########################################################################
+# #                                                                        #
+# #                            Soft impact model                           #
+# #                                                                        #
+# ##########################################################################
+# # schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)
+# # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
+# vrbl = [:dt, :du, :dv], [:t, :u, :v]
+# cnfg = (; f_ = [cospi, sign], λ = 1e-2)
+# dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
+# # dt = 1e-5 is good to bifurcation diagram but not for lyapunov spectrum, 1e-6 is needed
+# function J_(t, u, v, d)
+#     return [   0                                0                                 0
+#                0                                0                                 1
+#      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
+# end
 
-schedules = CSV.read("lyapunov/linux_soft.csv", DataFrame)
-@showprogress @threads for dr = eachrow(schedules)[iszero.(schedules.λ1)]
-# @showprogress @threads for dr = eachrow(schedules)
-    # filename = "bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
-    # data = CSV.read(filename, DataFrame)
-    data = factory_soft(DataFrame, dr.bp, tspan = [0, 150]; dt)
-    # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
-    # CSV.write(filename, data)
+# schedules = CSV.read("lyapunov/linux_soft.csv", DataFrame)
+# @showprogress @threads for dr = eachrow(schedules)[iszero.(schedules.λ1)]
+# # @showprogress @threads for dr = eachrow(schedules)
+#     # filename = "bifurcation/soft/$(lpad(dr.idx, 5, '0')).csv"
+#     # data = CSV.read(filename, DataFrame)
+#     data = factory_soft(DataFrame, dr.bp, tspan = [0, 150]; dt)
+#     # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
+#     # CSV.write(filename, data)
 
-    λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp)
-    dr[[:λ1, :λ2, :λ3]] .= λ
-    # idx_sampled = diff(abs.(data.u) .> (dr.bp/2)) .> 0
-    # sampledv = data[Not(1), :v][idx_sampled]
-    # append!(hrzn, fill(dr.bp, length(sampledv)))
-    # append!(vrtc, sampledv)
-    CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
-end
-CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
+#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp)
+#     dr[[:λ1, :λ2, :λ3]] .= λ
+#     # idx_sampled = diff(abs.(data.u) .> (dr.bp/2)) .> 0
+#     # sampledv = data[Not(1), :v][idx_sampled]
+#     # append!(hrzn, fill(dr.bp, length(sampledv)))
+#     # append!(vrtc, sampledv)
+#     CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
+# end
+# CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 
 # ##########################################################################
 # #                                                                        #
@@ -228,8 +228,8 @@ CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 schedules = CSV.read("bifurcation/gear_schedules.csv", DataFrame)
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
-cnfg = (; N = 2, f_ = [cos])
-dt = 1e-2; tend = 10000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21; dog = 1
+cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
+dt = 1e-2; tend = 1000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 31; dos = 1
 function J_(x, v, Ω, θ, Fe)
     dfdx = ifelse(abs(x) > 1, 1, 0)
     return [ 0 1 0 0
@@ -238,44 +238,71 @@ function J_(x, v, Ω, θ, Fe)
              0 0 0 0 ]
 end
 
-bfcn = DataFrame(hrzn = [], vrtc = [])
-@showprogress for dr = eachrow(schedules)
+# bfcn = DataFrame(hrzn = [], vrtc = [])
+@showprogress @threads for dr = eachrow(schedules)
     data = factory_gear(DataFrame, dr.bp; tspan = [0, tend])
+    # data = CSV.read("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
+    add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
+    CSV.write("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", data, bom = true)
 
-    λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp, T = tend)
-    dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
 
-    data = data[data.Ω .> 5000, :]
-    idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
-    sampledx = data.v[idx_sampled]
-    hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
-    append!(bfcn, DataFrame(; hrzn, vrtc))
+    # λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp, T = tend)
+    # dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+
+    # data = data[data.Ω .> 5000, :]
+    # idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
+    # sampledx = data.v[idx_sampled]
+    # hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
+    # append!(bfcn, DataFrame(; hrzn, vrtc))
 end
-CSV.write("lyapunov/gear_bifurcation.csv", bfcn, bom = true)
-CSV.write("lyapunov/gear_lyapunov.csv", schedules, bom = true)
+# CSV.write("lyapunov/gear_bifurcation.csv", bfcn, bom = true)
+# CSV.write("lyapunov/gear_lyapunov.csv", schedules, bom = true)
 
-scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "Fe", ylabel = "v")
-png("lyapunov/gear_bifurcation.png")
+# scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "Fe", ylabel = "v")
+# png("lyapunov/gear_bifurcation.png")
 
-plot(legend = :none)
-plot!(schedules.Fe, schedules.λ1)
-plot!(schedules.Fe, schedules.λ2)
-plot!(schedules.Fe, schedules.λ3)
-plot!(schedules.Fe, schedules.λ4)
-png("lyapunov/gear_lyapunov.png")
+# plot(legend = :none)
+# plot!(schedules.Fe, schedules.λ1)
+# plot!(schedules.Fe, schedules.λ2)
+# plot!(schedules.Fe, schedules.λ3)
+# plot!(schedules.Fe, schedules.λ4)
+# png("lyapunov/gear_lyapunov.png")
 
-println("Done!")
+# data = factory_gear(DataFrame, -0.06; tspan = [0, 100])
+# normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+# jumpt = [0]
+# while true
+#     idx = argmax(normeddf)
+#     if all(abs.(jumpt .- idx) .> 1)
+#         push!(jumpt, idx, idx+1, idx-1)
+#         normeddf[[idx, idx+1, idx-1]] .= -Inf
+#     else
+#         break
+#     end
+# end
+# jumpt = sort(jumpt[2:end])
+# # jumpt = [1; sort(jumpt[2:end]); nrow(data)]
+# normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
 
-data = factory_gear(DataFrame, -0.06; tspan = [0, 100])
-plot(data.x, data.v)
-θ1 = 7e-9
-normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-jumpt = [1; findall(normeddf .> θ1); nrow(data)]
+# # jumpt = findall(normeddf .> θ1)
+# # scatter(normeddf, yscale = :log10, ms = 1, xlims = [250, 260])
+# scatter(normeddf, yscale = :log10, ms = 1); hline!([θ1], color = :red) # hline!([θ1], color = :red)
+# scatter!(jumpt, normeddf[jumpt], yscale = :log10, shape = :x); hline!([θ1], color = :red) # hline!([θ1], color = :red)
+# plot!(xlims = [1000, 1500])
+# scatter(cumsum(log10.(sort(normeddf))))
 
-add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dog)
-plot(data.x, color = data.subsystem)
-scatter(normeddf, yscale = :log10, ms = 1)
-hline!([θ1])
+# A = sets[1]; B = sets[3];
+# data[A, :]
+# data[B, :]
+# candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
+# print(candy)
+
+# θ2 = 1e-19
+# add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
+# plot(data.x, color = data.subsystem)
+# candy = SINDy(data[data.subsystem .== 1, :], vrbl...; cnfg...)
+# candy = SINDy(data[data.subsystem .== 2, :], vrbl...; cnfg...)
+# print(candy)
 
 
 # ##########################################################################

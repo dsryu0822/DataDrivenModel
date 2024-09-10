@@ -5,6 +5,7 @@ struct STLSQresult
     N::Int64
     M::Int64
     f_::Array{Function}
+    C::Int64
     matrix::AbstractMatrix
     MSE::Float64
     lname::AbstractVector
@@ -13,11 +14,11 @@ end
 function Base.show(io::IO, s::STLSQresult)
     show(io, "text/plain", sparse(s.matrix))
     # println()
-    print(io, "\npoly N = $(s.N), fourier M = $(s.M), f_ = $(s.f_) with MSE = $(s.MSE)")
+    print(io, "\npoly N = $(s.N), fourier M = $(s.M), f_ = $(s.f_), C = $(s.C) with MSE = $(s.MSE)")
     print(io, "\nplease use print function to show all result")
 end
 function (s::STLSQresult)(x)
-    return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_) * s.matrix)
+    return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C) * s.matrix)
 end
 
 function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
@@ -43,29 +44,36 @@ function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
     return Ξ
 end
 function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
-    N = 1, M = 0, f_ = Function[],
-    λ = 1e-6, verbose = false)
+    λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0)
 
-    ΘX = Θ(X; N = N, M = M, f_ = f_)
+    ΘX = Θ(X; N = N, M = M, f_ = f_, C = C)
     Ξ = STLSQ(ΘX, Ẋ, λ = λ, verbose = verbose)
     MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ) # compare to original data
     lname = "dx" .* string.(axes(Ẋ, 2))
     rname =  "x" .* string.(axes(X, 2))
-    return STLSQresult(N, M, f_, Ξ, MSE, lname, rname)
+    return STLSQresult(N, M, f_, C, Ξ, MSE, lname, rname)
 end
 function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
-    N = 1, M = 0, f_ = Function[],
-    λ = 1e-6, verbose = false) where T <: Union{Integer, Symbol}
+    λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0) where T <: Union{Integer, Symbol}
 
-    X = Θ(df[:, Xsyms], N = N, M = M, f_ = f_)
+    X = Θ(df[:, Xsyms]; N = N, M = M, f_ = f_, C = C)
     Y = Matrix(df[:, Ysyms])
     Ξ = STLSQ(X, Y, λ = λ, verbose = verbose)
     MSE = sum(abs2, Y - X * Ξ) / length(Y) # compare to original data
-    return STLSQresult(N, M, f_, Ξ, MSE, Ysyms, Xsyms)
+    return STLSQresult(N, M, f_, C, Ξ, MSE, Ysyms, Xsyms)
 end
 
 
-function Θ(X::AbstractMatrix; N = 1, M = 0, f_ = Function[], λ = 0)
+const superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
+function num2sup(num)
+    if (num == 0) || (num == 1)
+        return ""
+    else
+        return reduce(*, (getindex.(Ref(superdigit), reverse(digits(num, base = 10)))))
+    end
+end
+function Θ(X::AbstractMatrix; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
+    # λ is just for dummy argument for add_subsystem! function
     dim = size(X, 2)
     ansatz = []
 
@@ -82,24 +90,20 @@ function Θ(X::AbstractMatrix; N = 1, M = 0, f_ = Function[], λ = 0)
         ΘX = [ΘX cospi.(m*X) sinpi.(m*X)]
     end
 
+    dim = size(ΘX, 2)
+    for c in 2:C
+        for (j1, j2) in combinations(2:dim, c)
+            ΘX = [ΘX (ΘX[:, j1] .* ΘX[:, j2])]
+        end
+    end
+
     return ΘX
 end
-   Θ(X::AbstractVector; N = 1, M = 0, f_ = Function[]) = 
-    Θ(reshape(X, 1, :), N = N, M = M, f_ = f_)
-Θ(X::AbstractDataFrame; N = 1, M = 0, f_ = Function[]) = 
-           Θ(Matrix(X), N = N, M = M, f_ = f_)
-     Θ(X::DataFrameRow; N = 1, M = 0, f_ = Function[]) = 
-          Θ(collect(X), N = N, M = M, f_ = f_)
-
-const superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
-function num2sup(num)
-    if (num == 0) || (num == 1)
-        return ""
-    else
-        return reduce(*, (getindex.(Ref(superdigit), reverse(digits(num, base = 10)))))
-    end
-end
-function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[])
+   Θ(X::AbstractVector; kargs...) = Θ(reshape(X, 1, :); kargs...)
+Θ(X::AbstractDataFrame; kargs...) = Θ(Matrix(X); kargs...)
+     Θ(X::DataFrameRow; kargs...) = Θ(collect(X); kargs...)
+function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
+    # λ is just for dummy argument for add_subsystem! function
     dim = length(X)
     ΘX = []
 
@@ -116,13 +120,19 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[])
         push!(ΘX, ("cos$(_m)π" .* X)..., ("sin$(_m)π" .* X)...)
     end
 
-    # ΘX = lpad.(ΘX, maximum(length.(ΘX)))
+    dim = length(ΘX)
+    for c in 2:C
+        for (j1, j2) in combinations(2:dim, c)
+            push!(ΘX, ΘX[j1] * ΘX[j2])
+        end
+    end
+
     replace!(ΘX, "" => "1")
     return ΘX
 end
 import Base: print
 function print(s::STLSQresult)
-    table = [1:size(s.matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_) s.matrix]
+    table = [1:size(s.matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C) s.matrix]
     table[table .== 0] .= ""
     return pretty_table(table; header = ["idx"; "basis"; string.(s.lname)])
 end
@@ -130,51 +140,69 @@ end
 function jacobian(s::STLSQresult)
     # lname = eval(Meta.parse("@variables $(join(string.(s.lname), " "))"))
     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
-    fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_)' .* s.matrix, dims = 1))
+    fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
     return Symbolics.jacobian(fnexp, rname)
 end
 
-
-# function FDM1(M::AbstractMatrix, dt = 0.1)
-#     d = size(M, 2)
-#     names = [fill("x", d) .* string.(1:d); fill("dx", d) .* string.(1:d)]
-#     return DataFrame([diff(M, dims = 1)/dt M[2:end, :]], names)
-# end
-
-function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, min_rank = 0, dog = 0)
-    if dog == 0
-        normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-        jumpt = [1; findall(normeddf .> θ1)]
-    elseif dog == 1
-        normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-        jumpt = [1; findall(normeddf .> θ1)]
+function set_divider(arr::AbstractVector)
+    s = 0
+    sets = []
+    flag_record = false
+    for k in first(arr):last(arr)
+        if flag_record
+            if (k+1) ∈ arr
+                push!(sets, s:k)
+                flag_record = false
+            end
+        else
+            if k ∉ arr
+                s = k
+                flag_record = true
+            end
+        end
     end
-    _sets = filter(!isempty, collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1)))); pop!(_sets); _sets = UnitRange.(first.(_sets), last.(_sets))
-    sets = filter(!isempty, sort(union(_sets, UnitRange.(last.(_sets)[1:(end-1)] .+ 2, first.(_sets)[2:end] .- 2))))
+    return sets[sortperm(length.(sets), rev=true)]
+end
+function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, min_rank = 0, dos = 0)
+    if dos == 0
+        normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+        # jumpt = [1; findall(normeddf .> θ1)]
+        # _sets = filter(!isempty, collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1)))); pop!(_sets); _sets = UnitRange.(first.(_sets), last.(_sets))
+        # sets = filter(!isempty, sort(union(_sets, UnitRange.(last.(_sets)[1:(end-1)] .+ 2, first.(_sets)[2:end] .- 2))))
+    elseif dos == 1
+        normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+    end
+    jumpt = [0]
+    while true
+        idx = argmax(normeddf)
+        if all(abs.(jumpt .- idx) .> 1)
+            push!(jumpt, idx, idx+1, idx-1)
+            normeddf[[idx, idx+1, idx-1]] .= -Inf
+        else
+            break
+        end
+    end
+    jumpt = [1; sort(jumpt[2:end]); nrow(data)]
+    sets = set_divider(jumpt)
 
     subsystem = zeros(Int64, nrow(data));
     for id_subsys = 1:8 # id_subsys = 1; id_subsys = 2; id_subsys = 3
         rank_ = [rank(Θ(Matrix(data[a_set,last(vrbl)]); cnfg...)) for a_set in sets]
         if maximum(rank_) < min_rank
-            # candy = SINDy(data[iszero.(subsystem),:], vrbl...; cnfg...); print(candy, last(vrbl))
             for (A, B) = combinations(sets, 2)
-                # A = sets[1]; B = sets[3];
+                # A = sets[1]; B = sets[2];
                 candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
                 if candy.MSE < θ2 break end
             end
-            # @warn "No pair found!"
-            # if candy.MSE ≥ θ2
             for (A, B, C) = combinations(sets, 3)
                 candy = SINDy([data[A, :]; data[B, :]; data[C, :]], vrbl...; cnfg...)
-                # A = first(sets); B = last(sets);
                 if candy.MSE < θ2 break end
             end
-            # end
         else
             meaningful = sets[argmax(rank_)]
             candy = SINDy(data[meaningful,:], vrbl...; cnfg...)
+            # print(candy)
         end
-        # print(candy)
 
         idx_blank = findall(iszero.(subsystem))
         residual = norm.(eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
