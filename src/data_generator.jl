@@ -230,6 +230,7 @@ schedules = schedules[.!isfile.(["bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv" 
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
 cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
+# λ = 1e-2 works for 762 bps/ λ = 1e-4 works for 138 bps
 dt = 1e-2; tend = 1000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 31; dos = 1
 function J_(x, v, Ω, θ, Fe)
     dfdx = ifelse(abs(x) > 1, 1, 0)
@@ -269,41 +270,44 @@ end
 # plot!(schedules.Fe, schedules.λ4)
 # png("lyapunov/gear_lyapunov.png")
 
-# data = factory_gear(DataFrame, -0.06; tspan = [0, 100])
-# normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-# jumpt = [0]
-# while true
-#     idx = argmax(normeddf)
-#     if all(abs.(jumpt .- idx) .> 1)
-#         push!(jumpt, idx, idx+1, idx-1)
-#         normeddf[[idx, idx+1, idx-1]] .= -Inf
-#     else
-#         break
-#     end
-# end
-# jumpt = sort(jumpt[2:end])
-# # jumpt = [1; sort(jumpt[2:end]); nrow(data)]
-# normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+data = factory_gear(DataFrame, eachrow(schedules)[724].bp; tspan = [10, 1010])
+normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+jumpt = [0]
+while true
+    idx = argmax(normeddf)
+    if all(abs.(jumpt .- idx) .> 1)
+        push!(jumpt, idx, idx+1, idx-1)
+        normeddf[[idx, idx+1, idx-1]] .= -Inf
+    else
+        break
+    end
+end
+jumpt = sort(jumpt[2:end])
+# jumpt = [1; sort(jumpt[2:end]); nrow(data)]
+normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
 
-# # jumpt = findall(normeddf .> θ1)
-# # scatter(normeddf, yscale = :log10, ms = 1, xlims = [250, 260])
-# scatter(normeddf, yscale = :log10, ms = 1); hline!([θ1], color = :red) # hline!([θ1], color = :red)
-# scatter!(jumpt, normeddf[jumpt], yscale = :log10, shape = :x); hline!([θ1], color = :red) # hline!([θ1], color = :red)
+# jumpt = findall(normeddf .> θ1)
+# scatter(normeddf, yscale = :log10, ms = 1, xlims = [250, 260])
+scatter(normeddf, yscale = :log10, ms = 1) # ; hline!([θ1], color = :red) # hline!([θ1], color = :red)
+scatter!(jumpt, normeddf[jumpt], yscale = :log10, shape = :x) # ; hline!([θ1], color = :red) # hline!([θ1], color = :red)
 # plot!(xlims = [1000, 1500])
-# scatter(cumsum(log10.(sort(normeddf))))
 
-# A = sets[1]; B = sets[3];
-# data[A, :]
-# data[B, :]
-# candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
-# print(candy)
+A = sets[2]; B = sets[3];
+data[A, :]
+data[B, :]
+plot(data.x)
+candy = SINDy(data[data.x .> 1, :], vrbl...; (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)...)
+candy = SINDy(data[A, :], vrbl...; (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)...)
+print(candy)
+candy = SINDy(data[A, :], vrbl...; cnfg...)
+candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
 
-# θ2 = 1e-19
-# add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
-# plot(data.x, color = data.subsystem)
-# candy = SINDy(data[data.subsystem .== 1, :], vrbl...; cnfg...)
-# candy = SINDy(data[data.subsystem .== 2, :], vrbl...; cnfg...)
-# print(candy)
+θ2 = 1e-19
+add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
+plot(data.x, color = data.subsystem)
+candy = SINDy(data[data.subsystem .== 1, :], vrbl...; cnfg...)
+candy = SINDy(data[data.subsystem .== 2, :], vrbl...; cnfg...)
+print(candy)
 
 
 # ##########################################################################

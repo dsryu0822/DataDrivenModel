@@ -147,16 +147,17 @@ bfcn = DataFrame(hrzn = [], vrtc = [])
     end
 
     data = DataFrame(solve(f_, [0.1, 0.1, 0.1, eps()], dt, 0:dt:tend, Dtree), last(vrbl))
-    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = tend)
-    dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
-    CSV.write("lyapunov/!$(device)ing gear_lyapunov_rcvd.csv", schedules, bom = true)
+    if mod(dr.idx, 10) == 1
+        λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = tend)
+        dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+    end
     
     data = data[data.Ω .> 5000, :]
     idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
     sampledx = data.v[idx_sampled]
     hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
     append!(bfcn, DataFrame(; hrzn, vrtc))
-    
+
     CSV.write("lyapunov/!$(device)ing gear_lyapunov_rcvd.csv", schedules, bom = true)
     CSV.write("lyapunov/!$(device)ing gear_bifurcation_rcvd.csv", bfcn, bom = true)
 end
