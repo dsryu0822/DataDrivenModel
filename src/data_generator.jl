@@ -226,6 +226,7 @@ end
 # data = data[idx_sampled, :]
 # scatter(data.x, data.v, ms = 0.5, legend = :none)
 schedules = CSV.read("bifurcation/gear_schedules.csv", DataFrame)
+schedules = schedules[.!isfile.(["bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv" for dr in eachrow(schedules)]), :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
 cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
