@@ -127,14 +127,17 @@ schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; sc
 vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
 cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
 dt = 1e-2; tend = 10000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 31; dos = 1
+nzv(SINDy_) = sum(length.(getproperty.(getproperty.(SINDy_, :matrix), :nzval)))
 
-bfcn = DataFrame(hrzn = [], vrtc = [])
-@showprogress @threads for dr = eachrow(schedules)[371:431]
+# bfcn = DataFrame(hrzn = [], vrtc = [])
+@showprogress @threads for dr = eachrow(schedules)[1:2:end]
     filename = "bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
     
     # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
-    f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+    f1_ = [SINDy(df, vrbl...; N = 1, f_ = [cos], C = 2,  λ = 1e-2) for df in groupby(data, :subsystem)]
+    f2_ = [SINDy(df, vrbl...; N = 1, f_ = [cos], C = 2,  λ = 1e-4) for df in groupby(data, :subsystem)]
+    f_ = ifelse(nzv(f1_) < nzv(f2_), f1_, f2_)
     Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
     J_ = []
     while true
@@ -147,19 +150,17 @@ bfcn = DataFrame(hrzn = [], vrtc = [])
     end
 
     data = DataFrame(solve(f_, [0.1, 0.1, 0.1, eps()], dt, 0:dt:tend, Dtree), last(vrbl))
-    if mod(dr.idx, 10) == 1
-        λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = tend)
-        dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
-    end
+    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = tend)
+    dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
     
-    data = data[data.Ω .> 5000, :]
-    idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
-    sampledx = data.v[idx_sampled]
-    hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
-    append!(bfcn, DataFrame(; hrzn, vrtc))
+    # data = data[data.Ω .> 5000, :]
+    # idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
+    # sampledx = data.v[idx_sampled]
+    # hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
+    # append!(bfcn, DataFrame(; hrzn, vrtc))
 
     CSV.write("lyapunov/!$(device)ing gear_lyapunov_rcvd.csv", schedules, bom = true)
-    CSV.write("lyapunov/!$(device)ing gear_bifurcation_rcvd.csv", bfcn, bom = true)
+    # CSV.write("lyapunov/!$(device)ing gear_bifurcation_rcvd.csv", bfcn, bom = true)
 end
 CSV.write("lyapunov/!$(device) gear_lyapunov_rcvd.csv", schedules, bom = true)
-CSV.write("lyapunov/!$(device) gear_bifurcation_rcvd.csv", bfcn, bom = true)
+# CSV.write("lyapunov/!$(device) gear_bifurcation_rcvd.csv", bfcn, bom = true)

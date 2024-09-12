@@ -241,7 +241,7 @@ function J_(x, v, Ω, θ, Fe)
 end
 
 # bfcn = DataFrame(hrzn = [], vrtc = [])
-@showprogress @threads for dr = eachrow(schedules)
+@showprogress @threads for dr = eachrow(schedules)[381:420]
     data = factory_gear(DataFrame, dr.bp; tspan = [0, tend] .+ 500)
     # data = CSV.read("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
     add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
@@ -271,58 +271,60 @@ end
 # png("lyapunov/gear_lyapunov.png")
 
 
-# zxcv = []
-# @showprogress for dr = eachrow(schedules)
-#     data = CSV.read("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
-#     push!(zxcv, length(unique(data.subsystem)))
-# end
+zxcv = []
+@showprogress for dr = eachrow(schedules)
+    data = CSV.read("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
+    push!(zxcv, 0 ∈ data.subsystem)
+end
 
-# eachrow(schedules)[zxcv .== 1]
+eachrow(schedules)[findall(zxcv)]
 
-# plot(zxcv, xlims = [379, 423], xticks = [379, 423])
+plot(zxcv, xlims = [379, 423], xticks = [379, 423])
 
-# data = CSV.read("bifurcation/gear/$(lpad(398, 5, '0')).csv", DataFrame)
-# data = factory_gear(DataFrame, eachrow(schedules)[398].bp; tspan = [0, 1000])
-# add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
+data = CSV.read("bifurcation/gear/$(lpad(381, 5, '0')).csv", DataFrame)
+data = factory_gear(DataFrame, eachrow(schedules)[398].bp; tspan = [500, 1500])
+add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
+unique(data.subsystem)
 
-# normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-# jumpt = [0]
-# while true
-#     idx = argmax(normeddf)
-#     if all(abs.(jumpt .- idx) .> 1)
-#         push!(jumpt, idx, idx+1, idx-1)
-#         normeddf[[idx, idx+1, idx-1]] .= -Inf
-#     else
-#         break
-#     end
-# end
-# jumpt = sort(jumpt[2:end])
-# # jumpt = [1; sort(jumpt[2:end]); nrow(data)]
-# normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+jumpt = [0]
+while true
+    idx = argmax(normeddf)
+    if all(abs.(jumpt .- idx) .> 1)
+        push!(jumpt, idx, idx+1, idx-1)
+        normeddf[[idx, idx+1, idx-1]] .= -Inf
+    else
+        break
+    end
+end
+jumpt = sort(jumpt[2:end])
+# jumpt = [1; sort(jumpt[2:end]); nrow(data)]
+normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
 
-# # jumpt = findall(normeddf .> θ1)
-# # scatter(normeddf, yscale = :log10, ms = 1, xlims = [250, 260])
-# scatter(normeddf, yscale = :log10, ms = 1) # ; hline!([θ1], color = :red) # hline!([θ1], color = :red)
-# scatter!(jumpt, normeddf[jumpt], yscale = :log10, shape = :x) # ; hline!([θ1], color = :red) # hline!([θ1], color = :red)
-# # plot!(xlims = [1000, 1500])
+# jumpt = findall(normeddf .> θ1)
+# scatter(normeddf, yscale = :log10, ms = 1, xlims = [250, 260])
+scatter(normeddf, yscale = :log10, ms = 1); hline!([θ1], color = :red) # hline!([θ1], color = :red)
+scatter!(jumpt, normeddf[jumpt], yscale = :log10, shape = :x) # ; hline!([θ1], color = :red) # hline!([θ1], color = :red)
+# plot!(xlims = [1000, 1500])
 
-# A = sets[2]; B = sets[3];
-# data[A, :]
-# data[B, :]
-# plot(data.x)
-# candy = SINDy(data[data.x .> 1, :], vrbl...; (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)...)
-# candy = SINDy(data[A, :], vrbl...; (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)...)
-# print(candy)
-# candy = SINDy(data[A, :], vrbl...; cnfg...)
-# candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
+A = sets[2]; B = sets[3];
+data[A, :]
+data[B, :]
+plot(data.x)
+candy = SINDy(data[data.x .> 1, :], vrbl...; (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)...)
+candy = SINDy(data[A, :], vrbl...; (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)...)
+print(candy)
+candy = SINDy(data[A, :], vrbl...; cnfg...)
+candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
 
-# θ2 = 1e-19
-# add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
-# plot(data.x, color = data.subsystem)
-# unique(data.subsystem)
-# candy = SINDy(data, vrbl...; cnfg...); print(candy)
-# candy = SINDy(data[data.subsystem .== 1, :], vrbl...; cnfg...); print(candy)
-# candy = SINDy(data[data.subsystem .== 0, :], vrbl...; cnfg...); print(candy)
+θ2 = 1e-19
+add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
+plot(data.x)
+plot(data.x, color = data.subsystem)
+unique(data.subsystem)
+candy = SINDy(data, vrbl...; cnfg...); print(candy)
+candy = SINDy(data[data.subsystem .== 1, :], vrbl...; cnfg...); print(candy)
+candy = SINDy(data[data.subsystem .== 0, :], vrbl...; cnfg...); print(candy)
 
 
 
