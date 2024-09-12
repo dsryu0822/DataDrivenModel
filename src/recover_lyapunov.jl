@@ -129,7 +129,7 @@ cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
 dt = 1e-2; tend = 10000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 31; dos = 1
 
 bfcn = DataFrame(hrzn = [], vrtc = [])
-@showprogress @threads for dr = eachrow(schedules)
+@showprogress @threads for dr = eachrow(schedules)[371:431]
     filename = "bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
     
