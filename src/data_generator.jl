@@ -96,9 +96,9 @@ end
 #     # sampledv = data[Not(1), :v][idx_sampled]
 #     # append!(hrzn, fill(dr.bp, length(sampledv)))
 #     # append!(vrtc, sampledv)
-#     CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
+#     CSV.write("lyapunov/...$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 # end
-# CSV.write("lyapunov/!$(device)ing soft t = [0, 150].csv", schedules, bom = true)
+# CSV.write("lyapunov/...$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 
 # ##########################################################################
 # #                                                                        #
