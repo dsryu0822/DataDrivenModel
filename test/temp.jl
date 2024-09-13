@@ -35,3 +35,7 @@ plot!(rcvd.bp, rcvd.λ1, color = :red)
 plot!(rcvd.bp, rcvd.λ2, color = :red)
 plot!(rcvd.bp, rcvd.λ3, color = :red)
 png("lyapunov/gear_lyapunov")
+
+bfcn = CSV.read("bifurcation/gear_bifurcation_rcvd.csv", DataFrame)
+scatter(bfcn.hrzn, bfcn.vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1, color = :black);
+png("bifurcation/gear_bifurcation_rcvd.png")

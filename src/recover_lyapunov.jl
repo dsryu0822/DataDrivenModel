@@ -127,7 +127,7 @@ schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; sc
 vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
 cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)
 dt = 1e-2; tend = 10000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 31; dos = 1
-nzv(SINDy_) = sum(length.(getproperty.(getproperty.(SINDy_, :matrix), :nzval)))
+smse(SINDy_) = sum(getproperty.(f1_, :MSE))
 
 # dr = eachrow(schedules)[399]
 # bfcn = DataFrame(hrzn = [], vrtc = [])
@@ -138,7 +138,7 @@ nzv(SINDy_) = sum(length.(getproperty.(getproperty.(SINDy_, :matrix), :nzval)))
     # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
     # f1_ = [SINDy(df, vrbl...; N = 1, f_ = [cos], C = 2,  λ = 1e-2) for df in groupby(data, :subsystem)]
     # f2_ = [SINDy(df, vrbl...; N = 1, f_ = [cos], C = 2,  λ = 1e-4) for df in groupby(data, :subsystem)]
-    # f_ = ifelse(nzv(f1_) < nzv(f2_), f1_, f2_)
+    # f_ = ifelse(smse(f1_) < smse(f2_), f1_, f2_)
     f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
     Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
     J_ = []
