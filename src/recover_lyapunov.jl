@@ -24,7 +24,7 @@ end
 # #                            Soft impact model                           #
 # #                                                                        #
 # ##########################################################################
-# # indices = setdiff(1:2:700, 1:10:10000) # sickgpu
+# indices = setdiff(1:2:700, 1:10:10000) # sickgpu
 # # indices = setdiff(2:2:700, 1:10:10000) # sicklinux
 # schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)[indices, :]
 # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
@@ -67,11 +67,11 @@ end
 # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 # vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 # cnfg = (; N = 3, f_ = [cos])
-# dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
+# dt = 1e-4; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
 
 # @showprogress @threads for dr = eachrow(schedules)
 #     try
-#     filename = "bifurcation/hrnm/$(lpad(dr.idx, 5, '0')).csv"
+#     filename = "lyapunov/hrnm_traj/$(lpad(dr.idx, 5, '0')).csv"
 #     data = CSV.read(filename, DataFrame)
 
 #     f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
