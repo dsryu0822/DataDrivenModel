@@ -20,6 +20,11 @@ end
 function (s::STLSQresult)(x)
     return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C) * s.matrix)
 end
+# function functionalizer(s::STLSQresult) # x4 slower than direct matrix multiplication
+#     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
+#     fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
+#     return v -> substitute(fnexp, Dict(rname .=> v))
+# end
 
 function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
     L₂ = norm.(eachcol(ΘX))

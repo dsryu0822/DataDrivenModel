@@ -19,42 +19,44 @@ function lyapunov_exponent(_data::DataFrame, J_::Vector{Matrix{Num}}, DT::Root{F
     return sort(λ / T, rev=true)
 end
 
-# ##########################################################################
-# #                                                                        #
-# #                            Soft impact model                           #
-# #                                                                        #
-# ##########################################################################
-# indices = setdiff(1:2:700, 1:10:10000) # sickgpu
-# # indices = setdiff(2:2:700, 1:10:10000) # sicklinux
-# schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)[indices, :]
-# schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
-# vrbl = [:dt, :du, :dv], [:t, :u, :v]
-# cnfg = (; f_ = [cospi, sign], λ = 1e-2)
-# dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
+##########################################################################
+#                                                                        #
+#                            Soft impact model                           #
+#                                                                        #
+##########################################################################
+taboo = CSV.read("lyapunov/soft_lyapunov_rcvd.csv", DataFrame).idx
+# indices = setdiff(1:3:700, taboo) # chaos1
+# indices = setdiff(2:3:700, taboo) # chaos2
+# indices = setdiff(3:3:700, taboo) # chaos3
+schedules = CSV.read("bifurcation/soft_schedules.csv", DataFrame)[indices, :]
+schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
+vrbl = [:dt, :du, :dv], [:t, :u, :v]
+cnfg = (; f_ = [cospi, sign], λ = 1e-2)
+dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
 
-# @showprogress @threads for dr = eachrow(schedules)
-#     filename = "lyapunov/soft_traj/$(lpad(dr.idx, 5, '0')).csv"
-#     data = CSV.read(filename, DataFrame)
+@showprogress @threads for dr = eachrow(schedules)
+    filename = "lyapunov/soft_traj/$(lpad(dr.idx, 5, '0')).csv"
+    data = CSV.read(filename, DataFrame)
     
-#     # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
-#     f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
-#     Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
-#     J_ = []
-#     while true
-#         try
-#             J_ = jacobian.(f_)
-#             break
-#         catch
-#             print(".")
-#         end
-#     end
+    # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
+    f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+    Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
+    J_ = []
+    while true
+        try
+            J_ = jacobian.(f_)
+            break
+        catch
+            print(".")
+        end
+    end
 
-#     data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl))
-#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
-#     dr[[:λ1, :λ2, :λ3]] .= λ
-#     CSV.write("lyapunov/...$(device)ing soft_lyapunov_rcvd.csv", schedules, bom = true)
-# end
-# CSV.write("lyapunov/!$(device) soft_lyapunov_rcvd.csv", schedules, bom = true)
+    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl))
+    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
+    dr[[:λ1, :λ2, :λ3]] .= λ
+    CSV.write("lyapunov/...$(device)ing soft_lyapunov_rcvd.csv", schedules, bom = true)
+end
+CSV.write("lyapunov/!$(device) soft_lyapunov_rcvd.csv", schedules, bom = true)
 
 
 # ##########################################################################
@@ -62,12 +64,14 @@ end
 # #                           Hindmarsh-Rose model                         #
 # #                                                                        #
 # ########################################################################## chaos2
-# indices = setdiff(1:250, 1:10:10000)
+# indices = [418, 642, 520, 717, 772]
+# indices = [indices; indices .+ 1; indices .- 1; 55; 58]
+# # schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)
 # schedules = CSV.read("bifurcation/hrnm_schedules.csv", DataFrame)[indices, :]
 # schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
 # vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 # cnfg = (; N = 3, f_ = [cos])
-# dt = 1e-4; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
+# dt = 1e-3; θ1 = 1e-2; θ2 = 1e-27; θ3 = 1e-1; min_rank = 32;
 
 # @showprogress @threads for dr = eachrow(schedules)
 #     try

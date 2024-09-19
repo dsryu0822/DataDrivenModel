@@ -374,18 +374,3 @@ candy = SINDy(data[data.subsystem .== 0, :], vrbl...; cnfg...); print(candy)
 # # png("lyapunov/mlcc_bifurcation.png")
 # plot(legend = :none); plot!(schedules.λ1); plot!(schedules.λ1); plot!(schedules.λ1)
 # # png("lyapunov/mlcc_lyapunov.png")
-
-# s = candy
-# print(candy)
-# Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix
-# fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
-
-# s.matrix[3]
-# substitute(fnexp[1], Dict(v => 2))
-
-# function jacobian(s::STLSQresult)
-#     # lname = eval(Meta.parse("@variables $(join(string.(s.lname), " "))"))
-#     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
-#     fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
-#     return Symbolics.jacobian(fnexp, rname)
-# end

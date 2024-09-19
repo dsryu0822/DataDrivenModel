@@ -3,11 +3,12 @@ using Base.Threads: @threads, nthreads # Base.Threads.nthreads()
 
 if Sys.iswindows()
     cd("G:/DDM")
-    device = ENV["COMPUTERNAME"];
+    # device = ENV["COMPUTERNAME"];
 elseif Sys.islinux()
     cd("/home/$(ENV["LOGNAME"])/g/DDM")
-    device = ENV["LOGNAME"];
+    # device = ENV["LOGNAME"];
 end
+device = gethostname()
 @info "$(now()) - $device $(nthreads()) threads"
 
 include("../core/factorio.jl")

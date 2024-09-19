@@ -27,7 +27,7 @@ png("lyapunov/hrnm_lyapunov")
 
 data = CSV.read("lyapunov/gear_lyapunov.csv", DataFrame)
 rcvd = CSV.read("lyapunov/gear_lyapunov_rcvd.csv", DataFrame)
-plot(xlabel = L"f", ylabel = L"\lambda", legend = :none, title = "Lyapunov spectrum of gear model")
+plot(xlabel = L"Fe", ylabel = L"\lambda", legend = :none, title = "Lyapunov spectrum of gear model")
 plot!(data.bp, data.λ1, color = :gray)
 plot!(data.bp, data.λ2, color = :gray)
 plot!(data.bp, data.λ3, color = :gray)
