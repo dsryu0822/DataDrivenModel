@@ -6,20 +6,26 @@ struct STLSQresult
     M::Int64
     f_::Array{Function}
     C::Int64
-    matrix::AbstractMatrix
+    sparse_matrix::AbstractMatrix
+    sparse_rows::AbstractVector
+    dense_matrix::AbstractMatrix
     MSE::Float64
     lname::AbstractVector
     rname::AbstractVector
 end
 function Base.show(io::IO, s::STLSQresult)
-    show(io, "text/plain", sparse(s.matrix))
+    show(io, "text/plain", s.sparse_matrix)
     # println()
     print(io, "\npoly N = $(s.N), fourier M = $(s.M), f_ = $(s.f_), C = $(s.C) with MSE = $(s.MSE)")
     print(io, "\nplease use print function to show all result")
 end
-function (s::STLSQresult)(x)
-    return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C) * s.matrix)
+# function (s::STLSQresult)(x) # slow but stable and concrete
+#     return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C) * s.sparse_matrix)
+# end
+function (s::STLSQresult)(x) # fast but unstable
+    return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C, sparse_rows = s.sparse_rows) * s.dense_matrix)
 end
+
 # function functionalizer(s::STLSQresult) # x4 slower than direct matrix multiplication
 #     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
 #     fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
@@ -48,24 +54,26 @@ function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     return Ξ
 end
-function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
-    λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0)
+# function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
+#     λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0)
 
-    ΘX = Θ(X; N = N, M = M, f_ = f_, C = C)
-    Ξ = STLSQ(ΘX, Ẋ, λ = λ, verbose = verbose)
-    MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ) # compare to original data
-    lname = "dx" .* string.(axes(Ẋ, 2))
-    rname =  "x" .* string.(axes(X, 2))
-    return STLSQresult(N, M, f_, C, Ξ, MSE, lname, rname)
-end
+#     ΘX = Θ(X; N = N, M = M, f_ = f_, C = C)
+#     Ξ = STLSQ(ΘX, Ẋ, λ = λ, verbose = verbose)
+#     MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ) # compare to original data
+#     lname = "dx" .* string.(axes(Ẋ, 2))
+#     rname =  "x" .* string.(axes(X, 2))
+#     return STLSQresult(N, M, f_, C, Ξ, MSE, lname, rname)
+# end
 function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
     λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0) where T <: Union{Integer, Symbol}
 
     X = Θ(df[:, Xsyms]; N = N, M = M, f_ = f_, C = C)
     Y = Matrix(df[:, Ysyms])
     Ξ = STLSQ(X, Y, λ = λ, verbose = verbose)
+    sparse_rows = findall(all.(map(x -> iszero.(x), eachrow(Ξ))))
+    _Ξ = Ξ[.!all.(map(x -> iszero.(x), eachrow(Ξ))), :]
     MSE = sum(abs2, Y - X * Ξ) / length(Y) # compare to original data
-    return STLSQresult(N, M, f_, C, Ξ, MSE, Ysyms, Xsyms)
+    return STLSQresult(N, M, f_, C, Ξ, sparse_rows, _Ξ, MSE, Ysyms, Xsyms)
 end
 
 
@@ -77,27 +85,37 @@ function num2sup(num)
         return reduce(*, (getindex.(Ref(superdigit), reverse(digits(num, base = 10)))))
     end
 end
-function Θ(X::AbstractMatrix; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
+function Θ(X::AbstractMatrix;
+    N = 1, M = 0, f_ = Function[], C = 1, λ = 0, sparse_rows = [])
     # λ is just for dummy argument for add_subsystem! function
     dim = size(X, 2)
     ansatz = []
+    i = 0
 
     for k in 0:N
         for case = collect(multiexponents(dim, k))
+            i += 1; i ∈ sparse_rows && continue
             push!(ansatz, prod(X .^ case', dims = 2))
         end
     end
     ΘX = hcat(ansatz...)
     for f in f_
+        i += 1; i ∈ sparse_rows && continue
         ΘX = [ΘX f.(X)]
     end
     for m in 1:M
-        ΘX = [ΘX cospi.(m*X) sinpi.(m*X)]
+        i += 1; i ∈ sparse_rows && continue
+        ΘX = [ΘX cospi.(m*X)]
+    end
+    for m in 1:M
+        i += 1; i ∈ sparse_rows && continue
+        ΘX = [ΘX sinpi.(m*X)]
     end
 
     dim = size(ΘX, 2)
     for c in 2:C
         for (j1, j2) in combinations(2:dim, c)
+            i += 1; i ∈ sparse_rows && continue
             ΘX = [ΘX (ΘX[:, j1] .* ΘX[:, j2])]
         end
     end
@@ -137,7 +155,7 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
 end
 import Base: print
 function print(s::STLSQresult)
-    table = [1:size(s.matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C) s.matrix]
+    table = [1:size(s.sparse_matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C) s.sparse_matrix]
     table[table .== 0] .= ""
     return pretty_table(table; header = ["idx"; "basis"; string.(s.lname)])
 end
@@ -145,7 +163,7 @@ end
 function jacobian(s::STLSQresult)
     # lname = eval(Meta.parse("@variables $(join(string.(s.lname), " "))"))
     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
-    fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
+    fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.sparse_matrix, dims = 1))
     return Symbolics.jacobian(fnexp, rname)
 end
 

@@ -1,6 +1,8 @@
 include("../core/header.jl")
 using LaTeXStrings
 
+## 원본은 ground thruth
+
 data = CSV.read("lyapunov/soft_lyapunov.csv", DataFrame)
 rcvd = CSV.read("lyapunov/soft_lyapunov_rcvd.csv", DataFrame)
 plot(xlabel = L"d", ylabel = L"\lambda", legend = :none, title = "Lyapunov spectrum of soft impact model")
