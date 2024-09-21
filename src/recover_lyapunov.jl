@@ -3,15 +3,13 @@ include("../core/header.jl")
 # canonicalize(2001*100*50sec)
 # canonicalize((201*50÷20)*50sec)
 
-function lyapunov_exponent(_data::DataFrame, J_::Vector{Matrix{Num}}, DT::Root{Float64, Int64}, bf_param;
+function lyapunov_exponent(_data::DataFrame, J_, DT::Root{Float64, Int64}, bf_param;
     U = I(ncol(_data)), T = (last(_data.t) - first(_data.t)))
-    last_vrbl = Symbol.(names(_data))
 
     λ = zeros(size(U, 1))
     for k = 1:nrow(_data)
         s = apply_tree(DT, collect(_data[k, :]))
-        String_Dict = "substitute($(J_[s]), Dict($(join(["$vb => $(_data[k, vb])" for vb in last_vrbl], ", "))))"
-        J = Float64.(eval(Meta.parse(String_Dict)))
+        J = J_[s](collect(_data[k, :]))
         U, V = gram_schmidt(U)
         λ += V |> eachcol .|> norm .|> log
         U = RK4(J, U, dt)
@@ -44,10 +42,11 @@ dt = 1e-6; θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
     J_ = []
     while true
         try
-            J_ = jacobian.(f_)
+            J_ = jacobian.(Function, f_)
             break
         catch
             print(".")
+            sleep(rand())
         end
     end
 
@@ -83,7 +82,7 @@ CSV.write("lyapunov/!$(device) soft_lyapunov_rcvd.csv", schedules, bom = true)
 #     J_ = []
 #     while true
 #         try
-#             J_ = jacobian.(f_)
+#             J_ = jacobian.(Function, f_)
 #             break
 #         catch
 #             print(".")
@@ -132,7 +131,7 @@ CSV.write("lyapunov/!$(device) soft_lyapunov_rcvd.csv", schedules, bom = true)
 #     J_ = []
 #     while true
 #         try
-#             J_ = jacobian.(f_)
+#             J_ = jacobian.(Function, f_)
 #             break
 #         catch
 #             print(".")

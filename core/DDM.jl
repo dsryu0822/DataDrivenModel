@@ -99,17 +99,19 @@ function Θ(X::AbstractMatrix;
         end
     end
     ΘX = hcat(ansatz...)
-    for f in f_
-        i += 1; i ∈ sparse_rows && continue
-        ΘX = [ΘX f.(X)]
-    end
-    for m in 1:M
-        i += 1; i ∈ sparse_rows && continue
-        ΘX = [ΘX cospi.(m*X)]
-    end
-    for m in 1:M
-        i += 1; i ∈ sparse_rows && continue
-        ΘX = [ΘX sinpi.(m*X)]
+    for x ∈ eachcol(X)
+        for f in f_
+            i += 1; i ∈ sparse_rows && continue
+            ΘX = [ΘX f.(x)]
+        end
+        for m in 1:M
+            i += 1; i ∈ sparse_rows && continue
+            ΘX = [ΘX cospi.(m*x)]
+        end
+        for m in 1:M
+            i += 1; i ∈ sparse_rows && continue
+            ΘX = [ΘX sinpi.(m*x)]
+        end
     end
 
     dim = size(ΘX, 2)
@@ -160,11 +162,18 @@ function print(s::STLSQresult)
     return pretty_table(table; header = ["idx"; "basis"; string.(s.lname)])
 end
 
-function jacobian(s::STLSQresult)
-    # lname = eval(Meta.parse("@variables $(join(string.(s.lname), " "))"))
+function jacobian(T::Type, s::STLSQresult)
     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
     fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.sparse_matrix, dims = 1))
-    return Symbolics.jacobian(fnexp, rname)
+
+    J = Symbolics.jacobian(fnexp, rname)
+    if T == Matrix
+        return J
+    elseif T == Function
+        return x -> Float64.(substitute(J, Dict(rname .=> x)))
+    else
+        error("Type not supported: Only `Function` or `Matrix` are supported.")
+    end
 end
 
 function set_divider(arr::AbstractVector)
