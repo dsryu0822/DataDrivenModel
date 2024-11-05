@@ -54,16 +54,6 @@ function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     return Ξ
 end
-# function SINDy(X::AbstractMatrix, Ẋ::AbstractMatrix;
-#     λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0)
-
-#     ΘX = Θ(X; N = N, M = M, f_ = f_, C = C)
-#     Ξ = STLSQ(ΘX, Ẋ, λ = λ, verbose = verbose)
-#     MSE = sum(abs2, Ẋ - ΘX * Ξ) / length(Ẋ) # compare to original data
-#     lname = "dx" .* string.(axes(Ẋ, 2))
-#     rname =  "x" .* string.(axes(X, 2))
-#     return STLSQresult(N, M, f_, C, Ξ, MSE, lname, rname)
-# end
 function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
     λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0) where T <: Union{Integer, Symbol}
 
@@ -77,12 +67,12 @@ function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractV
 end
 
 
-const superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
+const dict_superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
 function num2sup(num)
     if (num == 0) || (num == 1)
         return ""
     else
-        return reduce(*, (getindex.(Ref(superdigit), reverse(digits(num, base = 10)))))
+        return reduce(*, (getindex.(Ref(dict_superdigit), reverse(digits(num, base = 10)))))
     end
 end
 function Θ(X::AbstractMatrix;
@@ -195,20 +185,28 @@ function set_divider(arr::AbstractVector)
     end
     return sets[sortperm(length.(sets), rev=true)]
 end
-function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, min_rank = 0, dos = 0)
+
+"""
+    add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
+
+Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
+`θ` is the threshold for residual error and `dos` is the degree of smoothness.
+"""
+function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
     if dos == 0
-        normeddf = sum.(abs2, eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+        normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
         # jumpt = [1; findall(normeddf .> θ1)]
         # _sets = filter(!isempty, collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1)))); pop!(_sets); _sets = UnitRange.(first.(_sets), last.(_sets))
         # sets = filter(!isempty, sort(union(_sets, UnitRange.(last.(_sets)[1:(end-1)] .+ 2, first.(_sets)[2:end] .- 2))))
     elseif dos == 1
-        normeddf = sum.(abs2, eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+        normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
     end
-    jumpt = [0]
+    _jumpt = [0]; jumpt = [0];
     while true
         idx = argmax(normeddf)
-        if all(abs.(jumpt .- idx) .> 1)
-            push!(jumpt, idx, idx+1, idx-1)
+        if all(abs.(_jumpt .- idx) .> 1)
+            jumpt = deepcopy(_jumpt)
+            push!(_jumpt, idx, idx+1, idx-1)
             normeddf[[idx, idx+1, idx-1]] .= -Inf
         else
             break
@@ -219,30 +217,25 @@ function add_subsystem!(data, vrbl, cnfg; θ1 = 1e-1, θ2 = 1e-24, θ3 = 1e-10, 
 
     subsystem = zeros(Int64, nrow(data));
     for id_subsys = 1:8 # id_subsys = 1; id_subsys = 2; id_subsys = 3
-        rank_ = [rank(Θ(Matrix(data[a_set,last(vrbl)]); cnfg...)) for a_set in sets]
-        if maximum(rank_) < min_rank
-            for (A, B) = combinations(sets, 2)
-                # A = sets[1]; B = sets[2];
-                candy = SINDy([data[A, :]; data[B, :]], vrbl...; cnfg...)
-                if candy.MSE < θ2 break end
+        flag = false
+        
+        candy = SINDy(data[rand(sets), :], vrbl...; cnfg...)
+        for many = 1:3 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
+            for cane = combinations(sets, many)
+                sugar = reduce(vcat, [data[cn, :] for cn in cane])
+                candy = SINDy(sugar, vrbl...; cnfg...)
+                if candy.MSE < θ
+                    flag = true
+                    break
+                end
             end
-            for (A, B, C) = combinations(sets, 3)
-                candy = SINDy([data[A, :]; data[B, :]; data[C, :]], vrbl...; cnfg...)
-                if candy.MSE < θ2 break end
-            end
-        else
-            meaningful = sets[argmax(rank_)]
-            candy = SINDy(data[meaningful,:], vrbl...; cnfg...)
-            # print(candy)
+            if flag break end
         end
 
         idx_blank = findall(iszero.(subsystem))
-        residual = norm.(eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
-        # scatter(residual)
+        residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
         # scatter(residual[1:100:end], yscale = :log10)
-        # kmeaned = kmeans(reshape(log10.(residual), 1, :), 2)
-        # θ3 = exp10(mean(kmeaned.centers))
-        idx_blank = idx_blank[residual .< θ3]
+        idx_blank = idx_blank[residual .< θ]
         subsystem[idx_blank] .= id_subsys
         sets = sets[rand.(sets) .∉ Ref(idx_blank)]
         

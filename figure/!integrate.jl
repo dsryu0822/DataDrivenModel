@@ -1,0 +1,1 @@
+plot(p1, p2, p3, layout = (3, 1), size = (800, 800))
