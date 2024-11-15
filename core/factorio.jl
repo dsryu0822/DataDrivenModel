@@ -9,12 +9,12 @@ function euler(f::Function, v::AbstractVector, h=1e-2)
     V1 = f(v)
     return v + h*V1, V1
 end
-function RK4(J::AbstractMatrix, U::AbstractMatrix, dt=1e-2)
+function RK4(J::AbstractMatrix, U::AbstractMatrix, h=1e-2)
     V1 = J*U
-    V2 = J*(U + (dt/2)*V1)
-    V3 = J*(U + (dt/2)*V2)
-    V4 = J*(U + dt*V3)
-    return U + (dt/6)*(V1 + 2V2 + 2V3 + V4)
+    V2 = J*(U + (h/2)*V1)
+    V3 = J*(U + (h/2)*V2)
+    V4 = J*(U + h*V3)
+    return U + (h/6)*(V1 + 2V2 + 2V3 + V4)
 end
 function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2, nonsmooth=nothing)
     if nonsmooth |> isnothing
@@ -50,7 +50,7 @@ function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing)
     return V
 end
 
-function factory_soft(d::Number; ic = [.0, .05853, -.47898], tspan = [0, 10], dt = 1e-5)
+function factory_soft(d::Number; ic = [-1, .05853, -.47898], tspan = [0, 10], dt = 1e-5)
     κ = 400.0
     μ = 172.363
     function soft(tuv::AbstractVector, nonsmooth::Real)
@@ -85,7 +85,7 @@ end
 factory_soft(T::Type, args...; kargs...) =
 DataFrame(factory_soft(args...; kargs...), ["t", "u", "v", "dt", "du", "dv"])
 
-function factory_hrnm(_f::Number; ic = [0.0, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
+function factory_hrnm(_f::Number; ic = [-1, 0.0, 0.0, 0.1], tspan = [0, 100], dt = 1e-3)
     _a = 1.0
     _b = 3.0
     _c = 1.0

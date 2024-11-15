@@ -195,41 +195,56 @@ Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuratio
 function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
     if dos == 0
         normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
-        # jumpt = [1; findall(normeddf .> θ1)]
-        # _sets = filter(!isempty, collect.(UnitRange.(jumpt .+ 1, circshift(jumpt .- 1, -1)))); pop!(_sets); _sets = UnitRange.(first.(_sets), last.(_sets))
-        # sets = filter(!isempty, sort(union(_sets, UnitRange.(last.(_sets)[1:(end-1)] .+ 2, first.(_sets)[2:end] .- 2))))
     elseif dos == 1
         normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
     end
-    _jumpt = [0]; jumpt = [0];
+    len_normeddf = length(normeddf)
+    _jumpt = [-1]; jumpt = deepcopy(_jumpt);
+    # if jumpt is initialized with [0], then it will be a problem when idx = 1
     while true
         idx = argmax(normeddf)
         if all(abs.(_jumpt .- idx) .> 1)
             jumpt = deepcopy(_jumpt)
-            push!(_jumpt, idx, idx+1, idx-1)
-            normeddf[[idx, idx+1, idx-1]] .= -Inf
+            idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)]
+            # min(idx+1, len_normeddf) is to prevent BoundsError
+            push!(_jumpt, idx3...)
+            normeddf[idx3] .= -Inf
+            # println(idx3)
         else
             break
         end
     end
-    jumpt = [1; sort(jumpt[2:end]); nrow(data)]
-    sets = set_divider(jumpt)
+    jumpt = unique([1; (sort(jumpt[2:end])); nrow(data)])
 
+    # normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+    # plot(yscale = :log10, msw = 0, legend = :none);
+    # # plot(yscale = :log10, msw = 0, xlims = [0, 10], legend = :none);
+    # scatter!(normeddf, shape = :+);
+    # scatter!(jumpt[1:end], normeddf[jumpt[1:end-1]], shape = :x);
+    # png("normeddf")
+
+    sets = set_divider(jumpt)
     subsystem = zeros(Int64, nrow(data));
-    for id_subsys = 1:8 # id_subsys = 1; id_subsys = 2; id_subsys = 3
+    for id_subsys = 1:4 # id_subsys = 0; id_subsys += 1
         flag = false
         
-        candy = SINDy(data[rand(sets), :], vrbl...; cnfg...)
-        for many = 1:3 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
-            for cane = combinations(sets, many)
-                sugar = reduce(vcat, [data[cn, :] for cn in cane])
-                candy = SINDy(sugar, vrbl...; cnfg...)
-                if candy.MSE < θ
-                    flag = true
-                    break
+        if subsystem |> iszero
+            candy = SINDy(data[rand(sets), :], vrbl...; cnfg...)
+        else
+            candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
+        end
+        if candy.MSE > θ
+            for many = 1:3 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
+                for cane = combinations(sets, many)
+                    sugar = reduce(vcat, [data[cn, :] for cn in cane])
+                    candy = SINDy(sugar, vrbl...; cnfg...)
+                    if candy.MSE < θ
+                        flag = true
+                        break
+                    end
                 end
+                if flag break end
             end
-            if flag break end
         end
 
         idx_blank = findall(iszero.(subsystem))
@@ -238,9 +253,9 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
         idx_blank = idx_blank[residual .< θ]
         subsystem[idx_blank] .= id_subsys
         sets = sets[rand.(sets) .∉ Ref(idx_blank)]
+        candy
         
         if sets |> isempty break end
-        # if sets |> isempty @info "sets exhausted"; break end
     end
     data[!, :subsystem] = subsystem;
     return data
