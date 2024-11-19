@@ -225,35 +225,35 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
 
     sets = set_divider(jumpt)
     subsystem = zeros(Int64, nrow(data));
-    for id_subsys = 1:4 # id_subsys = 0; id_subsys += 1
-        flag = false
-        
-        if subsystem |> iszero
-            candy = SINDy(data[rand(sets), :], vrbl...; cnfg...)
-        else
-            candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
-        end
-        if candy.MSE > θ
-            for many = 1:3 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
-                for cane = combinations(sets, many)
-                    sugar = reduce(vcat, [data[cn, :] for cn in cane])
-                    candy = SINDy(sugar, vrbl...; cnfg...)
-                    if candy.MSE < θ
-                        flag = true
-                        break
-                    end
-                end
-                if flag break end
+        for id_subsys = 1:5 # id_subsys = 0; id_subsys += 1
+            flag = false
+            
+            if subsystem |> iszero
+                candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
+            else
+                candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
             end
-        end
+            if candy.MSE > θ
+                for many = 1:3 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
+                    for cane = combinations(sets, many)
+                        sugar = reduce(vcat, [data[cn, :] for cn in cane])
+                        candy = SINDy(sugar, vrbl...; cnfg...)
+                        if candy.MSE < θ
+                            flag = true
+                            break
+                        end
+                    end
+                    if flag break end
+                end
+            end
 
-        idx_blank = findall(iszero.(subsystem))
-        residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
-        # scatter(residual[1:100:end], yscale = :log10)
-        idx_blank = idx_blank[residual .< θ]
-        subsystem[idx_blank] .= id_subsys
-        sets = sets[rand.(sets) .∉ Ref(idx_blank)]
-        candy
+            idx_blank = findall(iszero.(subsystem))
+            residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
+            # scatter(residual[1:100:end], yscale = :log10)
+            idx_blank = idx_blank[residual .< θ]
+            subsystem[idx_blank] .= id_subsys
+            sets = sets[getindex.(sets, length.(sets) .÷ 2) .∉ Ref(idx_blank)]
+            candy
         
         if sets |> isempty break end
     end

@@ -30,7 +30,7 @@ schedules = schedules[1:10:end, :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi, sign], λ = 1e-2) # λ = 5e-1 → 1e-2
-dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
+dt = 1e-5; θ = 1e-6;
 
 @showprogress @threads for dr = eachrow(schedules)
     filename = "data/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -49,10 +49,10 @@ dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
         end
     end
 
-    data = DataFrame(solve(f_, [first(data)...][1:3], dt, 0:dt:50, Dtree), last(vrbl))
-    # data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:50, Dtree), last(vrbl))
+    # data = DataFrame(solve(f_, [first(data)...][1:3], dt, 0:dt:100, Dtree), last(vrbl))
+    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:100, Dtree), last(vrbl))
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
     dr[[:λ1, :λ2, :λ3]] .= λ
     CSV.write("output/...$(device)ing lpnv_soft.csv", schedules, bom = true)
 end
-CSV.write("lyapunov/!$(device) lpnv_soft.csv", schedules, bom = true)
+CSV.write("output/!$(device) lpnv_soft.csv", schedules, bom = true)

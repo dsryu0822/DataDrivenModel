@@ -107,3 +107,66 @@ end
 
 
 plot(y, label = "ground truth"); scatter!(result, trng.v[result], label = "proposed")
+
+function wherejump(tsdata)
+    normeddf = norm.(eachrow(diff(tsdata)))
+    len_normeddf = length(normeddf)
+    _jumpt = [-1]; jumpt = deepcopy(_jumpt);
+    # if jumpt is initialized with [0], then it will be a problem when idx = 1
+    while true
+        idx = argmax(normeddf)
+        if all(abs.(_jumpt .- idx) .> 1)
+            jumpt = deepcopy(_jumpt)
+            idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)]
+            # min(idx+1, len_normeddf) is to prevent BoundsError
+            push!(_jumpt, idx3...)
+            normeddf[idx3] .= -Inf
+            # println(idx3)
+        else
+            break
+        end
+    end
+    jumpt = unique([1; (sort(jumpt[2:end])); length(tsdata)])
+    return jumpt
+end
+
+N = 100
+Random.seed!(6)
+t_ = cumsum(-log.(rand(N)))
+y_ = cumsum(randn(N))
+gt = plot()
+gt = plot(gt, t_, y_, label = "ground truth")
+
+result = DataFrame(h = Float64[], δ = Float64[], recall = Float64[])
+# @time for h = [1e-5]
+@time @threads for h = logrange(1e-1, 1e-5, 15)
+    t = first(t_) + eps()
+    ty = []
+    while t < last(t_)
+        k = count(t .> t_)
+        Δt = t_[k+1] - t_[k]
+        Δy = y_[k+1] - y_[k]
+        push!(ty, [t, (Δy/Δt)*(t - t_[k]) + y_[k]])
+        t += h
+    end
+    TY = DataFrame(stack(ty)', [:t, :y])
+
+    # for δ = [1e-3]
+    for δ = logrange(1e-1, 1e-5, 15)
+        detected = TY.t[wherejump(diff(TY.y))]
+        bit_detected = []
+        for t0 in t_
+            push!(bit_detected, any((detected .- δ) .≤ t0 .≤ (detected .+ δ)))
+        end
+        recall = count(bit_detected) / length(bit_detected)
+        push!(result, [h, δ, recall])
+    end
+end
+CSV.write("partition.csv", sort(result, :δ, :h), bom = true)
+
+p1 = plot(legend = :none)
+for df in groupby(sort(result, [:δ, :h]), :δ)
+    plot!(df.h, df.recall, lw = 2)
+end
+plot(p1, xscale = :log10, xticks = logrange(1e-1, 1e-5, 5), xlabel = "h", ylabel = "recall")
+png("partition")

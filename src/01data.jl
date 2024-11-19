@@ -10,14 +10,14 @@ include("../core/header.jl")
 #                0                                0                                 1
 #      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
 # end
-# idx_tgt = Not(parse.(Int64, first.(readdir("output/soft"), 5)))
-# schedules = CSV.read("schedules/soft.csv", DataFrame)[idx_tgt, :]
-schedules = CSV.read("schedules/soft.csv", DataFrame)
+idx_tgt = Not(parse.(Int64, first.(readdir("output/soft"), 5)))
+schedules = CSV.read("schedules/soft.csv", DataFrame)[idx_tgt, :]
+# schedules = CSV.read("schedules/soft.csv", DataFrame)
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi, sign], λ = 1e-2) # λ = 5e-1 → 1e-2 → 1e-3
 dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 
-# dr = eachrow(schedules)[1159]
+# dr = eachrow(schedules)[1]
 @showprogress @threads for dr = eachrow(schedules)
     try
         filename1 = "data/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -62,5 +62,5 @@ end
 # end
 
 # setdiff(readdir("G:/DDM/data/soft"), readdir("G:/DDM/output/soft"))
-plot(data.u[1:100:end], color = data.subsystem[1:100:end])
-plot(plot(data.u[200000:201100], yticks = [-dr.bp, dr.bp]/2), plot(data.v[200000:201100]), layout = (2,1))
+# plot(data.u[1:100:end], color = data.subsystem[1:100:end])
+# plot(plot(data.u[200000:201100], yticks = [-dr.bp, dr.bp]/2), plot(data.v[200000:201100]), layout = (2,1))
