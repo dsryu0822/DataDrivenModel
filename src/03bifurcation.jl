@@ -19,6 +19,7 @@ idcs, hrzn, vrtc = Int64[], Float64[], Float64[]
 end
 bfcn = DataFrame(; idcs, hrzn, vrtc)
 CSV.write("output/bfcn_soft.csv", bfcn, bom = true)
+bfcn = CSV.read("output/bfcn_soft.csv", DataFrame)
 
-scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5);
+scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5, color = :black);
 png("temp")

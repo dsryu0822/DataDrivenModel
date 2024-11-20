@@ -14,7 +14,7 @@ idx_tgt = Not(parse.(Int64, first.(readdir("output/soft"), 5)))
 schedules = CSV.read("schedules/soft.csv", DataFrame)[idx_tgt, :]
 # schedules = CSV.read("schedules/soft.csv", DataFrame)
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
-cnfg = (; f_ = [cospi, sign], λ = 1e-2) # λ = 5e-1 → 1e-2 → 1e-3
+cnfg = (; f_ = [cospi, sign], λ = 2e-1) # λ = 5e-1 → 1e-2 → 1e-3
 dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 
 # dr = eachrow(schedules)[1]
