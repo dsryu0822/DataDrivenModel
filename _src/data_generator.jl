@@ -48,60 +48,60 @@ end
 # CSV.write("lyapunov/...$(device)ing soft t = [0, 150].csv", schedules, bom = true)
 
 
-# ##########################################################################
-# #                                                                        #
-# #                             Gear system                                #
-# #                                                                        #
-# ##########################################################################
-# # data = factory_gear(DataFrame, -.09; dt = 1e-2, tspan = [500, 5000])
-# # plot(data.x, data.v)
-# # idx_sampled = diff([0; mod.(data.θ, 2π)]) .< 0
-# # data = data[idx_sampled, :]
-# # scatter(data.x, data.v, ms = 0.5, legend = :none)
-# schedules = CSV.read("bifurcation/gear_schedules.csv", DataFrame)
-# schedules = schedules[.!isfile.(["bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv" for dr in eachrow(schedules)]), :]
-# schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
-# vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
-# cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)
-# # λ = 1e-2 works for 762 bps/ λ = 1e-4 works for 138 bps
-# dt = 1e-2; tend = 1000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 31; dos = 1
-# function J_(x, v, Ω, θ, Fe)
-#     dfdx = ifelse(abs(x) > 1, 1, 0)
-#     return [ 0 1 0 0
-#              -(1 + k1*cos(Ω))*dfdx -2ζ (-Fe*H*sin(Ω) + k1*sin(Ω)*dfdx) -Fe*H*sin(θ)
-#              0 0 0 0
-#              0 0 0 0 ]
-# end
+##########################################################################
+#                                                                        #
+#                             Gear system                                #
+#                                                                        #
+##########################################################################
+# data = factory_gear(DataFrame, -.09; dt = 1e-2, tspan = [500, 5000])
+# plot(data.x, data.v)
+# idx_sampled = diff([0; mod.(data.θ, 2π)]) .< 0
+# data = data[idx_sampled, :]
+# scatter(data.x, data.v, ms = 0.5, legend = :none)
+schedules = CSV.read("bifurcation/gear_schedules.csv", DataFrame)
+schedules = schedules[.!isfile.(["bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv" for dr in eachrow(schedules)]), :]
+schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
+vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
+cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)
+# λ = 1e-2 works for 762 bps/ λ = 1e-4 works for 138 bps
+dt = 1e-2; tend = 1000; θ1 = 7e-9; θ2 = 1e-12; θ3 = 1e-5; min_rank = 31; dos = 1
+function J_(x, v, Ω, θ, Fe)
+    dfdx = ifelse(abs(x) > 1, 1, 0)
+    return [ 0 1 0 0
+             -(1 + k1*cos(Ω))*dfdx -2ζ (-Fe*H*sin(Ω) + k1*sin(Ω)*dfdx) -Fe*H*sin(θ)
+             0 0 0 0
+             0 0 0 0 ]
+end
 
-# # bfcn = DataFrame(hrzn = [], vrtc = [])
-# @showprogress @threads for dr = eachrow(schedules)[381:420]
-#     data = factory_gear(DataFrame, dr.bp; tspan = [0, tend] .+ 500)
-#     # data = CSV.read("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
-#     add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
-#     CSV.write("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", data, bom = true)
+# bfcn = DataFrame(hrzn = [], vrtc = [])
+@showprogress @threads for dr = eachrow(schedules)[381:420]
+    data = factory_gear(DataFrame, dr.bp; tspan = [0, tend] .+ 500)
+    # data = CSV.read("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", DataFrame)
+    add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank, dos)
+    CSV.write("bifurcation/gear/$(lpad(dr.idx, 5, '0')).csv", data, bom = true)
 
 
-#     # λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp, T = tend)
-#     # dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+    # λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp, T = tend)
+    # dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
 
-#     # data = data[data.Ω .> 5000, :]
-#     # idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
-#     # sampledx = data.v[idx_sampled]
-#     # hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
-#     # append!(bfcn, DataFrame(; hrzn, vrtc))
-# end
-# # CSV.write("lyapunov/gear_bifurcation.csv", bfcn, bom = true)
-# # CSV.write("lyapunov/gear_lyapunov.csv", schedules, bom = true)
+    # data = data[data.Ω .> 5000, :]
+    # idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
+    # sampledx = data.v[idx_sampled]
+    # hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
+    # append!(bfcn, DataFrame(; hrzn, vrtc))
+end
+# CSV.write("lyapunov/gear_bifurcation.csv", bfcn, bom = true)
+# CSV.write("lyapunov/gear_lyapunov.csv", schedules, bom = true)
 
-# # scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "Fe", ylabel = "v")
-# # png("lyapunov/gear_bifurcation.png")
+# scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "Fe", ylabel = "v")
+# png("lyapunov/gear_bifurcation.png")
 
-# # plot(legend = :none)
-# # plot!(schedules.Fe, schedules.λ1)
-# # plot!(schedules.Fe, schedules.λ2)
-# # plot!(schedules.Fe, schedules.λ3)
-# # plot!(schedules.Fe, schedules.λ4)
-# # png("lyapunov/gear_lyapunov.png")
+# plot(legend = :none)
+# plot!(schedules.Fe, schedules.λ1)
+# plot!(schedules.Fe, schedules.λ2)
+# plot!(schedules.Fe, schedules.λ3)
+# plot!(schedules.Fe, schedules.λ4)
+# png("lyapunov/gear_lyapunov.png")
 
 # ##########################################################################
 # #                                                                        #

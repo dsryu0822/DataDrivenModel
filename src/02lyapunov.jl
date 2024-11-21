@@ -24,7 +24,7 @@ end
 #                0                                0                                 1
 #      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
 # end
-idx_tgt = parse.(Int64, first.(readdir("output/soft"), 5))
+idx_tgt = parse.(Int64, first.(readdir("data/soft"), 5))
 schedules = CSV.read("schedules/soft.csv", DataFrame)[idx_tgt, :]
 schedules = schedules[1:10:end, :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
@@ -49,8 +49,8 @@ dt = 1e-5; θ = 1e-6;
         end
     end
 
-    # data = DataFrame(solve(f_, [first(data)...][1:3], dt, 0:dt:100, Dtree), last(vrbl))
-    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:100, Dtree), last(vrbl))
+    data = DataFrame(solve(f_, [first(data)...][1:3], dt, 0:dt:100, Dtree), last(vrbl))
+    # data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:100, Dtree), last(vrbl))
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
     dr[[:λ1, :λ2, :λ3]] .= λ
     CSV.write("output/...$(device)ing lpnv_soft.csv", schedules, bom = true)
