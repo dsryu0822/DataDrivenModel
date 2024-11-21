@@ -78,41 +78,62 @@ end
 function Θ(X::AbstractMatrix;
     N = 1, M = 0, f_ = Function[], C = 1, λ = 0, sparse_rows = [])
     # λ is just for dummy argument for add_subsystem! function
-    dim = size(X, 2)
-    ansatz = []
+    nr, nc = size(X)
+    padding = zeros(nr)
+    nz_ = Int64[]
     i = 0
-
+    
+    ansatz = []
     for k in 0:N
-        for case = collect(multiexponents(dim, k))
-            i += 1; i ∈ sparse_rows && continue
-            push!(ansatz, prod(X .^ case', dims = 2))
+        for case = collect(multiexponents(nc, k))
+            i += 1
+            if i ∈ sparse_rows θx = padding else
+                push!(nz_, i)
+                θx = prod(X .^ case', dims = 2)
+            end
+            push!(ansatz, θx)
         end
     end
     ΘX = hcat(ansatz...)
     for x ∈ eachcol(X)
         for f in f_
-            i += 1; i ∈ sparse_rows && continue
-            ΘX = [ΘX f.(x)]
+            i += 1
+            if i ∈ sparse_rows θx = padding else
+                push!(nz_, i)
+                θx = f.(x)
+            end
+            ΘX = [ΘX θx]
         end
         for m in 1:M
-            i += 1; i ∈ sparse_rows && continue
-            ΘX = [ΘX cospi.(m*x)]
+            i += 1
+            if i ∈ sparse_rows θx = padding else
+                push!(nz_, i)
+                θx = cospi.(m*x)
+            end
+            ΘX = [ΘX θx]
         end
         for m in 1:M
-            i += 1; i ∈ sparse_rows && continue
-            ΘX = [ΘX sinpi.(m*x)]
+            i += 1
+            if i ∈ sparse_rows θx = padding else
+                push!(nz_, i)
+                θx = sinpi.(m*x)
+            end
+            ΘX = [ΘX θx]
         end
     end
 
-    dim = size(ΘX, 2)
     for c in 2:C
-        for (j1, j2) in combinations(2:dim, c)
-            i += 1; i ∈ sparse_rows && continue
-            ΘX = [ΘX (ΘX[:, j1] .* ΘX[:, j2])]
+        for (j1, j2) in combinations(2:size(ΘX, 2), c)
+            i += 1
+            if i ∈ sparse_rows θx = padding else
+                push!(nz_, i)
+                θx = (ΘX[:, j1] .* ΘX[:, j2])
+            end
+            ΘX = [ΘX θx]
         end
     end
 
-    return ΘX
+    return ΘX[:, nz_]
 end
    Θ(X::AbstractVector; kargs...) = Θ(reshape(X, 1, :); kargs...)
 Θ(X::AbstractDataFrame; kargs...) = Θ(Matrix(X); kargs...)
