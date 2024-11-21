@@ -24,7 +24,7 @@ end
 #                0                                0                                 1
 #      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
 # end
-idx_tgt = parse.(Int64, first.(readdir("data/soft"), 5))
+idx_tgt = parse.(Int64, first.(readdir("olddata/soft"), 5))
 schedules = CSV.read("schedules/soft.csv", DataFrame)[idx_tgt, :]
 schedules = schedules[1:10:end, :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
