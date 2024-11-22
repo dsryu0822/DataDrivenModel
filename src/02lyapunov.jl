@@ -24,7 +24,7 @@ end
 #                0                                0                                 1
 #      -π*sinpi(t) ifelse(abs(u) ≥ d/2, -160000, 0) ifelse(abs(u) ≥ d/2, -172.363, 0) ]
 # end
-# idx_tgt = parse.(Int64, first.(readdir("olddata/soft"), 5))
+# idx_tgt = parse.(Int64, first.(readdir("data/soft"), 5))
 # schedules = CSV.read("schedules/soft.csv", DataFrame)[idx_tgt, :]
 # schedules = schedules[1:1:end, :]
 schedules = CSV.read("schedules/soft.csv", DataFrame)
@@ -34,7 +34,7 @@ cnfg = (; f_ = [cospi, sign], λ = 5e-1) # λ = 5e-1 → 1e-2
 dt = 1e-5; θ = 1e-6;
 
 @showprogress @threads for dr = eachrow(schedules)
-    filename = "olddata/soft/$(lpad(dr.idx, 5, '0')).csv"
+    filename = "data/soft/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
     
     f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
