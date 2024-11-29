@@ -27,10 +27,10 @@ end
 # idx_tgt = parse.(Int64, first.(readdir("data/soft"), 5))
 # schedules = CSV.read("schedules/soft.csv", DataFrame)[idx_tgt, :]
 # schedules = schedules[1:1:end, :]
-schedules = CSV.read("schedules/soft.csv", DataFrame)
+schedules = CSV.read("schedules/soft.csv", DataFrame)[1:1000:end, :]
 schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0;
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
-cnfg = (; f_ = [cospi, sign], λ = 5e-1) # λ = 5e-1 → 1e-2
+cnfg = (; f_ = [cospi], λ = 5e-1) # λ = 5e-1 → 1e-2
 dt = 1e-5; θ = 1e-6;
 
 @showprogress @threads for dr = eachrow(schedules)

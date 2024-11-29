@@ -206,14 +206,7 @@ function set_divider(arr::AbstractVector)
     end
     return sets[sortperm(length.(sets), rev=true)]
 end
-
-"""
-    add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
-
-Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
-`θ` is the threshold for residual error and `dos` is the degree of smoothness.
-"""
-function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
+function detect_jump(data, vrbl, cnfg; dos = 0)
     if dos == 0
         normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
     elseif dos == 1
@@ -235,18 +228,29 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
             break
         end
     end
-    jumpt = unique([1; (sort(jumpt[2:end])); nrow(data)])
-
-    # normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+    jumpt = unique([1; (sort(jumpt[2:end])) .+ dos; nrow(data)])
+    
+    # normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1)))
     # plot(yscale = :log10, msw = 0, legend = :none);
     # # plot(yscale = :log10, msw = 0, xlims = [0, 10], legend = :none);
     # scatter!(normeddf, shape = :+);
     # scatter!(jumpt[1:end], normeddf[jumpt[1:end-1]], shape = :x);
     # png("normeddf")
+    return jumpt
+end
+
+"""
+    add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
+
+Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
+`θ` is the threshold for residual error and `dos` is the degree of smoothness.
+"""
+function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
+    jumpt = detect_jump(data, vrbl, cnfg; dos)
 
     sets = set_divider(jumpt)
     subsystem = zeros(Int64, nrow(data));
-    for id_subsys = 1:5 # id_subsys = 0; id_subsys += 1
+    for id_subsys = 1:6 # id_subsys = 0; id_subsys += 1
         flag = false
         
         if subsystem |> iszero
