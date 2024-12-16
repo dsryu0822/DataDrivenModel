@@ -58,3 +58,47 @@ dt = 1e-5; θ = 1e-6;
     CSV.write("output/...$(device)ing lpnv_soft.csv", schedules, bom = true)
 end
 CSV.write("output/!$(device) lpnv_soft.csv", schedules, bom = true)
+
+
+##########################################################################
+#                                                                        #
+#                             Gear system                                #
+#                                                                        #
+##########################################################################
+∃ = parse.(Int64, replace.(readdir("data/gear"), ".csv" => ""))
+schedules = CSV.read("schedules/gear.csv", DataFrame)[∃, :]
+schedules[!, :λ1] .= .0; schedules[!, :λ2] .= .0; schedules[!, :λ3] .= .0; schedules[!, :λ4] .= .0;
+vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
+cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
+# λ = 1e-2 works for 762 bps/ λ = 1e-4 works for 138 bps
+dt = 1e-2; tspan = [0, 1000]; θ = 1e-4; dos = 1
+smse(SINDy_) = sum(getproperty.(SINDy_, :MSE))
+
+# dr = eachrow(schedules)[399]
+# bfcn = DataFrame(hrzn = [], vrtc = [])
+@showprogress @threads for dr = eachrow(schedules)
+    filename = "data/gear/$(lpad(dr.idx, 5, '0')).csv"
+    data = CSV.read(filename, DataFrame)
+    
+    # add_subsystem!(data, vrbl, cnfg; θ1, θ2, θ3, min_rank); # 30 sec
+    f1_ = [SINDy(df, vrbl...; N = 1, f_ = [cos], C = 2,  λ = 1e-2) for df in groupby(data, :subsystem)]
+    f2_ = [SINDy(df, vrbl...; N = 1, f_ = [cos], C = 2,  λ = 1e-4) for df in groupby(data, :subsystem)]
+    f_ = ifelse(smse(f1_) < smse(f2_), f1_, f2_)
+    # f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+    Dtree = dryad(data, last(vrbl)); # print_tree(Dtree)
+    J_ = []
+    while true
+        try
+            J_ = jacobian.(Function, f_)
+            break
+        catch
+            print(".")
+        end
+    end
+
+    data = DataFrame(solve(f_, [0.1, 0.1, 0.1, eps()], dt, 0:dt:last(tspan), Dtree), last(vrbl))
+    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = last(tspan))
+    dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
+    CSV.write("output/...$(device)ing gear_lyapunov_rcvd.csv", schedules, bom = true)
+end
+CSV.write("output/!$(device) lpnv_soft.csv", schedules, bom = true)

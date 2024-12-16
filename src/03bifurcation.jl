@@ -23,3 +23,32 @@ bfcn = CSV.read("output/bfcn_soft.csv", DataFrame)
 
 scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5, color = :black);
 png("temp")
+
+##########################################################################
+#                                                                        #
+#                             Gear system                                #
+#                                                                        #
+##########################################################################
+schedules = CSV.read("schedules/gear.csv", DataFrame)
+idcs, hrzn, vrtc = Int64[], Float64[], Float64[]
+@showprogress for dr = eachrow(schedules)
+    try
+    filename = "output/gear/$(lpad(dr.idx, 5, '0')).csv"
+    data = CSV.read(filename, DataFrame)
+
+    # data = data[data.Ω .> 5000, :]
+    idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
+    sampledx = data.v[idx_sampled]
+    append!(idcs, fill(dr.idx, length(sampledx)))
+    append!(hrzn, fill(dr.bp, length(sampledx)))
+    append!(vrtc, sampledx)
+    catch
+        continue
+    end
+end
+bfcn = DataFrame(; idcs, hrzn, vrtc)
+CSV.write("output/bfcn_gear.csv", bfcn, bom = true)
+bfcn = CSV.read("output/bfcn_gear.csv", DataFrame)
+
+scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5, color = :black);
+png("temp")

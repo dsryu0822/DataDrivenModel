@@ -68,7 +68,7 @@ dt = 1e-2; tspan = [0, 1000]; θ = 1e-4; dos = 1
 
 # idx_tgt = Not(parse.(Int64, first.(readdir("output/gear"), 5)))
 # schedules = CSV.read("schedules/gear.csv", DataFrame)[idx_tgt, :]
-# dr = eachrow(schedules)[1]
+# dr = eachrow(schedules)[788]
 @showprogress @threads for dr = eachrow(schedules)
     try
         filename1 = "data/gear/$(lpad(dr.idx, 5, '0')).csv"
@@ -77,22 +77,23 @@ dt = 1e-2; tspan = [0, 1000]; θ = 1e-4; dos = 1
             M_state = Matrix(state)
             derivative = (M_state[2:(end-0),:] - M_state[1:(end-1),:]) ./ dt
             data = [state[1:(end-1), :] DataFrame(derivative, first(vrbl))]
+            data = data[20000:end, :]
             add_subsystem!(data, vrbl, cnfg; θ, dos)
             if 0 ∉ data.subsystem
                 CSV.write(filename1, data, bom = true)
+
+                filename2 = replace(filename1, "data/gear" => "output/gear")
+                if !isfile(filename2)
+                    f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+                    Dtree = dryad(data, last(vrbl))
+                    rcvd = solve(f_, [data[1,1:4]...], dt, 0:dt:abs(-(tspan...)), Dtree)
+                    CSV.write(filename2, data, bom = true)
+                end
             else
                 continue
             end
-        else
-            data = CSV.read(filename1, DataFrame)
-        end
-
-        filename2 = replace(filename1, "data/gear" => "output/gear")
-        if !isfile(filename2)
-            f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
-            Dtree = dryad(data, last(vrbl))
-            rcvd = solve(f_, [data[1,1:3]...], dt, 0:dt:abs(-(tspan...)), Dtree)
-            CSV.write(filename2, data, bom = true)
+        # else
+        #     data = CSV.read(filename1, DataFrame)
         end
     catch
         open("error.csv", "a") do io
@@ -105,13 +106,6 @@ end
 data.subsystem |> unique
 plot(data.x, color = data.subsystem)
 
-sample = data[data.subsystem .== 1, :][rand(1:end, 20),:]
-SINDy(sample, vrbl...; cnfg...) |> print
-
-gt = (-1 .< data.x .< 1) + 2(data.x .≥ 1) + 3(data.x .≤ -1)
-scatter(gt, data.subsystem, legend = :none)
-
-jumpt = detect_jump(data, vrbl, cnfg; dos)
-set_divider([1, 4, 5, 6, 10, 20, 25])
-
-sum(abs2, [data[24707, 5:8]...] .- candy([data[24707, 1:4]...])) < 10θ
+cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
+print.([SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)])
+X = Matrix(data[:, 1:4])

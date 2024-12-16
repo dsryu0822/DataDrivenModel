@@ -250,16 +250,17 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
 
     sets = set_divider(jumpt)
     subsystem = zeros(Int64, nrow(data));
+    candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
     for id_subsys = 1:6 # id_subsys = 0; id_subsys += 1
         flag = false
         
-        if subsystem |> iszero
-            candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
-        else
-            candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
-        end
-        if candy.MSE > θ
-            for many = 1:3 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
+        # if subsystem |> iszero
+        #     candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
+        # else
+        #     candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
+        # end
+        # if candy.MSE > θ
+            for many = 3:-1:1 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
                 for cane = combinations(sets, many)
                     sugar = reduce(vcat, [data[cn, :] for cn in cane])
                     candy = SINDy(sugar, vrbl...; cnfg...)
@@ -270,7 +271,7 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
                 end
                 if flag break end
             end
-        end
+        # end
 
         idx_blank = findall(iszero.(subsystem))
         residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
