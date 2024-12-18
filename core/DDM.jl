@@ -82,7 +82,9 @@ function Θ(X::AbstractMatrix;
     padding = zeros(nr)
     nz_ = Int64[]
     i = 0
-    
+    incest = UnitRange.(1, cumsum([length(multiexponents(nc+1, N)); length(f_)*nc; 2M*nc]))
+    incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
+
     ansatz = []
     for k in 0:N
         for case = collect(multiexponents(nc, k))
@@ -123,13 +125,15 @@ function Θ(X::AbstractMatrix;
     end
 
     for c in 2:C
-        for (j1, j2) in combinations(2:size(ΘX, 2), c)
-            i += 1
-            if i ∈ sparse_rows θx = padding else
-                push!(nz_, i)
-                θx = (ΘX[:, j1] .* ΘX[:, j2])
+        for j_ in combinations(2:size(ΘX, 2), c)
+            if !any(Ref(j_) .⊆ incest)
+                i += 1
+                if i ∈ sparse_rows θx = padding else
+                    push!(nz_, i)
+                    θx = .*([ΘX[:, j] for j in j_]...)
+                end
+                ΘX = [ΘX θx]
             end
-            ΘX = [ΘX θx]
         end
     end
 
@@ -142,6 +146,8 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
     # λ is just for dummy argument for add_subsystem! function
     dim = length(X)
     ΘX = []
+    incest = UnitRange.(1, cumsum([length(multiexponents(dim+1, N)); length(f_)*dim; 2M*dim]))
+    incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
 
     for k in 0:N
         for case = collect(multiexponents(dim, k))
@@ -158,8 +164,10 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
 
     dim = length(ΘX)
     for c in 2:C
-        for (j1, j2) in combinations(2:dim, c)
-            push!(ΘX, ΘX[j1] * ΘX[j2])
+        for j_ in combinations(2:dim, c)
+            if !any(Ref(j_) .⊆ incest)
+                push!(ΘX, *([ΘX[j] for j in j_]...))
+            end
         end
     end
 
@@ -250,7 +258,7 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
 
     sets = set_divider(jumpt)
     subsystem = zeros(Int64, nrow(data));
-    candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
+    candy = SINDy(data[last(sets), :], vrbl...; cnfg...)
     for id_subsys = 1:6 # id_subsys = 0; id_subsys += 1
         flag = false
         
@@ -275,7 +283,7 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
 
         idx_blank = findall(iszero.(subsystem))
         residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
-        # scatter(residual[1:100:end], yscale = :log10)
+        # scatter(residual[1:end], yscale = :log10); hline!([θ], color = :red)
         idx_blank = idx_blank[residual .< θ]
         subsystem[idx_blank] .= id_subsys
         sets = sets[getindex.(sets, length.(sets) .÷ 2) .∉ Ref(idx_blank)]

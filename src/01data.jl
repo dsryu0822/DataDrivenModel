@@ -14,7 +14,6 @@ include("../core/header.jl")
 # vrbl = [:dt, :du, :dv], [:t, :u, :v]
 # cnfg = (; f_ = [cospi], λ = 2e-1) # λ = 5e-1 → 1e-2 → 1e-3
 # dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
-
 # @showprogress @threads for dr = eachrow(schedules)
 #     try
 #         filename1 = "data/soft/$(lpad(dr.idx, 5, '0')).csv"
@@ -26,25 +25,35 @@ include("../core/header.jl")
 #             add_subsystem!(data, vrbl, cnfg; θ)
 #             if 0 ∉ data.subsystem
 #                 CSV.write(filename1, data, bom = true)
+
+#                 filename2 = replace(filename1, "data/soft" => "output/soft")
+#                 if !isfile(filename2)
+#                     f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+#                     Dtree = dryad(data, last(vrbl))
+#                     rcvd = solve(f_, [data[1,1:3]...], dt, 0:dt:abs(-(tspan...)), Dtree)
+#                     CSV.write(filename2, DataFrame(rcvd, last(vrbl)), bom = true)
+#                 end
 #             else
 #                 continue
 #             end
-#         else
-#             data = CSV.read(filename1, DataFrame)
-#         end
-
-#         filename2 = replace(filename1, "data/soft" => "output/soft")
-#         if !isfile(filename2)
-#             f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
-#             Dtree = dryad(data, last(vrbl))
-#             rcvd = solve(f_, [data[1,1:3]...], dt, 0:dt:abs(-(tspan...)), Dtree)
-#             CSV.write(filename2, data, bom = true)
 #         end
 #     catch
-#         open("error.csv", "a") do io
-#             println(io, "$(now()),$(dr.idx)")
-#         end
-#         @error "$(now()): error in $(dr.idx)"
+#         open("error.csv", "a") do io println(io, "$(now()),$(dr.idx)") end
+#         @error "\n$(now()): error in $(dr.idx)"
+#     end
+# end
+# @showprogress @threads for dr = eachrow(schedules)
+#     try
+#         filename1 = "data/soft/$(lpad(dr.idx, 5, '0')).csv"
+#         filename2 = replace(filename1, "data/soft" => "output/soft")
+#         data = CSV.read(filename1, DataFrame)
+#         f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+#         Dtree = dryad(data, last(vrbl))
+#         rcvd = solve(f_, [data[1,1:3]...], dt, 0:dt:abs(-(tspan...)), Dtree)
+#         CSV.write(filename2, DataFrame(rcvd, last(vrbl)), bom = true)
+#     catch
+#         open("error.csv", "a") do io println(io, "$(now()),$(dr.idx)") end
+#         @error "\n$(now()): error in $(dr.idx)"
 #     end
 # end
 
@@ -64,48 +73,49 @@ schedules = CSV.read("schedules/gear.csv", DataFrame)
 vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
 cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
 # λ = 1e-2 works for 762 bps/ λ = 1e-4 works for 138 bps
-dt = 1e-2; tspan = [0, 1000]; θ = 1e-4; dos = 1
+dt = 1e-2; tspan = [0, 1000]; θ = 1e-5; dos = 1
 
-# idx_tgt = Not(parse.(Int64, first.(readdir("output/gear"), 5)))
-# schedules = CSV.read("schedules/gear.csv", DataFrame)[idx_tgt, :]
-# dr = eachrow(schedules)[788]
+idx_tgt = Not(parse.(Int64, first.(readdir("output/gear"), 5)))
+schedules = CSV.read("schedules/gear.csv", DataFrame)[idx_tgt, :]
+# dr = eachrow(schedules)[1]
 @showprogress @threads for dr = eachrow(schedules)
     try
         filename1 = "data/gear/$(lpad(dr.idx, 5, '0')).csv"
         if !isfile(filename1)
+            # _data = factory_gear(DataFrame, dr.bp; tspan, dt)
             state = factory_gear(DataFrame, dr.bp; tspan, dt)[:, last(vrbl)]
             M_state = Matrix(state)
             derivative = (M_state[2:(end-0),:] - M_state[1:(end-1),:]) ./ dt
-            data = [state[1:(end-1), :] DataFrame(derivative, first(vrbl))]
-            data = data[20000:end, :]
+            data = [state[1:(end-1), :] DataFrame(derivative, first(vrbl))][20000:end, :]
             add_subsystem!(data, vrbl, cnfg; θ, dos)
             if 0 ∉ data.subsystem
                 CSV.write(filename1, data, bom = true)
 
                 filename2 = replace(filename1, "data/gear" => "output/gear")
                 if !isfile(filename2)
-                    f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+                    f_ = [SINDy(df[rand(1:end, 20), :], vrbl...; cnfg...) for df in groupby(data, :subsystem)]
                     Dtree = dryad(data, last(vrbl))
                     rcvd = solve(f_, [data[1,1:4]...], dt, 0:dt:abs(-(tspan...)), Dtree)
-                    CSV.write(filename2, data, bom = true)
+                    CSV.write(filename2, DataFrame(rcvd, last(vrbl)), bom = true)
                 end
             else
                 continue
             end
-        # else
-        #     data = CSV.read(filename1, DataFrame)
         end
     catch
-        open("error.csv", "a") do io
-            println(io, "$(now()),$(dr.idx)")
-        end
-        @error "$(now()): error in $(dr.idx)"
+        open("error.csv", "a") do io println(io, "$(now()),$(dr.idx)") end
+        @error "\n$(now()): error in $(dr.idx)"
     end
 end
-
-data.subsystem |> unique
-plot(data.x, color = data.subsystem)
-
-cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
-print.([SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)])
-X = Matrix(data[:, 1:4])
+# f_ = [SINDy(df[rand(1:end, 20), :], vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+# f = SINDy(data[data.subsystem .== 1, :][rand(1:end, 20),:], vrbl...; cnfg...)
+# print(f)
+# print.(f_)
+# plot(data.x, color = data.subsystem)
+# _data = factory_gear(DataFrame, dr.bp; tspan, dt)[20000:end, :]
+# data[findall(diff(_data.x .> 1) .!= 0), :]
+# data.subsystem |> unique
+# plot(data.x, color = data.subsystem, xlims = [0, 10000])
+# scatter!(jumpt, data.x[jumpt])
+# data[data.subsystem .== 2, :]
+# subsystem |> unique
