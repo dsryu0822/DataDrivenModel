@@ -1,60 +1,96 @@
 include("../core/header.jl")
 
+##########################################################################
+#                                                                        #
+#                            Soft impact model                           #
+#                                                                        #
+##########################################################################
+vrbl = [:dt, :du, :dv], [:t, :u, :v]
+dt = 1e-5 / 10; tspan = [30, 50];
+
+@time trng = factory_soft(DataFrame, 0.1; tspan, dt)
+trng.ss = Int64.(abs.(trng.u) .> 0.05)
 
 ##########################################################################
 #                                                                        #
 #                           Hindmarsh-Rose model                         #
 #                                                                        #
 ##########################################################################
-
 vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
-cnfg = (; N = 3, f_ = [cos])
-dt = 1e-3; θ = 1e-10
+dt = 1e-3 / 100; tspan = [0, 1000];
 
-@time trng = factory_hrnm(DataFrame, 0.1, tspan = [0, 100]; dt)
-CSV.write("G:/DDM/partition.csv", trng)
-findall(abs.(diff(trng.dz)) .> 1e-1)
+@time trng = factory_hrnm(DataFrame, 0.1; tspan, dt)
+trng.ss = Int64.(abs.(trng.z) .> 1)
 
-temp = findall(abs.(diff(trng.dz)) .> 1e-1)
-ground_truth = sort([temp .+ 1; temp .- 1; temp])
+##########################################################################
+#                                                                        #
+#                             Gear system                                #
+#                                                                        #
+##########################################################################
+vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
+dt = 1e-2 / 100
 
-using Plots
-default(label = :none, color = :black, xlims = [0, nrow(trng)])
-pargs = (; xticks = [], yticks = [])
-pz = plot(trng.z; color = :lightgray, pargs..., yticks = [-1, 1])
-scatter!(pz, ground_truth, trng.z[ground_truth], shape = :x, ms = 2)
-dz_withNaN = deepcopy(trng.dz); dz_withNaN[ground_truth] .= NaN
-pdz = plot(1:nrow(trng),dz_withNaN; msw = 0, ms = .5, color = :lightgray, pargs...);
-pdz_gt = scatter(pdz, ground_truth, trng.dz[ground_truth], shape = :x, ms = 2);
+@time trng = factory_gear(DataFrame, -0.2; tspan, dt)
+trng.ss = Int64.(abs.(trng.x) .> 1)
 
-#############################
-using L1TrendFiltering
-@time x = l1tf(trng.dz, 100).x
-# plot(abs.(diff(diff(x))))
-l1tf_bps = findall(abs.(diff(diff(x))) .> 1e-3) .+ 1
-pdz_l1tf = scatter(pdz, l1tf_bps, trng.dz[l1tf_bps], shape = :x, ms = 2, color = 1);
-pdz_l1tf
-# pdz_l1tf = plot(pdz_l1tf, x, ls = :dash, color = 1, alpha = 0.5)
+# plot(trng.x[1:100:end], color = trng.ss[1:100:end])
+sp_ = unique(round.(Int64, logrange(1, 10000, 50)))
+recall = []
+for sparsity = sp_
+    smpl = trng[1:sparsity:end, :]
+    smpl.hit = (smpl.ss .!= circshift(smpl.ss, 1)) + (smpl.ss .!= circshift(smpl.ss, -1))
+    push!(recall, count(findall(smpl.hit .== 1) .∈ Ref(detect_jump(smpl, vrbl, dos = 1))))
+end
+num_discontinuous = sum((trng.ss .!= circshift(trng.ss, 1)) + (trng.ss .!= circshift(trng.ss, -1)))
+scatter(dt .* sp_, recall ./ num_discontinuous, color = :black, lw = 1, xscale = :log10, shape = :x, alpha = .5, legend = :none, xlabel = "h", ylims = [-.05, 1.05], xticks = exp10.(-10:10))
+png("partition")
 
 
-#############################
-# BPs_dim_1 = trunc.(Int64, 1000CSV.read("C:/Users/rmsms/OneDrive/lab/piecewise regression/BPs_dim=1.csv", DataFrame, header = 0)[2:(end-1), 1])
-BPs_dim_2 = trunc.(Int64, 1000CSV.read("C:/Users/rmsms/OneDrive/lab/piecewise regression/BPs_dim=2.csv", DataFrame, header = 0)[2:(end-1), 1])
+function RK4(f::Function, v::AbstractVector, h=10^(-2))
+    V1 = f(v)
+    V2 = f(v + (h/2)*V1)
+    V3 = f(v + (h/2)*V2)
+    V4 = f(v + h*V3)
+    return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
+end
 
-# pdz_dim_1 = scatter(pdz, BPs_dim_1, trng.dz[BPs_dim_1], shape = :x, ms = 2, color = 2)
-pdz_dim_2 = scatter(pdz, BPs_dim_2, trng.dz[BPs_dim_2], shape = :x, ms = 2, color = 2)
+include("../core/header.jl")
 
-#############################
-@time result = bm(trng, vrbl, cnfg)[2:end-1]
-pdz_proposed = scatter(pdz, result, trng.dz[result], shape = :x, ms = 2, color = 3);
-normeddf = [0; norm.(eachrow(diff(diff(Matrix(trng[:, first(vrbl)]), dims = 1), dims = 1))); 0]
-pddz = scatter(log10.(normeddf), msw = 0, ms = 1, color = 3; pargs...);
+function factory_lorenz(idx::Int64, ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.])
+    σ = 10
+    β = 8/3
+    function lorenz(v::AbstractVector)
+        x, y, z = v
+        dx = σ*(y - x)
+        dy = x*(ρ - z) - y
+        dz = x*y - β*z
+        return [dx, dy, dz]
+    end
 
-#############################
-pparition = plot(pdz_gt, pdz_l1tf, pdz_dim_2, pdz_proposed, pddz, layout = (:, 1), size = [600, 600], dpi = 300);
-png(pparition, "partition")
+    dt = 10^(-3)
+    t_ = first(tspan):dt:last(tspan)
+    
+    ndatapoints = count(first(tspan) .< t_ .≤ last(tspan))
+    len_t_ = length(t_)
 
-intersect(ground_truth, l1tf_bps)
-intersect(ground_truth, BPs_dim_2)
-intersect(ground_truth, result)
+    v = ic; DIM = length(v)
+    traj = zeros(2DIM, len_t_+1)
+    traj[1:DIM, 1] = v
 
+    for tk in eachindex(t_)
+        v, dv = RK4(lorenz, v, dt)
+        if tk+1 ≥ (len_t_ - ndatapoints)
+            traj[        1:DIM , tk+1] =  v
+            traj[DIM .+ (1:DIM), tk  ] = dv
+        end
+    end
+    traj = traj[:, 1:(end-1)]'
+    traj = traj[(end-ndatapoints):end, :]
+
+    return traj
+end
+factory_lorenz(T::Type, args...; ic = [10,10,10.], tspan = [0., 100.]) =
+DataFrame(factory_lorenz(args...; ic = ic, tspan), ["x", "y", "z", "dx", "dy", "dz"])
+data = factory_lorenz(DataFrame, 0, 28, tspan = [0, 100])[50000:end, :]
+
+SINDy(data, [:dx, :dy, :dz], [:x, :y, :z], N = 2)

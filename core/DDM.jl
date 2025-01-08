@@ -214,7 +214,7 @@ function set_divider(arr::AbstractVector)
     end
     return sets[sortperm(length.(sets), rev=true)]
 end
-function detect_jump(data, vrbl, cnfg; dos = 0)
+function detect_jump(data, vrbl; dos = 0)
     if dos == 0
         normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
     elseif dos == 1
@@ -254,7 +254,7 @@ Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuratio
 `θ` is the threshold for residual error and `dos` is the degree of smoothness.
 """
 function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
-    jumpt = detect_jump(data, vrbl, cnfg; dos)
+    jumpt = detect_jump(data, vrbl; dos)
 
     sets = set_divider(jumpt)
     subsystem = zeros(Int64, nrow(data));

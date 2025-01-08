@@ -21,7 +21,7 @@ bfcn = DataFrame(; idcs, hrzn, vrtc)
 CSV.write("output/bfcn_soft.csv", bfcn, bom = true)
 bfcn = CSV.read("output/bfcn_soft.csv", DataFrame)
 
-scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5, color = :black);
+scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5, color = :black, ylims = [-1, 1]);
 png("temp")
 
 ##########################################################################
@@ -50,5 +50,5 @@ bfcn = DataFrame(; idcs, hrzn, vrtc)
 CSV.write("output/bfcn_gear.csv", bfcn, bom = true)
 bfcn = CSV.read("output/bfcn_gear.csv", DataFrame)
 
-scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5, color = :black);
+scatter(bfcn.hrzn, bfcn.vrtc, msw = 0, ms = .5, color = :black, ylims = [-2, 2]);
 png("temp")

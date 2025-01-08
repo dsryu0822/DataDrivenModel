@@ -73,7 +73,7 @@ schedules = CSV.read("schedules/gear.csv", DataFrame)
 vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
 cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-2)
 # λ = 1e-2 works for 762 bps/ λ = 1e-4 works for 138 bps
-dt = 1e-2; tspan = [0, 1000]; θ = 1e-5; dos = 1
+dt = 1e-2; tspan = [0, 1000]; θ = 1e-3; dos = 1
 
 idx_tgt = Not(parse.(Int64, first.(readdir("output/gear"), 5)))
 schedules = CSV.read("schedules/gear.csv", DataFrame)[idx_tgt, :]
@@ -89,16 +89,16 @@ schedules = CSV.read("schedules/gear.csv", DataFrame)[idx_tgt, :]
             data = [state[1:(end-1), :] DataFrame(derivative, first(vrbl))][20000:end, :]
             add_subsystem!(data, vrbl, cnfg; θ, dos)
             if 0 ∉ data.subsystem
-                CSV.write(filename1, data, bom = true)
-
                 filename2 = replace(filename1, "data/gear" => "output/gear")
                 if !isfile(filename2)
                     f_ = [SINDy(df[rand(1:end, 20), :], vrbl...; cnfg...) for df in groupby(data, :subsystem)]
                     Dtree = dryad(data, last(vrbl))
                     rcvd = solve(f_, [data[1,1:4]...], dt, 0:dt:abs(-(tspan...)), Dtree)
+                    CSV.write(filename1, data, bom = true)
                     CSV.write(filename2, DataFrame(rcvd, last(vrbl)), bom = true)
                 end
             else
+                print("$(dr.idx), ")
                 continue
             end
         end
@@ -119,3 +119,8 @@ end
 # scatter!(jumpt, data.x[jumpt])
 # data[data.subsystem .== 2, :]
 # subsystem |> unique
+
+
+CSV.write("241226/diff.csv", DataFrame(diff = sum(abs2, diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 2)[1:100000]))
+CSV.write("241226/dat.csv", data)
+plot(sum(abs2, diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 2)[1:100000])

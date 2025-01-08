@@ -74,68 +74,68 @@ png("q1234")
 # png("eda_hrnm")
 
 
-using L1TrendFiltering
-y = trng.v[1:100:end]
-@time x = l1tf(y, 1).x;
-plot(y, label = "ground truth"); plot!(x, label = "l1 trend filtering")
-plot(abs.(diff(x)), label = "∇x, l1 trend filtering")
-plot(diff(y), label = "∇x, l1 trend filtering")
+# using L1TrendFiltering
+# y = trng.v[1:100:end]
+# @time x = l1tf(y, 1).x;
+# plot(y, label = "ground truth"); plot!(x, label = "l1 trend filtering")
+# plot(abs.(diff(x)), label = "∇x, l1 trend filtering")
+# plot(diff(y), label = "∇x, l1 trend filtering")
 
-threshold = 1e-4; 
-D = diff(speye(length(x)), 2);
-BP_L1 = find(round(D * y_pred_L1, 1))+1;
-BP_L1 = countBP(BP_L1);
+# threshold = 1e-4; 
+# D = diff(speye(length(x)), 2);
+# BP_L1 = find(round(D * y_pred_L1, 1))+1;
+# BP_L1 = countBP(BP_L1);
 
-function bm(data, vrbl, cnfg;)
-    normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-    _jumpt = [0]; jumpt = [0];
-    while true
-        idx = argmax(normeddf)
-        if all(abs.(_jumpt .- idx) .> 1)
-            jumpt = deepcopy(_jumpt)
-            push!(_jumpt, idx, idx+1, idx-1)
-            normeddf[[idx, idx+1, idx-1]] .= -Inf
-        else
-            break
-        end
-    end
-    jumpt = [1; sort(jumpt[2:end]); nrow(data)]
-    sets = set_divider(jumpt)
-    return jumpt
-end
-@time result = bm(trng[1:100:end,:], vrbl, cnfg);
+# function bm(data, vrbl, cnfg;)
+#     normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+#     _jumpt = [0]; jumpt = [0];
+#     while true
+#         idx = argmax(normeddf)
+#         if all(abs.(_jumpt .- idx) .> 1)
+#             jumpt = deepcopy(_jumpt)
+#             push!(_jumpt, idx, idx+1, idx-1)
+#             normeddf[[idx, idx+1, idx-1]] .= -Inf
+#         else
+#             break
+#         end
+#     end
+#     jumpt = [1; sort(jumpt[2:end]); nrow(data)]
+#     sets = set_divider(jumpt)
+#     return jumpt
+# end
+# @time result = bm(trng[1:100:end,:], vrbl, cnfg);
 
 
-plot(y, label = "ground truth"); scatter!(result, trng.v[result], label = "proposed")
+# plot(y, label = "ground truth"); scatter!(result, trng.v[result], label = "proposed")
 
-function wherejump(tsdata)
-    normeddf = norm.(eachrow(diff(tsdata)))
-    len_normeddf = length(normeddf)
-    _jumpt = [-1]; jumpt = deepcopy(_jumpt);
-    # if jumpt is initialized with [0], then it will be a problem when idx = 1
-    while true
-        idx = argmax(normeddf)
-        if all(abs.(_jumpt .- idx) .> 1)
-            jumpt = deepcopy(_jumpt)
-            idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)]
-            # min(idx+1, len_normeddf) is to prevent BoundsError
-            push!(_jumpt, idx3...)
-            normeddf[idx3] .= -Inf
-            # println(idx3)
-        else
-            break
-        end
-    end
-    jumpt = unique([1; (sort(jumpt[2:end])); length(tsdata)])
-    return jumpt
-end
+# function wherejump(tsdata)
+#     normeddf = norm.(eachrow(diff(tsdata)))
+#     len_normeddf = length(normeddf)
+#     _jumpt = [-1]; jumpt = deepcopy(_jumpt);
+#     # if jumpt is initialized with [0], then it will be a problem when idx = 1
+#     while true
+#         idx = argmax(normeddf)
+#         if all(abs.(_jumpt .- idx) .> 1)
+#             jumpt = deepcopy(_jumpt)
+#             idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)]
+#             # min(idx+1, len_normeddf) is to prevent BoundsError
+#             push!(_jumpt, idx3...)
+#             normeddf[idx3] .= -Inf
+#             # println(idx3)
+#         else
+#             break
+#         end
+#     end
+#     jumpt = unique([1; (sort(jumpt[2:end])); length(tsdata)])
+#     return jumpt
+# end
 
 N = 100
 Random.seed!(6)
 t_ = cumsum(-log.(rand(N)))
 y_ = cumsum(randn(N))
 gt = plot()
-gt = plot(gt, t_, y_, label = "ground truth")
+gt = scatter(gt, t_, y_, label = "ground truth")
 
 result = DataFrame(h = Float64[], δ = Float64[], recall = Float64[])
 # @time for h = [1e-5]
@@ -170,3 +170,5 @@ for df in groupby(sort(result, [:δ, :h]), :δ)
 end
 plot(p1, xscale = :log10, xticks = logrange(1e-1, 1e-5, 5), xlabel = "h", ylabel = "recall")
 png("partition")
+
+hmnm
