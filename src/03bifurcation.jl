@@ -11,7 +11,7 @@ idcs, hrzn, vrtc = Int64[], Float64[], Float64[]
     filename = "output/soft/$(lpad(dr.idx, 5, '0')).csv"
     data = CSV.read(filename, DataFrame)
 
-    idx_sampled = diff(abs.(data.u) .> (dr.bp/2)) .> 0
+    idx_sampled = diff(abs.(data.u) .> (dr.bp/2)) .< 0
     sampledv = data[Not(1), :v][idx_sampled]
     append!(idcs, fill(dr.idx, length(sampledv)))
     append!(hrzn, fill(dr.bp, length(sampledv)))

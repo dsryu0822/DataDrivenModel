@@ -42,7 +42,7 @@ function dt2df(dtree)
 end
 function bifurcation_(sysname::AbstractString, data, d)
     if sysname == "soft"
-        idx_sampled = diff(abs.(data.u) .> (d/2)) .> 0
+        idx_sampled = diff(abs.(data.u) .> (d/2)) .< 0
         return data[Not(1), :v][idx_sampled]    
     elseif sysname == "gear"
         idx_sampled = diff([0; mod.(data.Ω, 2π)]) .< 0
@@ -65,7 +65,7 @@ cnfg = (; f_ = [cospi], λ = 2e-1) # λ = 5e-1 → 1e-2 → 1e-3
 dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 
 _idx = 1:2001
-tasks = Dict("chaos1" => 1:500, "chaos2" => 501:1000, "chaos3" => 1001:length(_idx), "SickGPU" => 1:10:length(_idx))
+tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "SickGPU" => 1:10:length(_idx))
 schedules = DataFrame(idx = _idx, bp = LinRange(0.1, 0.3, length(_idx)))[tasks[device], :]
 for k in eachindex(last(vrbl)) schedules[!, "λ$k"] .= 0.0 end
 bp1, bp2 = sort([0.100, 0.101]);

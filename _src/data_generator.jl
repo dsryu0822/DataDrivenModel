@@ -39,7 +39,7 @@ end
 
     # λ = lyapunov_exponent(data[:, last(vrbl)], J_, dr.bp)
     # dr[[:λ1, :λ2, :λ3]] .= λ
-    # idx_sampled = diff(abs.(data.u) .> (dr.bp/2)) .> 0
+    # idx_sampled = diff(abs.(data.u) .> (dr.bp/2)) .< 0
     # sampledv = data[Not(1), :v][idx_sampled]
     # append!(hrzn, fill(dr.bp, length(sampledv)))
     # append!(vrtc, sampledv)
