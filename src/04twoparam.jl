@@ -65,7 +65,8 @@ cnfg = (; f_ = [cospi], λ = 2e-1) # λ = 5e-1 → 1e-2 → 1e-3
 dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 
 _idx = 1:2001
-schedules = DataFrame(idx = _idx, bp = LinRange(0.1, 0.3, length(_idx)))[1:10:end, :]
+tasks = Dict("chaos1" => 1:500, "chaos2" => 501:1000, "chaos3" => 1001:length(_idx), "SickGPU" => 1:10:length(_idx))
+schedules = DataFrame(idx = _idx, bp = LinRange(0.1, 0.3, length(_idx)))[tasks[device], :]
 for k in eachindex(last(vrbl)) schedules[!, "λ$k"] .= 0.0 end
 bp1, bp2 = sort([0.100, 0.101]);
 
@@ -110,21 +111,23 @@ vrtc = [Float64[] for _ in _idx]
         push!(f_, STLSQresult(__cnfg...))
     end
     # J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
-    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:50, Dtree), last(vrbl));
+    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl));
     data = data[(nrow(data) ÷ 5):end, :]
 
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
     dr[names(schedules)[3:end]] .= λ
-    CSV.write("...$(device)ing $(sysname)_lyapunov_rcvd.csv", schedules, bom = true)
-
+    
     vrtc[dr.idx] = bifurcation_(sysname, data, dr.bp)
     hrzn[dr.idx] = repeat([dr.bp], length(vrtc[dr.idx]))
     idcs[dr.idx] = repeat([dr.idx], length(vrtc[dr.idx]))
     bfcn = DataFrame(idcs = vcat(idcs...), hrzn = vcat(hrzn...), vrtc = vcat(vrtc...))
-    CSV.write("...$(device)ing $(sysname)_bfcn_rcvd.csv", bfcn, bom = true)
-# catch e
-#     @error "\n$(now()): error in $(dr.idx)"
-# end
+
+    try    
+        CSV.write("...$(device)ing $(sysname)_lyapunov_rcvd.csv", schedules, bom = true)
+        CSV.write("...$(device)ing $(sysname)_bfcn_rcvd.csv", bfcn, bom = true)
+    catch e
+        @error "\n$(now()): error in $(dr.idx)"
+    end
 end
 CSV.write("!$(device) $(sysname)_lyapunov_rcvd.csv", schedules, bom = true)
 bfcn = DataFrame(idcs = vcat(idcs...), hrzn = vcat(hrzn...), vrtc = vcat(vrtc...))
