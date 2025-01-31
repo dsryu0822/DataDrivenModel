@@ -32,8 +32,8 @@ function dt2df(dtree)
         leaf = strip.(lines[bit_dpth], Ref(['\t', '├', '└', '─']))
         featarg = parse(Int64, split(leaf[1], "<")[1])
         featval = parse(Float64, split(leaf[1], "<")[2])
-        push!(virtualdata, [[ifelse(featarg == k, featval - 2eps(), 0) for k in eachindex(last(vrbl))]; parse(Int64, leaf[2])])
-        push!(virtualdata, [[ifelse(featarg == k, featval + 2eps(), 0) for k in eachindex(last(vrbl))]; parse(Int64, leaf[3])])
+        push!(virtualdata, [[ifelse(featarg == k, featval - 128eps(), 0) for k in eachindex(last(vrbl))]; parse(Int64, leaf[2])])
+        push!(virtualdata, [[ifelse(featarg == k, featval + 128eps(), 0) for k in eachindex(last(vrbl))]; parse(Int64, leaf[3])])
         depth[bit_dpth] .= -1
         depth[findlast(bit_dpth)] = dpth - 1
     end
@@ -110,8 +110,8 @@ vrtc = [Float64[] for _ in _idx]
         push!(f_, STLSQresult(__cnfg...))
     end
     # J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
-    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:100, Dtree), last(vrbl))
-    data = data[(nrow(data) ÷ 2):end, :]
+    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:50, Dtree), last(vrbl));
+    data = data[(nrow(data) ÷ 5):end, :]
 
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
     dr[names(schedules)[3:end]] .= λ
@@ -120,7 +120,6 @@ vrtc = [Float64[] for _ in _idx]
     vrtc[dr.idx] = bifurcation_(sysname, data, dr.bp)
     hrzn[dr.idx] = repeat([dr.bp], length(vrtc[dr.idx]))
     idcs[dr.idx] = repeat([dr.idx], length(vrtc[dr.idx]))
-
     bfcn = DataFrame(idcs = vcat(idcs...), hrzn = vcat(hrzn...), vrtc = vcat(vrtc...))
     CSV.write("...$(device)ing $(sysname)_bfcn_rcvd.csv", bfcn, bom = true)
 # catch e
