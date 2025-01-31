@@ -367,3 +367,15 @@ DataFrame(factory_gear(args...; kargs...), ["x", "v", "Ω", "θ", "dx", "dv", "d
 # end
 # factory_buck(T::Type, args...; kargs...) = 
 # DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI"])
+
+function factory_(sysname::AbstractString)
+    if sysname == "soft"
+        return factory_soft
+    elseif sysname == "hrnm"
+        return factory_hrnm
+    elseif sysname == "gear"
+        return factory_gear
+    else
+        error("The system name is not defined.")
+    end
+end

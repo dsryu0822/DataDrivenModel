@@ -1,5 +1,11 @@
-using ProgressMeter, CSV, DecisionTree, Random, StatsBase, Dates, Plots;
 using Base.Threads: @threads, nthreads # Base.Threads.nthreads()
+using ProgressMeter
+packages = [:Combinatorics, :LinearAlgebra, :SparseArrays, :DataFrames,
+            :PrettyTables, :Symbolics, :CSV, :DecisionTree, :Random,
+            :StatsBase, :Dates, :Plots]
+@showprogress @threads for package in packages
+    @eval using $(package)
+end
 mm = Plots.mm
 cm = Plots.cm
 
@@ -11,6 +17,6 @@ elseif Sys.islinux()
     # device = ENV["LOGNAME"];
 end
 device = gethostname() # In julia v1.11, it could be replaced by `Sys.username()`
-@info "$(now()) - $device $(nthreads()) threads"
+@info "$(now()) - @$device $(nthreads()) threads"
 
 include("../core/factorio.jl")

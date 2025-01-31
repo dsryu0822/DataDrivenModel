@@ -1,6 +1,3 @@
-using Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables, Symbolics
-# @info "Combinatorics, LinearAlgebra, SparseArrays, DataFrames, PrettyTables, Symbolics loaded"
-
 struct STLSQresult
     N::Int64
     M::Int64
@@ -258,7 +255,8 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
 
     sets = set_divider(jumpt)
     subsystem = zeros(Int64, nrow(data));
-    candy = SINDy(data[last(sets), :], vrbl...; cnfg...)
+    # candy = SINDy(data[last(sets), :], vrbl...; cnfg...)
+    candy = nothing
     for id_subsys = 1:6 # id_subsys = 0; id_subsys += 1
         flag = false
         
@@ -283,11 +281,11 @@ function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
 
         idx_blank = findall(iszero.(subsystem))
         residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
-        # scatter(residual[1:end], yscale = :log10); hline!([θ], color = :red)
+        # scatter(residual[1:100:end], yscale = :log10); hline!([θ], color = :red)
         idx_blank = idx_blank[residual .< θ]
         subsystem[idx_blank] .= id_subsys
         sets = sets[getindex.(sets, length.(sets) .÷ 2) .∉ Ref(idx_blank)]
-        candy
+        # candy
         
         if sets |> isempty break end
     end
