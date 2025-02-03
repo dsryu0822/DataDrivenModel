@@ -64,24 +64,22 @@ vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi], λ = 2e-1) # λ = 5e-1 → 1e-2 → 1e-3
 dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 
-done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
 
 _idx = 1:2001
-tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "SickGPU" => setdiff(_idx, done))
+# done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
+# tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "SickGPU" => setdiff(_idx, done))
+tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "Sickbook" => 1:100:length(_idx))
 schedules = DataFrame(idx = _idx, bp = LinRange(0.1, 0.3, length(_idx)))[tasks[device], :]
 for k in eachindex(last(vrbl)) schedules[!, "λ$k"] .= 0.0 end
-bp1, bp2 = sort([0.100, 0.101]);
 
-data_ = [factory_(sysname)(DataFrame, bp1; tspan, dt),
-         factory_(sysname)(DataFrame, bp2; tspan, dt)]
-for data in data_ add_subsystem!(data, vrbl, cnfg; θ) end
-replace!(data_[2].subsystem, 2 => 3, 3 => 2)
+data = factory_(sysname)(DataFrame, 0.1; tspan, dt)
+add_subsystem!(data, vrbl, cnfg; θ)
 
-f__ = [[SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)] for data in data_]
-_cnfg_ = [getproperty.(Ref(f_), f_ |> propertynames) for f_ in f__[1]];
-Dtree_ = [dryad(data, last(vrbl)) for data in data_] # print_tree.(Dtree_)
-df_Dtree_ = dt2df.(Dtree_);
-for df_Dtree in df_Dtree_ df_Dtree.subsystem .= [3, 1, 1, 2] end
+_f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)]
+_cnfg_ = [getproperty.(Ref(f), f |> propertynames) for f in _f_];
+_Dtree = dryad(data, last(vrbl))
+_df_Dtree = dt2df(_Dtree);
+_df_Dtree.subsystem .= [3, 1, 1, 2]
 
 # jacobian.(Matrix, f__[1])[3]
 J_ = [
@@ -89,9 +87,7 @@ J_ = [
     vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) -160000 -172.363],
     vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) -160000 -172.363],
 ]
-M1 = Matrix(df_Dtree_[1][:, 1:(end-1)])
-M2 = Matrix(df_Dtree_[2][:, 1:(end-1)])
-
+# M0 = Matrix(_df_Dtree[:, 1:(end-1)])
 @info "$(now()): Preprocess for $(sysname) done!"
 
 idcs = [Int64[] for _ in _idx]
@@ -99,19 +95,19 @@ hrzn = [Float64[] for _ in _idx]
 vrtc = [Float64[] for _ in _idx]
 @showprogress @threads for dr = eachrow(schedules)
 # try
-    pin = (dr.bp - bp1) / (bp2 - bp1)
+    # pin = (dr.bp - bp1) / (bp2 - bp1)
 
-    M0 = DataFrame(wsum(M1, M2, pin), last(vrbl))
-    M0.subsystem = df_Dtree_[2].subsystem
+    M0 = deepcopy(_df_Dtree)
+    M0.u .= [-(dr.bp/2) - 128eps(), -(dr.bp/2) + 128eps(), +(dr.bp/2) - 128eps(), +(dr.bp/2) + 128eps()]
+    # M0.subsystem = df_Dtree_[2].subsystem
     Dtree = dryad(M0, last(vrbl)) # print_tree(Dtree)
 
-    f_ = []
-    for (f_1, f_2, _cnfg) = collect(zip(f__[1], f__[2], _cnfg_))
-        __cnfg = collect(_cnfg)
-        __cnfg[5] = wsum(f_1.sparse_matrix, f_2.sparse_matrix, pin)
-        __cnfg[7] = wsum(f_1.dense_matrix, f_2.dense_matrix, pin)
-        push!(f_, STLSQresult(__cnfg...))
-    end
+    f_ = deepcopy(_f_)
+    f_[2].sparse_matrix[1, 3] = 80000*dr.bp
+    f_[3].sparse_matrix[1, 3] = -80000*dr.bp
+    f_[2].dense_matrix[1, 3] = 80000*dr.bp
+    f_[3].dense_matrix[1, 3] = 80000*dr.bp
+
     # J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
     data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl));
     data = data[(nrow(data) ÷ 5):end, :]
