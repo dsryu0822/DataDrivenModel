@@ -68,7 +68,7 @@ dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 _idx = 1:2001
 # done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
 # tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "SickGPU" => setdiff(_idx, done))
-tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "Sickbook" => 1:100:length(_idx))
+tasks = Dict("chaos1" => 1:10:650, "chaos2" => 651:10:1300, "chaos3" => 1301:10:length(_idx), "Sickbook" => 1:100:length(_idx))
 schedules = DataFrame(idx = _idx, bp = LinRange(0.1, 0.3, length(_idx)))[tasks[device], :]
 for k in eachindex(last(vrbl)) schedules[!, "λ$k"] .= 0.0 end
 
@@ -106,7 +106,7 @@ vrtc = [Float64[] for _ in _idx]
     f_[2].sparse_matrix[1, 3] = 80000*dr.bp
     f_[3].sparse_matrix[1, 3] = -80000*dr.bp
     f_[2].dense_matrix[1, 3] = 80000*dr.bp
-    f_[3].dense_matrix[1, 3] = 80000*dr.bp
+    f_[3].dense_matrix[1, 3] = -80000*dr.bp
 
     # J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
     data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl));
