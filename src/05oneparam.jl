@@ -68,7 +68,7 @@ dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 _idx = 1:2001
 # done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
 # tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "SickGPU" => setdiff(_idx, done))
-tasks = Dict("chaos1" => 1:10:650, "chaos2" => 651:10:1300, "chaos3" => 1301:10:length(_idx), "Sickbook" => 1:100:length(_idx))
+tasks = Dict("chaos1" => 1:1:650, "chaos2" => 651:1:1300, "chaos3" => 1301:1:length(_idx), "Sickbook" => 1:100:length(_idx))
 schedules = DataFrame(idx = _idx, bp = LinRange(0.1, 0.3, length(_idx)))[tasks[device], :]
 for k in eachindex(last(vrbl)) schedules[!, "λ$k"] .= 0.0 end
 
