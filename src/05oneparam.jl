@@ -143,7 +143,7 @@ cnfg = (; N = 1, f_ = [cos], C = 2,  λ = 1e-4)
 dt = 1e-2; tspan = [0, 1000]; θ = 1e-10; dos = 1
 
 _idx = 1:801
-tasks = Dict("chaos1" => 1:1:400, "chaos2" => 401:1:length(_idx), "Sickbook" => 1:100:length(_idx), "SickGPU" => _idx)
+tasks = Dict("chaos1" => 1:1:400, "chaos2" => 401:1:length(_idx), "chaos3" => _idx, "Sickbook" => 1:100:length(_idx), "SickGPU" => _idx)
 schedules = DataFrame(idx = _idx, bp = LinRange(-0.2, 0.2, length(_idx)))[tasks[device], :]
 for k in eachindex(last(vrbl)) schedules[!, "λ$k"] .= 0.0 end
 
