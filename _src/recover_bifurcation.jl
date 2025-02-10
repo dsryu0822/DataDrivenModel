@@ -95,7 +95,7 @@ idcs = Int64[]; vrtc = Float64[]; hrzn = Float64[]
         @error "Error: $(lpad(dr.idx, 5, '0'))"
     end
 end
-CSV.write("bifurcation/soft_bifurcation_rcvd.csv", DataFrame(; idcs, hrzn, vrtc))
+CSV.write("bifurcation/soft_bfcn_rcvd.csv", DataFrame(; idcs, hrzn, vrtc))
 scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = .1)
 # png("bifurcation/soft_recovered.png")
 # scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = .1, ylims = [-1, 1]);

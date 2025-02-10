@@ -90,11 +90,11 @@ end
     # hrzn, vrtc = fill(dr.bp, length(sampledx)), sampledx
     # append!(bfcn, DataFrame(; hrzn, vrtc))
 end
-# CSV.write("lyapunov/gear_bifurcation.csv", bfcn, bom = true)
+# CSV.write("lyapunov/gear_bfcn.csv", bfcn, bom = true)
 # CSV.write("lyapunov/gear_lyapunov.csv", schedules, bom = true)
 
 # scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "Fe", ylabel = "v")
-# png("lyapunov/gear_bifurcation.png")
+# png("lyapunov/gear_bfcn.png")
 
 # plot(legend = :none)
 # plot!(schedules.Fe, schedules.λ1)
@@ -164,12 +164,12 @@ end
 #     append!(vrtc, sampledx)
 # end
 # scatter(hrzn, vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1)
-# CSV.write("bifurcation/hrnm_bifurcation.csv", DataFrame(; idcs, vrtc, hrzn))
-# png("bifurcation/hrnm_bifurcation.png")
+# CSV.write("bifurcation/hrnm_bfcn.csv", DataFrame(; idcs, vrtc, hrzn))
+# png("bifurcation/hrnm_bfcn.png")
 
 # bfcn = DataFrame(hrzn = vcat(values(hrzn)...), vrtc = vcat(values(vrtc)...))
 # CSV.write("lyapunov/hrnm_lyapunov.csv", schedules, bom = true)
-# CSV.write("lyapunov/hrnm_bifurcation.csv", bfcn, bom = true)
+# CSV.write("lyapunov/hrnm_bfcn.csv", bfcn, bom = true)
 
 # @time eg_period = factory_hrnm(DataFrame, 0.14; tspan = [0, 10000])
 # lyapunov_exponent(eg_period[:, last(vrbl)], J_, 0.14)
@@ -304,8 +304,8 @@ end
 # end
 # bfcn = DataFrame(hrzn = vcat(values(hrzn)...), vrtc = vcat(values(vrtc)...))
 # # CSV.write("lyapunov/mlcc_lyapunov.csv", schedules, bom = true)
-# # CSV.write("lyapunov/mlcc_bifurcation.csv", bfcn, bom = true)
+# # CSV.write("lyapunov/mlcc_bfcn.csv", bfcn, bom = true)
 # scatter(bfcn.hrzn, bfcn.vrtc, legend = false, alpha = .5, ms = .1, xlabel = "β", ylabel = "x3")
-# # png("lyapunov/mlcc_bifurcation.png")
+# # png("lyapunov/mlcc_bfcn.png")
 # plot(legend = :none); plot!(schedules.λ1); plot!(schedules.λ1); plot!(schedules.λ1)
 # # png("lyapunov/mlcc_lyapunov.png")

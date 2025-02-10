@@ -6,7 +6,7 @@ sort!(bfcn, :idcs); sort!(lpnv, :idx)
 lpnv = lpnv[.!iszero.(lpnv[:,3]), :]
 done = unique(bfcn.idcs)
 
-CSV.write("soft_bifurcation_rcvd.csv", bfcn, bom = true)
+CSV.write("soft_bfcn_rcvd.csv", bfcn, bom = true)
 CSV.write("soft_lyapunov_rcvd.csv", lpnv, bom = true)
 
 plot()

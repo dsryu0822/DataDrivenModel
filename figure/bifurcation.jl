@@ -6,9 +6,9 @@ include("../core/header.jl")
 #                            Soft impact model                           #
 #                                                                        #
 ##########################################################################
-bfcn = CSV.read("bifurcation/soft_bifurcation.csv", DataFrame)
+bfcn = CSV.read("bifurcation/soft_bfcn.csv", DataFrame)
 p1 = scatter(bfcn.hrzn, bfcn.vrtc, legend = :none, yticks = [.5, -.5], xticks = [], xlims = [.1, .3], ms = 1, msw = 0, ma = 0.1, color = :black);
-bfcn = CSV.read("bifurcation/soft_bifurcation_rcvd.csv", DataFrame)
+bfcn = CSV.read("bifurcation/soft_bfcn_rcvd.csv", DataFrame)
 p2 = scatter(bfcn.hrzn, bfcn.vrtc, legend = :none, yticks = [.5, -.5], xticks = [], xlims = [.1, .3], ms = 1, msw = 0, ma = 0.1, color = 1);
 
 data = CSV.read("lyapunov/soft_lyapunov.csv", DataFrame)
@@ -31,8 +31,8 @@ png("p123")
 #                             Gear system                                #
 #                                                                        #
 ##########################################################################
-bfcn = CSV.read("bifurcation/gear_bifurcation.csv", DataFrame)
+bfcn = CSV.read("bifurcation/gear_bfcn.csv", DataFrame)
 p1 = scatter(bfcn.hrzn, bfcn.vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1, color = :black);
-bfcn = CSV.read("bifurcation/gear_bifurcation_rcvd.csv", DataFrame)
+bfcn = CSV.read("bifurcation/gear_bfcn_rcvd.csv", DataFrame)
 p2 = scatter(bfcn.hrzn, bfcn.vrtc, ms = 1, legend = :none, msw = 0, ma = 0.1, color = :red);
 plot(p1, p2, layout = (2, 1), size = (800, 400))

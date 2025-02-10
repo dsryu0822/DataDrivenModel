@@ -233,7 +233,7 @@ function detect_jump(data, vrbl; dos = 0)
             break
         end
     end
-    jumpt = unique([1; (sort(jumpt[2:end])) .+ dos; nrow(data)])
+    jumpt = unique([1; (sort(jumpt[2:end])); nrow(data)])
     
     # normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1)))
     # plot(yscale = :log10, msw = 0, legend = :none);

@@ -58,7 +58,7 @@ lyapunov_soft()
 
 # plot(data.u[1:100:end])
 
-# bfcn = CSV.read("bifurcation/soft_bifurcation.csv", DataFrame)
+# bfcn = CSV.read("bifurcation/soft_bfcn.csv", DataFrame)
 # plt_bfcn = scatter(bfcn.vrtc, bfcn.hrzn, ms = .5, legend = :none);
 
 # lpnv = CSV.read("lyapunov/soft.csv", DataFrame)
