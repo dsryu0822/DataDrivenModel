@@ -162,14 +162,15 @@ hrzn = [Float64[] for _ in _idx]
 vrtc = [Float64[] for _ in _idx]
 @showprogress @threads for dr = eachrow(schedules)
     Dtree = deepcopy(_Dtree)
-    # jacobian(Matrix, _f_[3])
+    # jacobian(Matrix, _f_[3]) #print(f_[2])
     J_ = [
-        vv -> [0 1 0 0; 0 -0.12 -dr.bp*sin(vv[3]) -dr.bp*sin(vv[4]); 0 0 0 0; 0 0 0 0],
-        vv -> [0 1 0 0; (-1 - 0.06cos(vv[3])) -0.12 -(dr.bp + 0.06 - 0.06*vv[1])*sin(vv[3]) -dr.bp*sin(vv[4]); 0 0 0 0; 0 0 0 0],
-        vv -> [0 1 0 0; (-1 - 0.06cos(vv[3])) -0.12 -(dr.bp - 0.06 - 0.06*vv[1])*sin(vv[3]) -dr.bp*sin(vv[4]); 0 0 0 0; 0 0 0 0],
+        vv -> [0 1 0 0;                     0 -0.12                      -dr.bp*sin(vv[3]) -dr.bp*sin(vv[4]); 0 0 0 0; 0 0 0 0],
+        vv -> [0 1 0 0; -(1 + 0.06cos(vv[3])) -0.12 (dr.bp + 0.06 + 0.06*vv[1])*sin(vv[3]) -dr.bp*sin(vv[4]); 0 0 0 0; 0 0 0 0],
+        vv -> [0 1 0 0; -(1 + 0.06cos(vv[3])) -0.12 (dr.bp - 0.06 + 0.06*vv[1])*sin(vv[3]) -dr.bp*sin(vv[4]); 0 0 0 0; 0 0 0 0],
     ]
+
     f_ = deepcopy(_f_)
-    f_[1].dense_matrix[1, 2] = 0.3
+    # f_[1].dense_matrix[1, 2] = 0.3
     f_[1].dense_matrix[3, 2] = dr.bp
     f_[1].dense_matrix[4, 2] = dr.bp
     f_[2].dense_matrix[4, 2] = dr.bp + 0.06
@@ -177,8 +178,8 @@ vrtc = [Float64[] for _ in _idx]
     f_[3].dense_matrix[4, 2] = dr.bp - 0.06
     f_[3].dense_matrix[5, 2] = dr.bp
 
-    data = DataFrame(solve(f_, [0.1, 0.1, 0.1, eps()], dt, 0:dt:last(tspan), Dtree), last(vrbl))
-    data = data[(nrow(data) ÷ 5):end, :]
+    data = DataFrame(solve(f_, [0.1, 0.1, 0.1, eps()], dt, 0:dt:last(1500), Dtree), last(vrbl))
+    data = data[(nrow(data) ÷ 3):end, :]
 
     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = last(tspan))
     dr[names(schedules)[3:end]] .= λ
