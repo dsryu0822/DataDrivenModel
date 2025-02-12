@@ -4,4 +4,4 @@
 *.html
 *.f90
 *.pptx
-REPL.jl
+REPL.*
