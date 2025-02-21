@@ -1,7 +1,7 @@
 include("../core/header.jl")
 
-bfcn = vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...)
-lpnv = vcat(CSV.read.(filter(x -> occursin("lyapunov", x), readdir()), DataFrame)...)
+bfcn = vcat(CSV.read.(filter(x -> occursin("soft_bfcn", x), readdir()), DataFrame)...)
+lpnv = vcat(CSV.read.(filter(x -> occursin("soft_lyapunov", x), readdir()), DataFrame)...)
 sort!(bfcn, :idcs); sort!(lpnv, :idx)
 lpnv = lpnv[.!iszero.(lpnv[:,3]), :]
 done = unique(bfcn.idcs)

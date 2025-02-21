@@ -31,15 +31,15 @@ function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2, nonsmoo
     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
 end
 
-function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing, anc_ = nothing)
-    V = zeros(length(t_), length(v))
-    for k in eachindex(t_)
-        V[k, :] = v
-        s = apply_tree(DT, [v; anc_[k]])
-        v, _ = RK4(f_[s], v, h)
-    end
-    return V
-end
+# function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing, anc_ = nothing)
+#     V = zeros(length(t_), length(v))
+#     for k in eachindex(t_)
+#         V[k, :] = v
+#         s = apply_tree(DT, [v; anc_[k]])
+#         v, _ = RK4(f_[s], v, h)
+#     end
+#     return V
+# end
 function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing)
     V = zeros(length(t_), length(v))
     for k in eachindex(t_)

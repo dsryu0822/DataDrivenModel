@@ -1,6 +1,6 @@
 include("../core/header.jl")
 
-function lyapunov_exponent(_data::DataFrame, J_, DT::Root{Float64, Int64}, bf_param;
+function lyapunov_exponent(_data::DataFrame, J_, DT, bf_param;
     U = I(ncol(_data)), T = (last(_data.t) - first(_data.t)))
 
     λ = zeros(size(U, 1))
@@ -53,18 +53,21 @@ function bifurcation_(sysname::AbstractString, data, d)
     end
 end
 
-
 ##########################################################################
 #                                                                        #
 #                            Soft impact model                           #
 #                                                                        #
 ##########################################################################
+import DecisionTree.apply_tree
+apply_tree(tree::Function, features::AbstractVector) = tree(features)
+kozimo(bp) = (u -> ifelse(u[2] < -bp, 3, ifelse(u[2] > bp, 2, 1)))
+
 sysname = "soft" # d ∈ [0.1, 0.3]
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi], λ = 2e-1) # λ = 5e-1 → 1e-2 → 1e-3
 dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 
-done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
+# done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
 
 _idx = 1:2001
 tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "SickGPU" => setdiff(_idx, done))
@@ -97,13 +100,14 @@ M2 = Matrix(df_Dtree_[2][:, 1:(end-1)])
 idcs = [Int64[] for _ in _idx]
 hrzn = [Float64[] for _ in _idx]
 vrtc = [Float64[] for _ in _idx]
-@showprogress @threads for dr = eachrow(schedules)
+@showprogress @threads for dr = eachrow(schedules)[10]
 # try
     pin = (dr.bp - bp1) / (bp2 - bp1)
 
     M0 = DataFrame(wsum(M1, M2, pin), last(vrbl))
-    M0.subsystem = df_Dtree_[2].subsystem
-    Dtree = dryad(M0, last(vrbl)) # print_tree(Dtree)
+    # M0.subsystem = df_Dtree_[2].subsystem
+    # Dtree = dryad(M0, last(vrbl)) # print_tree(Dtree)
+    Dtree = kozimo(M0.u[end])
 
     f_ = []
     for (f_1, f_2, _cnfg) = collect(zip(f__[1], f__[2], _cnfg_))
