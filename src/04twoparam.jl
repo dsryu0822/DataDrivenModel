@@ -70,7 +70,7 @@ dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 # done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
 
 _idx = 1:2001
-tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx), "SickGPU" => setdiff(_idx, done))
+tasks = Dict("chaos1" => 1:650, "chaos2" => 651:1300, "chaos3" => 1301:length(_idx)) #, "SickGPU" => setdiff(_idx, done))
 schedules = DataFrame(idx = _idx, bp = LinRange(0.1, 0.3, length(_idx)))[tasks[device], :]
 for k in eachindex(last(vrbl)) schedules[!, "λ$k"] .= 0.0 end
 bp1, bp2 = sort([0.100, 0.101]);
@@ -100,7 +100,7 @@ M2 = Matrix(df_Dtree_[2][:, 1:(end-1)])
 idcs = [Int64[] for _ in _idx]
 hrzn = [Float64[] for _ in _idx]
 vrtc = [Float64[] for _ in _idx]
-@showprogress @threads for dr = eachrow(schedules)[10]
+@showprogress @threads for dr = eachrow(schedules)
 # try
     pin = (dr.bp - bp1) / (bp2 - bp1)
 
