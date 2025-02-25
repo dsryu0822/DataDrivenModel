@@ -107,7 +107,8 @@ vrtc = [Float64[] for _ in _idx]
     M0 = DataFrame(wsum(M1, M2, pin), last(vrbl))
     # M0.subsystem = df_Dtree_[2].subsystem
     # Dtree = dryad(M0, last(vrbl)) # print_tree(Dtree)
-    Dtree = kozimo(M0.u[end])
+    # Dtree = kozimo(M0.u[end])
+    Dtree = kozimo(0.05)
 
     f_ = []
     for (f_1, f_2, _cnfg) = collect(zip(f__[1], f__[2], _cnfg_))

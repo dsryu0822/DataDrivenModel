@@ -16,3 +16,5 @@ plot(
 png("hhhhhhhhhhhh.png")
 plot(hhh_.t[1:10:end], hhh_.u[1:10:end], title = "(original) h = 10^(-5)", color = :black, legend = :none)
 plot!(hhh5.t[1:10:end], hhh5.u[1:10:end], title = "h = 10^(-5)", color = :blue, legend = :none)
+
+f__[1][1].dense_matrix[1]
