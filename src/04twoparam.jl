@@ -77,8 +77,8 @@ bp1, bp2 = sort([0.100, 0.101]);
 
 data_ = [factory_(sysname)(DataFrame, bp1; tspan, dt),
          factory_(sysname)(DataFrame, bp2; tspan, dt)]
-for data in data_ add_subsystem!(data, vrbl, cnfg; θ) end
 cnfg = (; N = 2, M = 2, f_ = [cospi], λ = 1e-1) # λ = 5e-1 → 1e-2 → 1e-3
+for data in data_ add_subsystem!(data, vrbl, cnfg; θ) end
 replace!(data_[2].subsystem, 2 => 3, 3 => 2)
 
 f__ = [[SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)] for data in data_]
