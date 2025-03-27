@@ -38,7 +38,15 @@ prd2 = DataFrame(solve(f_, collect(test[1, last(vrbl)]), dt, first(2tspan):dt:la
 
 # plot(q1, q2, q3, q4, layout = (4, 1), size = (800, 800), right_margin = 3mm, dpi = 300)
 # png("q1234")
+@time temp1 = factory_soft(DataFrame, 0.1, ic = [0, .000129715, .301469]; tspan = 10tspan, dt)
+temp2 = DataFrame(solve(f_, collect(temp1[1, last(vrbl)]), dt, first(10tspan):dt:last(10tspan), Dtree), last(vrbl))[1:end-1, :]
 
+uvargs = (; xlabel = L"u", ylabel = L"\dot{u}", legend = :none, lw = .1)
+plot(
+    plot(temp1.u[1:100:end], temp1.v[1:100:end], title = "reference", color = :blue; uvargs...),
+    plot(temp2.u[1:100:end], temp2.v[1:100:end], title = "recovered", color = :red ; uvargs...),
+    size = [600, 300], dpi = 300
+    ); png("uv")
 @info "------------------------------------------------------------------"
 
 rename!(test, "t_".* names(test))
@@ -92,3 +100,10 @@ prd2 = DataFrame(solve(f_, collect(test[1, last(vrbl)]), dt, first(2tspan):dt:la
 rename!(test, "t_".* names(test))
 rename!(prd2, "p_".* names(prd2))
 CSV.write("hrnm_shortterm.csv", [test prd2], bom = true)
+
+
+plot(short.t, short.z, color = :black)
+short = data[173000:10:195000, :]
+pargs = (; ticks = false, legend = :none, dpi = 300, size = [800, 200], lw = 2, ylims = [-2.5, 1.7])
+plot(short.t, short.z, color = :black; pargs...); png("1")
+plot(short.t, short.z, color = short.subsystem; pargs...); png("2")
