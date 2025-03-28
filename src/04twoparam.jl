@@ -124,7 +124,7 @@ vrtc = [Float64[] for _ in _idx]
         push!(f_, STLSQresult(__cnfg...))
     end
     # J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
-    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl));
+    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:50, Dtree), last(vrbl));
     data = data[(nrow(data) ÷ 5):end, :]
 
     # λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
