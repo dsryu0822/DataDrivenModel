@@ -77,8 +77,8 @@ bp1, bp2 = sort([0.100, 0.101]);
 
 data_ = [factory_(sysname)(DataFrame, bp1; tspan, dt),
          factory_(sysname)(DataFrame, bp2; tspan, dt)]
-cnfg = (; N = 2, M = 2, f_ = [cospi], λ = 1e-1) # λ = 5e-1 → 1e-2 → 1e-3
 for data in data_ add_subsystem!(data, vrbl, cnfg; θ) end
+cnfg = (; N = 2, M = 2, f_ = [cospi], λ = 1e-1) # λ = 5e-1 → 1e-2 → 1e-3
 replace!(data_[2].subsystem, 2 => 3, 3 => 2)
 
 f__ = [[SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)] for data in data_]
@@ -127,8 +127,8 @@ vrtc = [Float64[] for _ in _idx]
     data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:150, Dtree), last(vrbl));
     data = data[(nrow(data) ÷ 5):end, :]
 
-    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
-    dr[names(schedules)[3:end]] .= λ
+    # λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
+    # dr[names(schedules)[3:end]] .= λ
     
     vrtc[dr.idx] = bifurcation_(sysname, data, dr.bp)
     hrzn[dr.idx] = repeat([dr.bp], length(vrtc[dr.idx]))
