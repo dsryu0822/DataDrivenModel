@@ -117,7 +117,7 @@ vrtc = [Float64[] for _ in _idx]
         __cnfg[7] = wsum(f_1.dense_matrix, f_2.dense_matrix, pin)
         push!(f_, STLSQresult(__cnfg...))
     end
-    J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
+    J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); sleep(rand()); end end
     data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:100, Dtree), last(vrbl));
     data = data[(nrow(data) ÷ 5):end, :]
 
