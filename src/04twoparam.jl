@@ -64,7 +64,7 @@ kozimo(bp) = (u -> ifelse(u[2] < -bp, 3, ifelse(u[2] > bp, 2, 1)))
 
 sysname = "soft" # d ∈ [0.1, 0.3]
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
-cnfg = (; f_ = [cospi], λ = 1e-1) # λ = 5e-1 → 1e-2 → 1e-3
+cnfg = (; N = 1, M = 1, λ = 1e-1) # λ = 5e-1 → 1e-2 → 1e-3
 dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
 
 # done = unique(vcat(CSV.read.(filter(x -> occursin("bfcn", x), readdir()), DataFrame)...).idcs)
@@ -78,7 +78,7 @@ bp1, bp2 = sort([0.100, 0.101]);
 data_ = [factory_(sysname)(DataFrame, bp1; tspan, dt),
          factory_(sysname)(DataFrame, bp2; tspan, dt)]
 for data in data_ add_subsystem!(data, vrbl, cnfg; θ) end
-cnfg = (; N = 2, M = 2, f_ = [cospi], λ = 1e-1) # λ = 5e-1 → 1e-2 → 1e-3
+# cnfg = (; N = 2, M = 2, f_ = [cospi], λ = 1e-1) # λ = 5e-1 → 1e-2 → 1e-3
 replace!(data_[2].subsystem, 2 => 3, 3 => 2)
 
 f__ = [[SINDy(df, vrbl...; cnfg...) for df in groupby(data, :subsystem)] for data in data_]
@@ -87,12 +87,12 @@ Dtree_ = [dryad(data, last(vrbl)) for data in data_] # print_tree.(Dtree_)
 df_Dtree_ = dt2df.(Dtree_);
 for df_Dtree in df_Dtree_ df_Dtree.subsystem .= [3, 1, 1, 2] end
 
-# jacobian.(Matrix, f__[1])[3]
-J_ = [
-    vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) 0 0],
-    vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) -160000 -172.363],
-    vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) -160000 -172.363],
-]
+# jacobian.(Matrix, f__[1])
+# J_ = [
+#     vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) 0 0],
+#     vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) -160000 -172.363],
+#     vv -> [0 0 0; 0 0 1; -π*sinpi(vv[1]) -160000 -172.363],
+# ]
 M1 = Matrix(df_Dtree_[1][:, 1:(end-1)])
 M2 = Matrix(df_Dtree_[2][:, 1:(end-1)])
 
@@ -106,15 +106,9 @@ vrtc = [Float64[] for _ in _idx]
     pin = (dr.bp - bp1) / (bp2 - bp1)
 
     M0 = DataFrame(wsum(M1, M2, pin), last(vrbl))
-    # M0.subsystem = df_Dtree_[2].subsystem
-    # Dtree = dryad(M0, last(vrbl)) # print_tree(Dtree)
-    Dtree = kozimo(M0.u[end])
-
-    J_ = [
-        vv -> [0 0 0 0; (-dr.bp*sin(vv[1])) (6vv[2] + 0.9vv[4] - 3*(vv[2]^2)) 1 (0.9vv[2]); 0 (-10vv[2]) -1 0; 0 0.8 0 -0.1],
-        vv -> [0 0 0 0; (-dr.bp*sin(vv[1])) (6vv[2] + 0.9vv[4] - 3*(vv[2]^2)) 1 (0.9vv[2]); 0 (-10vv[2]) -1 0; 0 0.8 0 -0.1],
-        vv -> [0 0 0 0; (-dr.bp*sin(vv[1])) (6vv[2] + 0.9vv[4] - 3*(vv[2]^2)) 1 (0.9vv[2]); 0 (-10vv[2]) -1 0; 0 0.8 0 -0.1],
-    ]
+    M0.subsystem = df_Dtree_[2].subsystem
+    Dtree = dryad(M0, last(vrbl)) # print_tree(Dtree)
+    # Dtree = kozimo(M0.u[end])
     
     f_ = []
     for (f_1, f_2, _cnfg) = collect(zip(f__[1], f__[2], _cnfg_))
@@ -123,12 +117,12 @@ vrtc = [Float64[] for _ in _idx]
         __cnfg[7] = wsum(f_1.dense_matrix, f_2.dense_matrix, pin)
         push!(f_, STLSQresult(__cnfg...))
     end
-    # J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
-    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:50, Dtree), last(vrbl));
+    J_ = []; while true try J_ = jacobian.(Function, f_); break; catch; print("."); end end
+    data = DataFrame(solve(f_, [eps(), .05853, .47898], dt, 0:dt:100, Dtree), last(vrbl));
     data = data[(nrow(data) ÷ 5):end, :]
 
-    # λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
-    # dr[names(schedules)[3:end]] .= λ
+    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp)
+    dr[names(schedules)[3:end]] .= λ
     
     vrtc[dr.idx] = bifurcation_(sysname, data, dr.bp)
     hrzn[dr.idx] = repeat([dr.bp], length(vrtc[dr.idx]))
