@@ -171,11 +171,14 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
     replace!(ΘX, "" => "1")
     return ΘX
 end
-import Base: print
-function print(s::STLSQresult)
+import Base: print, println
+import PrettyTables: pretty_table
+print(s::STLSQresult) = print(pretty_table(s))
+println(s::STLSQresult) = println(pretty_table(s))
+function pretty_table(s::STLSQresult)
     table = [1:size(s.sparse_matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C) s.sparse_matrix]
     table[table .== 0] .= ""
-    return pretty_table(table; header = ["idx"; "basis"; string.(s.lname)])
+    return pretty_table(String, table; header = ["idx"; "basis"; string.(s.lname)])
 end
 
 function jacobian(T::Type, s::STLSQresult)
@@ -210,6 +213,7 @@ function set_divider(arr::AbstractVector)
         end
     end
     return sets[sortperm(length.(sets), rev=true)]
+    # return sets
 end
 function detect_jump(data, vrbl; dos = 0)
     if dos == 0
@@ -233,7 +237,7 @@ function detect_jump(data, vrbl; dos = 0)
             break
         end
     end
-    jumpt = unique([1; (sort(jumpt[2:end])); nrow(data)])
+    jumpt = unique([1; (sort(_jumpt[2:end])); nrow(data)])
     
     # normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1)))
     # plot(yscale = :log10, msw = 0, legend = :none);

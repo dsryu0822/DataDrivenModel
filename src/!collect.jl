@@ -18,3 +18,4 @@ png("temp1")
 scatter(bfcn.hrzn, bfcn.vrtc, color = :red,
 msw = 0, ms = .5, ma = .5);
 png("temp2")
+

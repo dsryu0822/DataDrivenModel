@@ -79,15 +79,16 @@ end
 λ_ = logrange(1e-10, 1e-1, 4)
 N_ = 0:3
 M_ = 0:3
+θ_ = logrange(1e-10, 1e-1, 4)
 
-schedule = DataFrame(ID = Int64[], λ = Float64[], N = Int64[], M = Int64[], ss = Int64[], error = Float64[], runtime = [])
-for (n, m, λ) in Base.product(N_, M_, λ_) push!(schedule, (0, λ, n, m, 0, 0.0, 0)) end
+schedule = DataFrame(ID = Int64[], λ = Float64[], N = Int64[], M = Int64[], θ = Float64[], ss = Int64[], error = Float64[], runtime = [])
+for (λ, N, M, θ) in Base.product(λ_, N_, M_, θ_) push!(schedule, (0, λ, N, M, θ, 0, 0.0, 0)) end
 schedule.ID = 1:size(schedule, 1)
 
 @showprogress @threads for dr = eachrow(schedule)
     try
         tic = now()
-        λ = dr.λ; n = dr.N; m = dr.M
+        ID = dr.ID; λ = dr.λ; n = dr.N; m = dr.M
         cnfg = (; N = n, M = m, λ = λ)
         
         trng = deepcopy(data)
@@ -100,13 +101,37 @@ schedule.ID = 1:size(schedule, 1)
             Dtree = dryad(trng, last(vrbl)); # print_tree(Dtree)
             test = DataFrame(solve(f_, collect(trng[1, last(vrbl)]), dt, first(tspan):dt:last(tspan), Dtree)[1:(end-1),:], last(vrbl))
             dr.error = sum(abs2, trng.u - test.u)
-            CSV.write("hyperparameter/$ID n=$(n)_m=$(m).csv", test, bom = true)
+            # CSV.write("hyperparameter/$ID n=$(n)_m=$(m).csv", test, bom = true)
         end
-        print(schedule)
-        CSV.write("65 result.csv", schedule, bom = true)
+        println(schedule)
+        # CSV.write("hyperparameter/65 result.csv", schedule, bom = true)
         toc = now()
         dr.runtime = (now() - tic).value / 60000
     catch
         dr.runtime = -1
     end
 end
+
+
+# available = CSV.read("hyperparameter/65 result.csv", DataFrame)
+# available = available[available.ss .> 0, :]
+# @showprogress for dr = eachrow(available)
+#     tic = now()
+#     ID = dr.ID; λ = dr.λ; n = dr.N; m = dr.M
+#     cnfg = (; N = n, M = m, λ = λ)
+    
+#     trng = deepcopy(data)
+#     add_subsystem!(trng, vrbl, cnfg; θ)
+#     f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(trng, :subsystem)] # print.(f_)
+
+#     open("hyperparameter/66 equation.txt", "a") do io
+#         println(io, "ID = $(dr.ID), λ = $(dr.λ), N = $(dr.N), M = $(dr.M)")
+#         for f in f_
+#             print(io, print(f))
+#         end
+#         println(io, "---------------------------------")
+#     end
+
+#     toc = now()
+# end
+
