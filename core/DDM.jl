@@ -63,6 +63,15 @@ function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractV
     return STLSQresult(N, M, f_, C, Ξ, sparse_rows, _Ξ, MSE, Ysyms, Xsyms)
 end
 
+"""
+    residual(f, df)
+
+Calculate the residual of the SINDy model `f` with respect to the data frame `df`.
+"""
+function residual(f, df)
+    return sum.(abs2, f.(eachrow(df[:, f.rname])) - collect.(eachrow(df[:, f.lname])))
+end
+
 
 const dict_superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
 function num2sup(num)
@@ -212,8 +221,8 @@ function set_divider(arr::AbstractVector)
             end
         end
     end
-    return sets[sortperm(length.(sets), rev=true)]
-    # return sets
+    # return sets[sortperm(length.(sets), rev=true)]
+    return sets
 end
 function detect_jump(data, vrbl; dos = 0)
     if dos == 0
@@ -248,64 +257,132 @@ function detect_jump(data, vrbl; dos = 0)
     return jumpt
 end
 
-"""
-    add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
+# """
+#     add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
 
-Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
-`θ` is the threshold for residual error and `dos` is the degree of smoothness.
+# Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
+# `θ` is the threshold for residual error and `dos` is the degree of smoothness.
+# """
+# function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
+#     jumpt = detect_jump(data, vrbl; dos)
+
+#     sets = set_divider(jumpt)
+#     subsystem = zeros(Int64, nrow(data));
+#     # candy = SINDy(data[last(sets), :], vrbl...; cnfg...)
+#     candy = nothing
+#     for id_subsys = 1:6 # id_subsys = 0; id_subsys += 1
+#         flag = false
+        
+#         # if subsystem |> iszero
+#         #     candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
+#         # else
+#         #     candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
+#         # end
+#         # if candy.MSE > θ
+#             for many = 3:-1:1 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
+#                 for cane = combinations(sets, many)
+#                     sugar = reduce(vcat, [data[cn, :] for cn in cane])
+#                     candy = SINDy(sugar, vrbl...; cnfg...)
+#                     if candy.MSE < θ
+#                         flag = true
+#                         break
+#                     end
+#                 end
+#                 if flag break end
+#             end
+#         # end
+
+#         idx_blank = findall(iszero.(subsystem))
+#         residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
+#         # scatter(residual[1:100:end], yscale = :log10); hline!([θ], color = :red)
+#         idx_blank = idx_blank[residual .< θ]
+#         subsystem[idx_blank] .= id_subsys
+#         sets = sets[getindex.(sets, length.(sets) .÷ 2) .∉ Ref(idx_blank)]
+#         # candy
+        
+#         if sets |> isempty break end
+#     end
+#     data[!, :subsystem] = subsystem;
+#     return data
+# end
+
 """
-function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
-    jumpt = detect_jump(data, vrbl; dos)
+    labeling!(data, vrbl, cnfg; dos = 0)
+
+Label the subsystems in DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
+`dos` is the degree of smoothness.
+"""
+function labeling!(data, vrbl, cnfg; dos = 0)
+    jumpt = detect_jump(data, vrbl; dos = dos)
 
     sets = set_divider(jumpt)
-    subsystem = zeros(Int64, nrow(data));
-    # candy = SINDy(data[last(sets), :], vrbl...; cnfg...)
-    candy = nothing
-    for id_subsys = 1:6 # id_subsys = 0; id_subsys += 1
-        flag = false
-        
-        # if subsystem |> iszero
-        #     candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
-        # else
-        #     candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
-        # end
-        # if candy.MSE > θ
-            for many = 3:-1:1 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
-                for cane = combinations(sets, many)
-                    sugar = reduce(vcat, [data[cn, :] for cn in cane])
-                    candy = SINDy(sugar, vrbl...; cnfg...)
-                    if candy.MSE < θ
-                        flag = true
-                        break
-                    end
-                end
-                if flag break end
-            end
-        # end
+    datasets = [data[set, :] for set in sets]
 
-        idx_blank = findall(iszero.(subsystem))
-        residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
-        # scatter(residual[1:100:end], yscale = :log10); hline!([θ], color = :red)
-        idx_blank = idx_blank[residual .< θ]
-        subsystem[idx_blank] .= id_subsys
-        sets = sets[getindex.(sets, length.(sets) .÷ 2) .∉ Ref(idx_blank)]
-        # candy
-        
-        if sets |> isempty break end
+    # subsystem = zeros(Int64, nrow(data));
+    label = zeros(Int64, length(sets))
+    idcs = eachindex(sets)
+    
+    for id_subsys in eachindex(sets)
+        idx_hero = argmax(iszero.(label) .* length.(sets))
+        aliens = setdiff(idcs, [idx_hero] .+ [-1, 0, 1])
+
+        report_hero = DataFrame(alien = Int64[], mse = Float64[])
+        for alien = aliens
+            data_alien = [datasets[[alien, idx_hero]]...;]
+            f = SINDy(data_alien, vrbl...; cnfg...)
+            push!(report_hero, [alien, f.MSE])
+        end
+        rargs = (; xticks = 1:30, xlims = [0, 30], yscale = :log10, ylabel = "MSE", legend = :none, )
+        # s1 = scatter(report_hero.alien, report_hero.mse, shape = :+; rargs...)
+
+        idx_hive = report_hero.alien[argmax(report_hero.mse)]
+        report_hive = DataFrame(alien = Int64[], f = [], mse = Float64[])
+        for alien = aliens
+            data_hive = [datasets[[alien, idx_hive]]...;]
+            f = SINDy(data_hive, vrbl...; cnfg...)
+            push!(report_hive, [alien, f, f.MSE])
+        end
+        # s2 = scatter(s1, report_hive.alien, report_hive.mse, shape = :+, color = :red; rargs...)
+
+        worst = SINDy([datasets[idcs]...;], vrbl...; cnfg...)
+        if maximum(report_hero.mse) < worst.MSE
+            idx_team = report_hero.mse .< report_hive.mse
+        else
+            idx_team = report_hero.mse .≥ 0
+        end
+        # s3 = scatter(s1, report_hero.alien[idx_team], report_hero.mse[idx_team], shape = :x; rargs...)
+
+        idx_labeled = [idx_hero; report_hero.alien[idx_team]]
+        label[idx_labeled] .= id_subsys
+        idcs = setdiff(idcs, idx_labeled)
+        if length(idcs) == 0
+            break
+        elseif length(idcs) == 1
+            label[only(idcs)] = id_subsys + 1
+            break
+        end
     end
-    data[!, :subsystem] = subsystem;
+
+    data[!, :label] = zeros(Int64, nrow(data))
+    for (k, lbl) in enumerate(label)
+        data.label[sets[k]] .= lbl
+    end
+    bit_zero = iszero.(data.label)
+    f_ = [SINDy(data, vrbl...; cnfg...) for data in groupby(data[.!bit_zero,:], :label)]
+    data.label[bit_zero] .= argmin.(eachrow(stack([sum.(abs2, f.(eachrow(data[bit_zero, last(vrbl)])) - collect.(eachrow(data[bit_zero, first(vrbl)]))) for f in f_])))
+
     return data
 end
 function dryad(data, vrbl) # fairy of tree and forest
-    labels = data.subsystem
+    labels = data.label
     features = Matrix(data[:, vrbl])
     acc_ = []
     for seed in 1:10
-        Dtree = build_tree(data.subsystem, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
+        Dtree = build_tree(data.label, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
         push!(acc_, count(labels .== apply_tree(Dtree, features)) / length(labels))
         if maximum(acc_) ≈ 1 break end #; else print("█") end
     end
-    Dtree = build_tree(data.subsystem, features, rng = argmax(acc_))
+    Dtree = build_tree(data.label, features, rng = argmax(acc_))
     # println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
     return Dtree
 end
