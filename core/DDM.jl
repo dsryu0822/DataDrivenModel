@@ -22,6 +22,9 @@ end
 function (s::STLSQresult)(x) # fast but unstable
     return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C, sparse_rows = s.sparse_rows) * s.dense_matrix)
 end
+(s::STLSQresult)(data::DataFrameRow) = s(collect(data[s.rname]))
+(s::STLSQresult)(data::AbstractDataFrame) = vcat(s.(eachrow(data[:, s.rname]))...)
+
 
 # function functionalizer(s::STLSQresult) # x4 slower than direct matrix multiplication
 #     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
@@ -157,7 +160,8 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
 
     for k in 0:N
         for case = collect(multiexponents(dim, k))
-            push!(ΘX, reduce(*, ((X .* num2sup.(case))[.!iszero.(case)])))
+            # push!(ΘX, reduce(*, ((X .* num2sup.(case))[.!iszero.(case)])))
+            push!(ΘX, join(((X .* num2sup.(case))[.!iszero.(case)]), " "))
         end
     end
     for f in f_
@@ -317,6 +321,7 @@ function labeling!(data, vrbl, cnfg; dos = 0)
 
     sets = set_divider(jumpt)
     datasets = [data[set, :] for set in sets]
+ground_truth = [ifelse(rand(ds.u) > 0.05, 2, ifelse(rand(ds.u) < -0.05, 3, 1)) for ds in datasets]    
 
     # subsystem = zeros(Int64, nrow(data));
     label = zeros(Int64, length(sets))
@@ -332,25 +337,26 @@ function labeling!(data, vrbl, cnfg; dos = 0)
             f = SINDy(data_alien, vrbl...; cnfg...)
             push!(report_hero, [alien, f.MSE])
         end
-        rargs = (; xticks = 1:30, xlims = [0, 30], yscale = :log10, ylabel = "MSE", legend = :none, )
-        # s1 = scatter(report_hero.alien, report_hero.mse, shape = :+; rargs...)
+rargs = (; xticks = 1:30, xlims = [0, 30], yscale = :log10, ylabel = "MSE", legend = :none, ms = 12, msw = 0, ma = .5,)
+s1 = scatter(report_hero.alien, report_hero.mse, text = ground_truth[report_hero.alien]; rargs...)
+if id_subsys == 1 png(s1, "hyperparameter/details/$cnfg-itr_$(id_subsys).png") end
 
         idx_hive = report_hero.alien[argmax(report_hero.mse)]
         report_hive = DataFrame(alien = Int64[], f = [], mse = Float64[])
         for alien = aliens
+            # if idx_hive == alien continue end
             data_hive = [datasets[[alien, idx_hive]]...;]
             f = SINDy(data_hive, vrbl...; cnfg...)
             push!(report_hive, [alien, f, f.MSE])
         end
-        # s2 = scatter(s1, report_hive.alien, report_hive.mse, shape = :+, color = :red; rargs...)
-
+# s2 = scatter(s1, report_hive.alien, report_hive.mse, text = ground_truth[report_hive.alien]; rargs...)
         worst = SINDy([datasets[idcs]...;], vrbl...; cnfg...)
         if maximum(report_hero.mse) < worst.MSE
             idx_team = report_hero.mse .< report_hive.mse
         else
             idx_team = report_hero.mse .≥ 0
         end
-        # s3 = scatter(s1, report_hero.alien[idx_team], report_hero.mse[idx_team], shape = :x; rargs...)
+# s3 = scatter(s1, report_hero.alien[idx_team], report_hero.mse[idx_team], shape = :x; rargs...)
 
         idx_labeled = [idx_hero; report_hero.alien[idx_team]]
         label[idx_labeled] .= id_subsys
