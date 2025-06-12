@@ -174,37 +174,37 @@ DataFrame(factory_gear(args...; kargs...), ["x", "v", "Ω", "θ", "dx", "dv", "d
 #                                                                        #
 ##########################################################################
 
-# function factory_lorenz(ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
-#     σ = 10
-#     β = 8/3
-#     function sys(v::AbstractVector)
-#         x, y, z = v
-#         dx = σ*(y - x)
-#         dy = x*(ρ - z) - y
-#         dz = x*y - β*z
-#         return [dx, dy, dz]
-#     end
+function factory_lorenz(ρ::Number; ic = [10.,10.,10.], tspan = [0., 10.], dt = 1e-4)
+    σ = 10
+    β = 8/3
+    function sys(v::AbstractVector)
+        x, y, z = v
+        dx = σ*(y - x)
+        dy = x*(ρ - z) - y
+        dz = x*y - β*z
+        return [dx, dy, dz]
+    end
         
-#     t_ = first(tspan):dt:last(tspan)
-#     len_t_ = length(t_)
+    t_ = first(tspan):dt:last(tspan)
+    len_t_ = length(t_)
     
-#     t, tk = .0, 0
-#     v = ic; DIM = length(v)
-#     traj = zeros(len_t_+2, 2DIM)
-#     while tk ≤ len_t_
-#         x,y,z = v
-#         v, dv = RK4(sys, v, dt)
+    t, tk = .0, 0
+    v = ic; DIM = length(v)
+    traj = zeros(len_t_+2, 2DIM)
+    while tk ≤ len_t_
+        x,y,z = v
+        v, dv = RK4(sys, v, dt)
 
-#         if t ≥ first(t_)
-#             tk += 1
-#             traj[tk+1,         1:DIM ] =  v
-#             traj[tk  , DIM .+ (1:DIM)] = dv
-#         end
-#     end
-#     return traj[2:(end-2), :]
-# end
-# factory_lorenz(T::Type, args...; kargs...) =
-# DataFrame(factory_lorenz(args...; kargs...), ["x", "y", "z", "dx", "dy", "dz"])
+        if t ≥ first(t_)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  v
+            traj[tk  , DIM .+ (1:DIM)] = dv
+        end
+    end
+    return traj[2:(end-2), :]
+end
+factory_lorenz(T::Type, args...; kargs...) =
+DataFrame(factory_lorenz(args...; kargs...), ["x", "y", "z", "dx", "dy", "dz"])
 
 # function factory_mlcc(β::Number; ic = [1.0, -0.1, 0.1, 0.0], tspan = [0, 1000], dt = 1e-2)
 #     L = 19.1_m  ; Ga1 = -0.0009302325
@@ -369,7 +369,9 @@ DataFrame(factory_gear(args...; kargs...), ["x", "v", "Ω", "θ", "dx", "dv", "d
 # DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI"])
 
 function factory_(sysname::AbstractString)
-    if sysname == "soft"
+    if sysname == "lorenz"
+        return factory_lorenz
+    elseif sysname == "soft"
         return factory_soft
     elseif sysname == "hrnm"
         return factory_hrnm

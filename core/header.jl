@@ -1,11 +1,14 @@
 using Base.Threads: @threads, nthreads # Base.Threads.nthreads()
+import Pkg
 packages = [:Combinatorics, :LinearAlgebra, :SparseArrays, :DataFrames,
             :PrettyTables, :Symbolics, :CSV, :DecisionTree, :Random,
-            :StatsBase, :Dates, :ProgressMeter, :Plots]
-for package in packages
-    @eval using $(package)
-    print("$(package) ")
+            :StatsBase, :Dates, :ProgressMeter, :Plots, :LaTeXStrings] .|> string
+required = setdiff(packages, getproperty.(values(Pkg.dependencies()), :name))
+if required |> !isempty
+    @info "Installing required packages: $(required)"
+    Pkg.add.(installed)
 end
+@time "All packages load" eval(Meta.parse("using $(join(packages, ", "))"))
 mm = Plots.mm
 cm = Plots.cm
 
