@@ -2,7 +2,8 @@ using Base.Threads: @threads, nthreads # Base.Threads.nthreads()
 import Pkg
 packages = [:Combinatorics, :LinearAlgebra, :SparseArrays, :DataFrames,
             :PrettyTables, :Symbolics, :CSV, :DecisionTree, :Random,
-            :StatsBase, :Dates, :ProgressMeter, :Plots, :LaTeXStrings] .|> string
+            :StatsBase, :Dates, :ProgressMeter, :Plots, :LaTeXStrings,
+            :JLD2, :Graphs] .|> string
 required = setdiff(packages, getproperty.(values(Pkg.dependencies()), :name))
 if required |> !isempty
     @info "Installing required packages: $(required)"

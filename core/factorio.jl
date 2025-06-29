@@ -40,12 +40,20 @@ end
 #     end
 #     return V
 # end
-function solve(f_, v, h = 1e-2, t_ = nothing, DT = nothing)
+function solve(f_, v, t_, DT = nothing)
+    h = t_[2] - t_[1]
     V = zeros(length(t_), length(v))
-    for k in eachindex(t_)
-        V[k, :] = v
-        s = apply_tree(DT, v)
-        v, _ = RK4(f_[s], v, h)
+    if DT |> isnothing
+        for k in eachindex(t_)
+            V[k, :] = v
+            v, _ = RK4(f_, v, h)
+        end
+    else
+        for k in eachindex(t_)
+            V[k, :] = v
+            s = apply_tree(DT, v)
+            v, _ = RK4(f_[s], v, h)
+        end
     end
     return V
 end

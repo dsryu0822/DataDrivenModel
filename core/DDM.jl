@@ -164,12 +164,18 @@ function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
             push!(ΘX, join(((X .* num2sup.(case))[.!iszero.(case)]), " "))
         end
     end
-    for f in f_
-        push!(ΘX, (string(f) .* "(" .* X .* ")")...)
-    end
-    for m in 1:M
-        _m = ifelse(m |> isone, "", string(m))
-        push!(ΘX, ("cos$(_m)π" .* X)..., ("sin$(_m)π" .* X)...)
+    for x in X
+        for f in f_
+            push!(ΘX, "$(string(f))($x)")
+        end
+        for m in 1:M
+            _m = ifelse(m |> isone, "", string(m))
+            push!(ΘX, ("cos$(_m)π$x"))
+        end
+        for m in 1:M
+            _m = ifelse(m |> isone, "", string(m))
+            push!(ΘX, ("sin$(_m)π$x"))
+        end
     end
 
     dim = length(ΘX)
@@ -229,86 +235,36 @@ function set_divider(arr::AbstractVector)
     return sets
 end
 function detect_jump(data, vrbl; dos = 0)
-    if dos == 0
-        normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
-    elseif dos == 1
-        normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-    end
+# if dos == 0
+    normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+# elseif dos == 1
+#     normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+# end
     len_normeddf = length(normeddf)
     _jumpt = [-1]; jumpt = deepcopy(_jumpt);
     # if jumpt is initialized with [0], then it will be a problem when idx = 1
-    while true
+    for _ in 1:nrow(data)
+        jumpt = deepcopy(_jumpt)
         idx = argmax(normeddf)
-        if all(abs.(_jumpt .- idx) .> 1)
-            jumpt = deepcopy(_jumpt)
-            idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)]
-            # min(idx+1, len_normeddf) is to prevent BoundsError
+        normeddf[idx] = -Inf
+
+        idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)] # min(idx+1, len_normeddf) is to prevent BoundsError
+        if all(abs.(_jumpt .- idx) .> 1) && isempty(idx3 ∩ argmax(normeddf))
             push!(_jumpt, idx3...)
-            normeddf[idx3] .= -Inf
-            # println(idx3)
         else
             break
         end
     end
     jumpt = unique([1; (sort(_jumpt[2:end])); nrow(data)])
     
-    # normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1)))
+    # normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
     # plot(yscale = :log10, msw = 0, legend = :none);
     # # plot(yscale = :log10, msw = 0, xlims = [0, 10], legend = :none);
-    # scatter!(normeddf, shape = :+);
-    # scatter!(jumpt[1:end], normeddf[jumpt[1:end-1]], shape = :x);
+    # scatter!(normeddf, shape = :pixel);
+    # scatter!(jumpt[1:end-1], normeddf[jumpt[1:end-1]], shape = :x);
     # png("normeddf")
     return jumpt
 end
-
-# """
-#     add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
-
-# Add subsystem to DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
-# `θ` is the threshold for residual error and `dos` is the degree of smoothness.
-# """
-# function add_subsystem!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
-#     jumpt = detect_jump(data, vrbl; dos)
-
-#     sets = set_divider(jumpt)
-#     subsystem = zeros(Int64, nrow(data));
-#     # candy = SINDy(data[last(sets), :], vrbl...; cnfg...)
-#     candy = nothing
-#     for id_subsys = 1:6 # id_subsys = 0; id_subsys += 1
-#         flag = false
-        
-#         # if subsystem |> iszero
-#         #     candy = SINDy(data[first(sets), :], vrbl...; cnfg...)
-#         # else
-#         #     candy = SINDy(data[iszero.(subsystem), :], vrbl...; cnfg...)
-#         # end
-#         # if candy.MSE > θ
-#             for many = 3:-1:1 # many = 1; many = 2; many = 3; cane = first(combinations(sets, many))
-#                 for cane = combinations(sets, many)
-#                     sugar = reduce(vcat, [data[cn, :] for cn in cane])
-#                     candy = SINDy(sugar, vrbl...; cnfg...)
-#                     if candy.MSE < θ
-#                         flag = true
-#                         break
-#                     end
-#                 end
-#                 if flag break end
-#             end
-#         # end
-
-#         idx_blank = findall(iszero.(subsystem))
-#         residual = sum.(abs2, eachrow(Matrix(data[idx_blank, first(vrbl)])) .- candy.(eachrow(Matrix(data[idx_blank, last(vrbl)]))))
-#         # scatter(residual[1:100:end], yscale = :log10); hline!([θ], color = :red)
-#         idx_blank = idx_blank[residual .< θ]
-#         subsystem[idx_blank] .= id_subsys
-#         sets = sets[getindex.(sets, length.(sets) .÷ 2) .∉ Ref(idx_blank)]
-#         # candy
-        
-#         if sets |> isempty break end
-#     end
-#     data[!, :subsystem] = subsystem;
-#     return data
-# end
 
 """
     labeling!(data, vrbl, cnfg; dos = 0)
@@ -316,69 +272,40 @@ end
 Label the subsystems in DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
 `dos` is the degree of smoothness.
 """
-function labeling!(data, vrbl, cnfg; dos = 0)
-    jumpt = detect_jump(data, vrbl; dos = dos)
-
+function labeling!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
+    jumpt = detect_jump(data, vrbl; dos)
     sets = set_divider(jumpt)
     datasets = [data[set, :] for set in sets]
-ground_truth = [ifelse(rand(ds.u) > 0.05, 2, ifelse(rand(ds.u) < -0.05, 3, 1)) for ds in datasets]    
 
-    # subsystem = zeros(Int64, nrow(data));
-    label = zeros(Int64, length(sets))
-    idcs = eachindex(sets)
-    
-    for id_subsys in eachindex(sets)
-        idx_hero = argmax(iszero.(label) .* length.(sets))
-        aliens = setdiff(idcs, [idx_hero] .+ [-1, 0, 1])
+    n = length(datasets)
+    min_m = SINDy(datasets[1][1:10, :], vrbl...; cnfg...).sparse_matrix.m
+    sampled = [ds[centerpick(nrow(ds), min_m), :] for ds in datasets]
+    f__ = fill(SINDy(datasets[1][1:10, :], vrbl...; cnfg...), n, n)
+    mse__ = fill(Inf, n, n)
+    dist__ = zeros(n, n)
+    for (i,j) = doublerange(length(datasets))
+        if i ≤ j continue end
+        f__[i, j] = SINDy([sampled[i]; sampled[j]], vrbl...; cnfg...)
+        f__[j, i] = f__[i, j]
+        mse__[i, j] = f__[i, j].MSE
+        mse__[j, i] = mse__[i, j]
+    end
+    subsys = connected_components(SimpleGraph(mse__ .< θ))
+    f_ = [SINDy([sampled[ss]...;], vrbl...; cnfg...) for ss in subsys]; # print.(f_)
 
-        report_hero = DataFrame(alien = Int64[], mse = Float64[])
-        for alien = aliens
-            data_alien = [datasets[[alien, idx_hero]]...;]
-            f = SINDy(data_alien, vrbl...; cnfg...)
-            push!(report_hero, [alien, f.MSE])
-        end
-rargs = (; xticks = 1:30, xlims = [0, 30], yscale = :log10, ylabel = "MSE", legend = :none, ms = 12, msw = 0, ma = .5,)
-s1 = scatter(report_hero.alien, report_hero.mse, text = ground_truth[report_hero.alien]; rargs...)
-if id_subsys == 1 png(s1, "hyperparameter/details/$cnfg-itr_$(id_subsys).png") end
-
-        idx_hive = report_hero.alien[argmax(report_hero.mse)]
-        report_hive = DataFrame(alien = Int64[], f = [], mse = Float64[])
-        for alien = aliens
-            # if idx_hive == alien continue end
-            data_hive = [datasets[[alien, idx_hive]]...;]
-            f = SINDy(data_hive, vrbl...; cnfg...)
-            push!(report_hive, [alien, f, f.MSE])
-        end
-# s2 = scatter(s1, report_hive.alien, report_hive.mse, text = ground_truth[report_hive.alien]; rargs...)
-        worst = SINDy([datasets[idcs]...;], vrbl...; cnfg...)
-        if maximum(report_hero.mse) < worst.MSE
-            idx_team = report_hero.mse .< report_hive.mse
-        else
-            idx_team = report_hero.mse .≥ 0
-        end
-# s3 = scatter(s1, report_hero.alien[idx_team], report_hero.mse[idx_team], shape = :x; rargs...)
-
-        idx_labeled = [idx_hero; report_hero.alien[idx_team]]
-        label[idx_labeled] .= id_subsys
-        idcs = setdiff(idcs, idx_labeled)
-        if length(idcs) == 0
-            break
-        elseif length(idcs) == 1
-            label[only(idcs)] = id_subsys + 1
-            break
+    label = zeros(Int64, nrow(data))
+    for i in eachindex(subsys)
+        for j in subsys[i]
+            label[sets[j]] .= i
         end
     end
-
-    data[!, :label] = zeros(Int64, nrow(data))
-    for (k, lbl) in enumerate(label)
-        data.label[sets[k]] .= lbl
-    end
-    bit_zero = iszero.(data.label)
-    f_ = [SINDy(data, vrbl...; cnfg...) for data in groupby(data[.!bit_zero,:], :label)]
-    data.label[bit_zero] .= argmin.(eachrow(stack([sum.(abs2, f.(eachrow(data[bit_zero, last(vrbl)])) - collect.(eachrow(data[bit_zero, first(vrbl)]))) for f in f_])))
+    bit_blank = iszero.(label)
+    label[bit_blank] .= argmin.(eachrow(stack([residual(f, data[bit_blank, :]) for f in f_])))
+    data.label = label
 
     return data
 end
+
 function dryad(data, vrbl) # fairy of tree and forest
     labels = data.label
     features = Matrix(data[:, vrbl])

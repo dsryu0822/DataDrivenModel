@@ -1,7 +1,11 @@
 include("../core/header.jl")
 
-using JLD2
-using Graphs
+
+import Base.rand
+rand(df::AbstractDataFrame; n = 1) = df[rand(1:nrow(df), n), :]
+doublerange(n) = Base.product(1:n, 1:n)
+centerpick(n, m) = round.(Int64, range(1, n, m+2))[2:end-1]
+has_neighbor(arr) = !isempty(intersect(arr, [arr .+ 1; arr .- 1]))
 
 ##########################################################################
 #                                                                        #
@@ -24,36 +28,61 @@ else
     CSV.write("hyperparameter/0 test.csv", test, bom = true)
 end
 
-import Base.rand
-rand(df::AbstractDataFrame; n = 1) = df[rand(1:nrow(df), n), :]
-doublerange(n) = Base.product(1:n, 1:n)
-centerpick(n, m) = round.(Int64, range(1, n, m+2))[2:end-1]
-has_neighbor(arr) = !isempty(intersect(arr, [arr .+ 1; arr .- 1]))
-
 jumpt = detect_jump(data, vrbl)
 sets = set_divider(jumpt)
 datasets = [data[set, :] for set in sets]
 ground_truth = [ifelse(rand(ds.u) > 0.05, 3, ifelse(rand(ds.u) < -0.05, 2, 1)) for ds in datasets]
+ground_truth_ = [findall(ground_truth .== k) for k in eachindex(1:3)]
+ground_truth__ =[any([[i,j] ⊆ gt for gt in ground_truth_]) for (i,j) in doublerange(length(datasets))]
 
 N_ = 0:3
 M_ = 0:3
-schedules = DataFrame(ID = Int64[], N = Int64[], M = Int64[], worked = String[], ss = Int64[], totalerror = Float64[])
+schedules = DataFrame(ID = Int64[], N = Int64[], M = Int64[], worked = String[], ss = Int64[], E = Float64[])
 for (N, M) in Base.product(N_, M_) push!(schedules, (0, N, M, "", 0, 0.0, )) end
 schedules.ID = 1:size(schedules, 1)
 
+# schedules.cut = 
+
+# 이거 내가 직접 눈으로 보고 넣어야함
+
+manualθ = [
+    1 1e+0
+    2 1e-0
+    3 1e-0
+    4 1e-5
+    5 1e-0
+    6 1e-20
+    7 1e-20
+    8 1e-10
+    9 1e-7
+   10 1e-20
+   11 1e-20
+   12 1e-10
+   13 1e-10
+   14 1e-20
+   15 1e-20
+   16 1e-20
+]
+
+schedules.θ = manualθ[:, 2]
 for dr = eachrow(schedules)
-    ID = dr.ID; N = dr.N; M = dr.M
+    ID = dr.ID; N = dr.N; M = dr.M; θ = dr.θ
     cnfg = (; N, M, λ = 0)
 
-    # cnfg = (; N = 1, M = 1, λ = 0)
-    # # min_m = minimum(nrow.(datasets))
     n = length(datasets)
-    min_m = SINDy(datasets[1][1:10, :], vrbl...; cnfg...).sparse_matrix.m
-    # sampled = rand.(datasets; n = min_m)
-    sampled = [ds[centerpick(nrow(ds), min_m), :] for ds in datasets]
-    f__ = fill(SINDy(datasets[1][1:10, :], vrbl...; cnfg...), 29, 29)
+    min_m = 2SINDy(datasets[1][1:10, :], vrbl...; cnfg...).sparse_matrix.m
+    _sampled = [ds[centerpick(nrow(ds), min_m), :] for ds in datasets]
+    f__ = fill(SINDy(datasets[1][1:10, :], vrbl...; cnfg...), n, n)
     mse__ = fill(Inf, n, n)
-    dist__ = zeros(n, n)
+    for (i,j) = doublerange(length(datasets))
+        if i ≤ j continue end
+        f__[i, j] = SINDy([_sampled[i]; _sampled[j]], vrbl...; cnfg...)
+        f__[j, i] = f__[i, j]
+        mse__[i, j] = f__[i, j].MSE
+        mse__[j, i] = mse__[i, j]
+    end
+    sampled = [[_sampled[k]; _sampled[argmin(mse__[k,:])]] for k in eachindex(_sampled)]
+    mse__ = fill(Inf, n, n)
     for (i,j) = doublerange(length(datasets))
         if i ≤ j continue end
         f__[i, j] = SINDy([sampled[i]; sampled[j]], vrbl...; cnfg...)
@@ -61,276 +90,355 @@ for dr = eachrow(schedules)
         mse__[i, j] = f__[i, j].MSE
         mse__[j, i] = mse__[i, j]
     end
-    f_ = f__[argmin(mse__, dims = 2)]
-    for (i,j) = doublerange(length(datasets))
-        if i ≤ j continue end
-        dist__[i, j] = sum(abs2, f_[i].sparse_matrix - f_[j].sparse_matrix)
-        dist__[j, i] = dist__[i, j]
-    end
 
-    nzθ = vec(filter(!iszero, dist__))
-    candy = DataFrame(
-        delta = nzθ,
-        ss = [length(connected_components(SimpleGraph(dist__ .< θ))) for θ in nzθ]
-    )
-    sort!(candy, :delta, rev = true)
-    unique!(candy, :ss, keep = :last)
-    θ_ = candy.delta
-    candy.delta .= sqrt.([10candy.delta[1]; candy.delta[1:end-1]] .* candy.delta)
-
-    sargs = (; legend = :none, msw = 0, ms = 2)
-    sdelta = scatter(title = "N = $N, M = $M", ylabel = L"\delta_{ij}", size = [600, 1200], left_margin = 10mm)
-    scatter!(sdelta, nzθ, yscale = :log10; sargs...)
-    hline!(sdelta, candy.delta, color = :gray)
-    scatter!(sdelta, fill(length(nzθ) + 50, nrow(candy)), candy.delta, text = string.(candy.ss), ms = 0)
-    png(sdelta, "hyperparameter/$ID d n=$(N)_m=$(M).png")
-
-    num_subsys = []
-    totalerror = []
-    bit_feasible = []
-    for θ in θ_
-        subsys = connected_components(SimpleGraph(dist__ .< θ))
-        push!(num_subsys, length(subsys))
-        push!(bit_feasible, !(any(length.(subsys) .== 1) || any(has_neighbor.(subsys))))
-        
-        label = zeros(Int64, length(sampled))
-        for s in eachindex(subsys) label[subsys[s]] .= s end
-
-        ref_ = [SINDy([sampled[ss]...;], vrbl...; cnfg...) for ss in subsys]
-        erroref_ = [[] for _ in eachindex(ref_)]
+    subsys = connected_components(SimpleGraph(mse__ .< θ))
+    f_ = [SINDy([sampled[ss]...;], vrbl...; cnfg...) for ss in subsys]; # print.(f_)
+    open("hyperparameter/$ID subsys.txt", "w") do io
+        println(io, "N = $N, M = $M")
         for k in eachindex(f_)
-            push!(erroref_[label[k]], norm(f_[k].sparse_matrix - ref_[label[k]].sparse_matrix))
+            f = SINDy([sampled[subsys[k]]...;], vrbl...; cnfg..., λ = 1e-3)
+            println(io, pretty_table(f))
         end
-        push!(totalerror, mean(mean.(erroref_)))
     end
-    argθ = argmin(totalerror + (Inf .* .!bit_feasible))
-    θ = θ_[argθ]
-    dr .= [ID, N, M, ifelse(any(bit_feasible), "✅", "❌"), num_subsys[argθ], totalerror[argθ]]
-    # scatter(num_subsys, θ_, yscale = :log10, xticks = 1:length(num_subsys))
-    scatter(num_subsys, totalerror, yscale = :log10, xticks = 1:length(num_subsys),
-            shape = ifelse.(bit_feasible, :o, :x), legend = :none,
-            ylabel = "Total equation error", xlabel = "Number of subsystems", title = "N = $N, M = $M",)
-    png("hyperparameter/$ID n=$(N)_m=$(M).png")
-    open("hyperparameter/$ID n=$(N)_m=$(M).txt", "w") do scroll
-        A = (dist__ .< θ)
-        subsys = connected_components(SimpleGraph(A))
-        f_ = [SINDy([sampled[ss]...;], vrbl...; cnfg..., λ = 1e-3) for ss in subsys]
-        println(scroll, "ID = $ID, N = $N, M = $M")
-        println(scroll, "Number of subsystems: $(length(subsys))")
-        for (k, f) in enumerate(f_)
-            print(scroll, pretty_table(f))
-            println(scroll, "MSE = $(f.MSE)\n")
-        end
-        println(scroll, "Total equation error: $(dr.totalerror)")
-    end
+
+    feasibility = !any((length.(subsys) .== 1) .|| has_neighbor.(subsys))
+    B_ = [SINDy(sampled[k], vrbl...; cnfg...) for k in eachindex(sampled)]
+    E = sum(sum.([[norm(f_[i].sparse_matrix - B_[j].sparse_matrix) for j in subsys[i]] for i in eachindex(f_)]))
+
+    dr .= [ID, N, M, ifelse(feasibility, "✅", "❌"), length(subsys), E, θ]
+    
+    scatter(vec(mse__[0 .< mse__ .< Inf]), yscale = :log10, legend = :none,
+            title = "N = $N, M = $M", ylabel = "MSE", xlabel = "Pairwise sampled data",
+            size = [600, 1200], left_margin = 10mm, color = [:white, :black][vec(ground_truth__[0 .< mse__ .< Inf]) .+ 1])
+    hline!([θ], color = :red)
+    png("hyperparameter/$ID mse n=$(N)_m=$(M).png")
 end
 schedules
 
-lperform = plot()
-for df in groupby(schedules, :M)
-    plot!(lperform, df.N, df.totalerror, label = "M = $(df.M[1])", lw = 2)
+default()
+performance = plot()
+for m = 0:3
+    plot!(performance, schedules[schedules.M .== m, :].N, schedules[schedules.M .== m, :].E, 
+            label = "M = $m", xlabel = "N", ylabel = "E",
+            lw = 2, size = [400, 400])
 end
-plot(lperform, xlabel = "N", yscale = :log10, legend = :topleft, size = [400, 400], ylabel = "totral equation error E")
+plot(performance, yscale = :log10, legend = :topleft)
 
+##########################################################################
+#                                                                        #
+#                             Gear system                                #
+#                                                                        #
+##########################################################################
+dt = 1-2; tspan = [0, 200]
+data = factory_gear(DataFrame, -0.2; ic = [0, .1, .1, .1], tspan)
+vrbl = [:dx, :dv, :dΩ, :dθ], [:x, :v, :Ω, :θ]
 
-for k in eachindex(f_)
-    open("scroll.txt", "w") do scroll
-        println(scroll, "D$k, number of datapoint: $(nrow(datasets[k]) + 3)")
-        print(scroll, pretty_table(f_[k]))
-        println(scroll, "MSE = $(f_[k].MSE)\n")
+jumpt = detect_jump(data, vrbl; dos = 1)
+sets = set_divider(jumpt)
+datasets = [data[set, :] for set in sets]
+ground_truth = [rand(ds.x) < 1 ? rand(ds.x) > -1 ? 1 : 2 : 3 for ds in datasets]
+
+N_ = 0:2
+M_ = 0:2
+C_ = 1:2
+schedules = DataFrame(ID = Int64[], N = Int64[], M = Int64[], C = Int64[], worked = String[], ss = Int64[], E = Float64[])
+for (N, M, C) in Base.product(N_, M_, C_) push!(schedules, (0, N, M, C, "", 0, 0.0, )) end
+schedules.ID = 1:size(schedules, 1)
+
+# manualθ = [
+#     1 1e-20
+#     2 1e-3
+#     3 1e-10
+#     4 1e-10
+#     5 1e-20
+#     6 1e-25
+#     7 1e-26
+#     8 1e-30
+#     9 1e-12
+#    10 1e-2
+#    11 1e-2
+#    12 1e-10
+#    13 1e-10
+#    14 1e-15
+#    15 1e-15
+#    16 1e-15
+#    17 1e-15
+#    18 1e-15
+# ]
+manualθ = [
+    1 1e-2
+    2 1e-3
+    3 1e-5
+    4 1e-5
+    5 1e-20
+    6 1e-25
+    7 1e-10
+    8 1e-25
+    9 1e-25
+   10 1e-2
+   11 1e-3
+   12 1e-5
+   13 1e-5
+   14 1e-20
+   15 1e-28
+   16 1e-10
+   17 1e-15
+   18 1e+0
+]
+schedules.θ = manualθ[:, 2]
+
+schedules = schedules[1:16, :]
+for dr = eachrow(schedules)
+    ID = dr.ID; N = dr.N; M = dr.M; C = dr.C; θ = dr.θ
+    sin2(x) = sin(2x); sin3(x) = sin(3x); sin4(x) = sin(4x);
+    cos2(x) = cos(2x); cos3(x) = sin(3x); cos4(x) = cos(4x);
+    sincos = [sin, cos, sin2, cos2, sin3, cos3, sin4, cos4]
+    cnfg = (; N, f_ = sincos[1:(2M)], C, λ = 0)
+
+    # cnfg = (; N = 1, M = 1, λ = 0)
+    # # min_m = minimum(nrow.(datasets))
+    n = length(datasets)
+    min_m = SINDy(datasets[1][1:10, :], vrbl...; cnfg...).sparse_matrix.m
+    # sampled = rand.(datasets; n = min_m)
+    sampled = [ds[centerpick(nrow(ds), min_m), :] for ds in datasets]
+    f__ = fill(SINDy(datasets[1][1:10, :], vrbl...; cnfg...), n, n)
+    mse__ = fill(Inf, n, n)
+    dist__ = zeros(n, n)
+    for (i,j) = doublerange(length(datasets))
+        if i ≤ j continue end
+        f__[i, j] = SINDy([sampled[i]; sampled[j]], vrbl...; cnfg...)
+        f__[j, i] = f__[i, j]
+        mse__[i, j] = f__[i, j].MSE
+        if abs(i - j) ≤ 1 mse__[i, j] = Inf end
+        mse__[j, i] = mse__[i, j]
     end
+    # B_ = getproperty.(f__[argmin(mse__, dims = 2)], :sparse_matrix)
+    # for (i,j) = doublerange(length(datasets))
+    #     if i ≤ j continue end
+    #     mse__[i, j] = norm(B_[i] - B_[j])
+    #     if abs(i - j) ≤ 1 mse__[i, j] = Inf end
+    #     mse__[j, i] = mse__[i, j]
+    # end
+
+    # subsys = connected_components(SimpleGraph(mse__ .< θ))
+    # f_ = [SINDy([sampled[ss]...;], vrbl...; cnfg...) for ss in subsys]
+    # # f_ = [SINDy([sampled[ss]...;], vrbl...; cnfg..., λ = 1e-3) for ss in subsys]; print.(f_)
+
+    # feasibility = !any((length.(subsys) .== 1) .|| has_neighbor.(subsys))
+    # B_ = [SINDy([sampled[k]; sampled[argmin(mse__[k,:])]], vrbl...; cnfg...) for k in eachindex(sampled)]
+    # E = mean(mean.([[norm(f_[i].sparse_matrix - B_[j].sparse_matrix) for j in subsys[i]] for i in eachindex(f_)]))
+
+    # dr .= [ID, N, M, C, ifelse(feasibility, "✅", "❌"), length(subsys), E, θ]    
+
+    scatter(filter(!iszero, mse__), yscale = :log10,
+            title = "N = $N, M = $M, C = $C", ylabel = "MSE", xlabel = "Pairwise sampled data",
+            size = [600, 1200], left_margin = 10mm)
+    hline!([θ], color = :red)
+    png("hyperparameter/$ID mse n=$(N)_m=$(M)_c=$(C).png")
 end
+schedules
+f__[end] |> print
+cnfg = (; N = 1, f_ = [sin, cos], C = 2)
+# cnfg = (; N = 1, M = 1)
+SINDy([datasets[ground_truth .== 3]...;], vrbl...; cnfg..., λ = 1e-2) |> print
+[findall(ground_truth .== 1),
+findall(ground_truth .== 2),
+findall(ground_truth .== 3)]
 
-function labeling4!(data, vrbl, cnfg; dos = 0, L = 0)
-    jumpt = detect_jump(data, vrbl)
 
-    sets = set_divider(jumpt)
-    datasets = [data[set, :] for set in sets]
-    # ground_truth = [ifelse(rand(ds.u) > 0.05, 3, ifelse(rand(ds.u) < -0.05, 2, 1)) for ds in datasets]
+##########################################################################
+#                                                                        #
+#                           Hindmarsh-Rose model                         #
+#                                                                        #
+##########################################################################
+data = factory_hrnm(DataFrame, 0.1)
+vrbl = [:dt, :dx, :dy, :dz], [:t, :x, :y, :z]
 
-    if L |> iszero
-        L = zeros(length(sets), length(sets))
-        for i in eachindex(sets), j in eachindex(sets)
-            if i < j
-                # print("($i, $j)")
-                data_alien = [datasets[[i, j]]...;]
-                f = SINDy(data_alien, vrbl...; cnfg..., λ = 0)
-                L[i, j] = f.MSE
-            end
-        end
-        L = Symmetric(L)
-    end
-
-    label = zeros(Int64, length(sets))
-    idcs = eachindex(sets)
-    f_ = []
-    # tol_ = []
-    subsys = 0
-    mse_ = []
-    for subsys in eachindex(sets) # subsys += 1
-        idx_longest = argmax(iszero.(label) .* length.(sets))
-        idx_farthest = idcs[argmax(L[idx_longest, :][idcs])]
-        bit_inside = L[idx_longest, :] .< L[idx_farthest, :]
-        candidates = findall(bit_inside) ∩ idcs
-        inside = candidates[L[idx_longest, candidates] .< minimum(L[idx_longest, setdiff(idcs, candidates)])]
-        outside = setdiff(idcs, inside)
-
-        if length(outside) ≤ 2 ||
-           maximum(L[idcs, idcs]) < maximum([mse_; 0])
-            label[iszero.(label)] .= subsys
-        else
-            label[inside] .= subsys
-            # push!(tol_, minimum(L[idx_longest, outside]))
-        end
-        push!(f_, SINDy([datasets[label .== subsys]...;], vrbl...; cnfg..., λ = 0))
-        push!(mse_, f_[end].MSE)
-        
-        idcs = setdiff(idcs, findall(label .== subsys))
-        if isempty(idcs) break end
-    end
-    
-
-        #   idx_longest = argmax(iszero.(label) .* length.(sets))
-#         idx_farthest = idcs[argmax(L[idx_longest, :][idcs])]
-#         bit_inside = L[idx_longest, :] .< L[idx_farthest, :]
-#         inside = findall(bit_inside) ∩ idcs
-#         outside = setdiff(idcs, inside)
-# # SINDy([datasets[iszero.(label)]...;], vrbl...; cnfg..., λ = 0).MSE
-#         candidates = inside[L[idx_longest, inside] .< minimum(L[idx_longest, outside])]
-
-#         if length(idcs) == (length(candidates) + 1) ||
-#             maximum(L[idcs, idcs]) < maximum([mse_; 0])
-#             label[iszero.(label)] .= subsys
-#         else
-#             label[candidates] .= subsys
-#         end
-#         push!(f_, SINDy([datasets[label .== subsys]...;], vrbl...; cnfg..., λ = 0))
-#         # push!(mse_, f_[end].MSE)
-        
-#         idcs = setdiff(idcs, findall(label .== subsys))
-#         if isempty(idcs) break end
-    # idcs
-    # [ground_truth label]
-
-    data[!, :label] = zeros(Int64, nrow(data))
-    for (k, lbl) in enumerate(label)
-        data.label[sets[k]] .= lbl
-    end
-    bit_zero = iszero.(data.label)
-    # f_ = [SINDy(data, vrbl...; cnfg...) for data in groupby(data[.!bit_zero,:], :label)]
-    data.label[bit_zero] .= argmin.(eachrow(stack([sum.(abs2, f.(eachrow(data[bit_zero, last(vrbl)])) - collect.(eachrow(data[bit_zero, first(vrbl)]))) for f in f_])))
-
-    return data
-end
-# labeling4!(data, vrbl, cnfg)
+jumpt = detect_jump(data, vrbl)
+sets = set_divider(jumpt)
+datasets = [data[set, :] for set in sets]
+ground_truth = [ifelse(rand(ds.z) > 1, 3, ifelse(rand(ds.z) < -1, 2, 1)) for ds in datasets]
+ground_truth_ = [findall(ground_truth .== k) for k in eachindex(1:3)]
+ground_truth__ =[any([[i,j] ⊆ gt for gt in ground_truth_]) for (i,j) in doublerange(length(datasets))]
 
 N_ = 0:3
 M_ = 0:3
-schedules = DataFrame(ID = Int64[], N = Int64[], M = Int64[], ss = Int64[], trngSSE = Float64[], testSSE = Float64[], runtime = [])
-for (N, M) in Base.product(N_, M_) push!(schedules, (0, N, M, 0, 0.0, 0.0, 0)) end
+schedules = DataFrame(ID = Int64[], N = Int64[], M = Int64[], worked = String[], ss = Int64[], E = Float64[])
+for (N, M) in Base.product(N_, M_) push!(schedules, (0, N, M, "", 0, 0.0, )) end
 schedules.ID = 1:size(schedules, 1)
 
-if !isfile("hyperparameter/0 L_.jld2")
-    L_ = []
-    for dr = eachrow(schedules)
-        ID = dr.ID; λ = 0; n = dr.N; m = dr.M
-        cnfg = (; N = n, M = m, λ = λ)
-        
-        jumpt = detect_jump(data, vrbl; dos = 0)
+manualθ = [
+    1 1e-0
+    2 1e-0
+    3 1e-5
+    4 1e-10
+    5 1e-3
+    6 1e-5
+    7 1e-10
+    8 1e-20
+    9 1e-3
+   10 1e-5
+   11 1e-10
+   12 1e-25
+   13 1e-5
+   14 1e-5
+   15 1e-10
+   16 1e-25
+]
 
-        sets = set_divider(jumpt)
-        datasets = [data[set, :] for set in sets]
-        # ground_truth = [ifelse(rand(ds.u) > 0.05, 3, ifelse(rand(ds.u) < -0.05, 2, 1)) for ds in datasets]
-
-        L = zeros(length(sets), length(sets))
-        for i in eachindex(sets), j in eachindex(sets)
-            if i < j
-                # print("($i, $j)")
-                data_alien = [datasets[[i, j]]...;]
-                f = SINDy(data_alien, vrbl...; cnfg..., λ = 0)
-                L[i, j] = f.MSE
-            end
-        end
-        L = Symmetric(L)
-        push!(L_, L)
-        JLD2.save("hyperparameter/0 L_.jld2", "L_", L_)
-    end
-else
-    L_ = JLD2.load("hyperparameter/0 L_.jld2")["L_"]
-end
-
+schedules.θ = manualθ[:, 2]
 for dr = eachrow(schedules)
-    tic = now()
-    try
-        ID = dr.ID; λ = 0; n = dr.N; m = dr.M
-        cnfg = (; N = n, M = m, λ = λ)
-        
-        trng = deepcopy(data)
-        labeling4!(trng, vrbl, cnfg; L = L_[ID])
-        if 0 ∈ trng.label
-            dr.ss = -1
-        else
-            dr.ss = length(unique(trng.label))
-            f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(trng, :label)] # print.(f_)
-            Dtree = dryad(trng, last(vrbl)); # print_tree(Dtree)
-            pred1 = DataFrame(solve(f_, collect(trng[1, last(vrbl)]), dt, trng.t, Dtree), last(vrbl))
-            dr.trngSSE = sum(abs2, trng.u - pred1.u)
-            pred2 = DataFrame(solve(f_, collect(test[1, last(vrbl)]), dt, test.t, Dtree), last(vrbl))
-            dr.testSSE = sum(abs2, test.u - pred2.u)
+    ID = dr.ID; N = dr.N; M = dr.M; θ = dr.θ
+    sin2(x) = sin(2x); sin3(x) = sin(3x); sin4(x) = sin(4x);
+    cos2(x) = cos(2x); cos3(x) = sin(3x); cos4(x) = cos(4x);
+    sincos = [sin, cos, sin2, cos2, sin3, cos3, sin4, cos4]
+    cnfg = (; N, f_ = sincos[1:(2M)], λ = 0)
 
-            open("hyperparameter/17 equation.txt", "a") do io
-                println(io, "ID = $(dr.ID), N = $(dr.N), M = $(dr.M)")
-                for f in f_
-                    print(io, pretty_table(f))
-                end
-                println(io, "---------------------------------")
-            end
-        
-            CSV.write("hyperparameter/$ID n=$(n)_m=$(m).csv", pred2, bom = true)
-        end
-    catch
-        dr.trngSSE = -1
-        dr.testSSE = -1
+    n = length(datasets)
+    min_m = 2SINDy(datasets[1][1:10, :], vrbl...; cnfg...).sparse_matrix.m
+    _sampled = [ds[centerpick(nrow(ds), min_m), :] for ds in datasets]
+    f__ = fill(SINDy(datasets[1][1:10, :], vrbl...; cnfg...), n, n)
+    mse__ = fill(Inf, n, n)
+    for (i,j) = doublerange(length(datasets))
+        if i ≤ j continue end
+        f__[i, j] = SINDy([_sampled[i]; _sampled[j]], vrbl...; cnfg...)
+        f__[j, i] = f__[i, j]
+        mse__[i, j] = f__[i, j].MSE
+        mse__[j, i] = mse__[i, j]
     end
-    dr.runtime = (now() - tic).value / 60000
-    println(schedules)
-    CSV.write("hyperparameter/17 result.csv", schedules, bom = true)
+    sampled = [[_sampled[k]; _sampled[argmin(mse__[k,:])]] for k in eachindex(_sampled)]
+    mse__ = fill(Inf, n, n)
+    for (i,j) = doublerange(length(datasets))
+        if i ≤ j continue end
+        f__[i, j] = SINDy([sampled[i]; sampled[j]], vrbl...; cnfg...)
+        f__[j, i] = f__[i, j]
+        mse__[i, j] = f__[i, j].MSE
+        mse__[j, i] = mse__[i, j]
+    end
+
+    subsys = connected_components(SimpleGraph(mse__ .< θ))
+    f_ = [SINDy([sampled[ss]...;], vrbl...; cnfg...) for ss in subsys]; # print.(f_)
+    open("hyperparameter/$ID subsys.txt", "w") do io
+        println(io, "N = $N, M = $M")
+        for k in eachindex(f_)
+            f = SINDy([sampled[subsys[k]]...;], vrbl...; cnfg..., λ = 1e-3)
+            println(io, pretty_table(f))
+        end
+    end
+
+    feasibility = !any((length.(subsys) .== 1) .|| has_neighbor.(subsys))
+    B_ = [SINDy(sampled[k], vrbl...; cnfg...) for k in eachindex(sampled)]
+    E = sum(sum.([[norm(f_[i].sparse_matrix - B_[j].sparse_matrix) for j in subsys[i]] for i in eachindex(f_)]))
+
+    dr .= [ID, N, M, ifelse(feasibility, "✅", "❌"), length(subsys), E, θ]
+    
+    scatter(vec(mse__[0 .< mse__ .< Inf]), yscale = :log10, legend = :none,
+            title = "N = $N, M = $M", ylabel = "MSE", xlabel = "Pairwise sampled data",
+            size = [600, 1200], left_margin = 10mm, color = [:white, :black][vec(ground_truth__[0 .< mse__ .< Inf]) .+ 1])
+    hline!([θ], color = :red)
+    png("hyperparameter/$ID mse n=$(N)_m=$(M).png")
+end
+sort(schedules, :E)
+
+cnfg = (; N = 3, f_ = sincos[1:2], λ = 1e-3)
+SINDy([datasets[ground_truth .== 1]...;], vrbl...; cnfg..., λ = 1e-3) |> print
+
+SINDy([sampled[1]; sampled[2]], vrbl...; cnfg...)
+subsys = connected_components(SimpleGraph(mse__ .< 5e-30))
+
+SINDy(data, vrbl...; cnfg..., λ = 1e-2)
+
+scatter(data.z, data.dz, shape = :pixel)
+scatter(test.u[1:100:end], test.v[1:100:end], shape = :pixel, xlims = [-.1, .1])
+
+mse__ = fill(Inf, n, n)
+for (i,j) = doublerange(length(datasets))
+    if i ≤ j continue end
+    f__[i, j] = SINDy([sampled[i]; sampled[j]], vrbl...; cnfg...)
+    f__[j, i] = f__[i, j]
+    if abs(i - j) == 1
+        mse__[i, j] = Inf
+        mse__[j, i] = Inf
+        continue
+    end
+    mse__[i, j] = f__[i, j].MSE
+    mse__[j, i] = mse__[i, j]
 end
 
-data[:, :label] = [ifelse(dr.u > 0.05, 3, ifelse(dr.u < -0.05, 2, 1)) for dr in eachrow(data)]
-count(data.label .== 1) / nrow(data) # 0.5
-count(data.label .== 2) / nrow(data) # 0.5
-count(data.label .== 3) / nrow(data) # 0.5
-plt = plot(data.t, data.u, color = data.label, label = "u", lw = 2, dpi = 300, size = [1920, 1080]);
-png(plt, "temp.png")
 
-[["D$n" for n in 1:29] nrow.(datasets) .+ 3]
-cnfg = (; N = 1, M = 1, λ = 1e-1)
-f_ = [SINDy(ds, vrbl...; cnfg...) for ds in datasets]
-for k in 1:length(f_)
-    println("\nD$k, number of datapoint: $(nrow(datasets[k])+3)")
-    print(f_[k])
-    println("MSE = $(f_[k].MSE)")
+spshow(A) = DataFrame(replace(A, -1 => ""), string.(1:n))
+
+M = deepcopy(mse__)
+A = [abs(i - j) == 1 ? 0 : -1 for (i,j) in doublerange(length(datasets))]
+spshow(A)
+
+@assert count(A .== -1) > n
+# i, j = argmax(replace(M, Inf => 0)).I
+# A[i,j] = 0; M[i,j] = Inf;
+# A[j,i] = 0; M[j,i] = Inf;
+
+i, j = argmin(M).I
+A[i,j] = 1; M[i,j] = Inf;
+A[j,i] = 1; M[j,i] = Inf;
+for bit = 0:1
+    for k in findall(A[i, :] .== bit)
+        if j == k continue end
+        A[k, j] = bit; M[k, j] = Inf
+        A[j, k] = bit; M[j, k] = Inf
+    end
+    for k in findall(A[j, :] .== bit)
+        if i == k continue end
+        A[k, i] = bit; M[k, i] = Inf
+        A[i, k] = bit; M[i, k] = Inf
+    end
 end
-rank(Θ(datasets[1]; cnfg...))
+print(spshow(A))
+scatter(vec(mse__[0 .< M .< Inf]), yscale = :log10,
+title = "N = 3, M = 1", ylabel = "MSE",
+size = [600, 1200], left_margin = 10mm, color = [:white, :black][vec(ground_truth__[0 .< M .< Inf]) .+ 1])
+@info ""
 
-[1, 3, 5, 9, 11, 12, 13, 15, 19, 21, 22, 25, 28, 29]
-1:2:4 |> typeof
-lasticds = cumsum(nrow.([d[k, :] for (d,k) in zip(datasets, StepRange.(1, nrow.(datasets) .÷ 100, nrow.(datasets)))]))
-expanded = [[d[k, :] for (d,k) in zip(datasets, StepRange.(1, nrow.(datasets) .÷ 100, nrow.(datasets)))]...;]
-plt = scatter(expanded.u, color = expanded.label, xticks = (lasticds, 1:29), msw = 0, ms = 1, dpi = 300, legend = :none, size = 50 .* [16, 9]);
-png(plt, "temp.png")
+ground_truth_
+connected_components(SimpleGraph(A))
 
+bag = [[k] for k in eachindex(ground_truth)]
+out = [[k-1, k+1] for k in eachindex(ground_truth)]
 
+M = deepcopy(mse__)
 
-f_ = [SINDy(ds, vrbl...; cnfg...) for ds in [d[k, :] for (d,k) in zip(datasets, StepRange.(1, nrow.(datasets) .÷ 100, nrow.(datasets)))]]
-for k in 1:length(f_)
-    println("\nD$k, number of datapoint: $(nrow(datasets[k])+3)")
-    print(f_[k])
-    println("MSE = $(f_[k].MSE)")
+i,j = argmin(M).I
+M[i,j] = Inf; M[j,i] = Inf;
+_i = findfirst(i .∈ bag)
+_j = findfirst(j .∈ bag)
+_i, _j = sort([_i, _j])
+if _i != _j
+    if isempty(bag[_i] ∩ out[_j]) && isempty(bag[_j] ∩ out[_i])
+        push!(bag, unique(sort([bag[_i]; bag[_j]])))
+        push!(out, unique(sort([out[_i]; out[_j]])))
+        deleteat!(bag, _j); deleteat!(bag, _i);
+        deleteat!(out, _j); deleteat!(out, _i);
+    else
+        @warn "!!!"
+    end
 end
+bag .=> out
+scatter(vec(mse__[0 .< M .< Inf]), yscale = :log10,
+title = "N = 3, M = 1", ylabel = "MSE",
+size = [600, 1200], left_margin = 10mm, color = [:white, :black][vec(ground_truth__[0 .< M .< Inf]) .+ 1])
 
+ground_truth_
+plot(datasets[12].z)
+plot(datasets[13].z)
+vec(mse__)
+vec(mse__)
 
-scatter(vec(mse__), yscale = :log10, title = "N = 3, M = 3", ylabel = "MSE: " * L"S_i \cup S_j", msw = 0, ms = 2, legend = :none, ylims = [-Inf, 0], yticks = exp10.(-30:10:0))
-connected_components(SimpleGraph(mse__ .< 1e-25))
-maximum(mse__[mse__ .< Inf])
+[1:19 nrow.(datasets)]
+f__[6, 12]
+f__[1, 16]
+plot(datasets[16].z, size = [400, 400], legend = :none)
+plot(data.z, size = [800, 300], legend = :none)
+
+plot(data.x, data.y, data.z, xlabel = "x", ylabel = "y", zlabel = "z",
+     lw = 2, legend = :none, color = :black, size = [400, 400])
+scatter(data.z[1:10:end], data.dz[1:10:end], xlabel = "z", ylabel = "dz",
+     lw = 2, legend = :none, color = :black, size = [400, 400], shape = :pixel)
