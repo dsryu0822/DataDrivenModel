@@ -1,38 +1,24 @@
 struct STLSQresult
-    N::Int64
-    M::Int64
-    f_::Array{Function}
-    C::Int64
-    sparse_matrix::AbstractMatrix
-    sparse_rows::AbstractVector
-    dense_matrix::AbstractMatrix
-    MSE::Float64
+    recipe::AbstractDataFrame
+    recipeF::AbstractDataFrame # fast version of `recipe`
+    matrix::AbstractMatrix
+    matrixF::AbstractMatrix # fast version of `matrix`
+    mse::Float64
     lname::AbstractVector
     rname::AbstractVector
 end
 function Base.show(io::IO, s::STLSQresult)
-    show(io, "text/plain", s.sparse_matrix)
-    # println()
-    print(io, "\npoly N = $(s.N), fourier M = $(s.M), f_ = $(s.f_), C = $(s.C) with MSE = $(s.MSE)")
-    print(io, "\nplease use print function to show all result")
+    show(io, "f_with_nz$(nrow(s.recipe))")
+    # show(io, "text/plain", s.matrix)
+    # print(io, "\nnumber of terms: ", nrow(s.recipe), "\t mse = ", s.mse)
 end
-# function (s::STLSQresult)(x) # slow but stable and concrete
-#     return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C) * s.sparse_matrix)
-# end
 function (s::STLSQresult)(x) # fast but unstable
-    return vec(Θ(x; N = s.N, M = s.M, f_ = s.f_, C = s.C, sparse_rows = s.sparse_rows) * s.dense_matrix)
+    return vec(Θ(x, s.recipeF) * s.matrixF)
 end
 (s::STLSQresult)(data::DataFrameRow) = s(collect(data[s.rname]))
 (s::STLSQresult)(data::AbstractDataFrame) = vcat(s.(eachrow(data[:, s.rname]))...)
 
-
-# function functionalizer(s::STLSQresult) # x4 slower than direct matrix multiplication
-#     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
-#     fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
-#     return v -> substitute(fnexp, Dict(rname .=> v))
-# end
-
-function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
+function STLSQ(ΘX, Ẋ; λ = 0, verbose = false)
     L₂ = norm.(eachcol(ΘX))
     ΘX = ΘX ./ L₂'
     # L₂ is for column-wise normalization to ensure restricted isometry property
@@ -54,17 +40,19 @@ function STLSQ(ΘX, Ẋ; λ = 1e-6, verbose = false)
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     return Ξ
 end
-function SINDy(df::AbstractDataFrame, Ysyms::AbstractVector{T}, Xsyms::AbstractVector{T};
-    λ = 1e-6, verbose = false, N = 1, M = 0, f_ = [], C = 0) where T <: Union{Integer, Symbol}
-
-    X = Θ(df[:, Xsyms]; N = N, M = M, f_ = f_, C = C)
+function SINDy(df::AbstractDataFrame, vrbl::Tuple, recipe::AbstractDataFrame; λ = 0)
+    Ysyms, Xsyms = vrbl
+    X = Θ(df[:, Xsyms], recipe)
     Y = Matrix(df[:, Ysyms])
-    Ξ = STLSQ(X, Y, λ = λ, verbose = verbose)
-    sparse_rows = findall(all.(map(x -> iszero.(x), eachrow(Ξ))))
-    _Ξ = Ξ[.!all.(map(x -> iszero.(x), eachrow(Ξ))), :]
-    MSE = sum(abs2, Y - X * Ξ) / length(Y) # compare to original data
-    return STLSQresult(N, M, f_, C, Ξ, sparse_rows, _Ξ, MSE, Ysyms, Xsyms)
+    Ξ = STLSQ(X, Y, λ = λ)
+    bit_sparse = all.(map(x -> iszero.(x), eachrow(Ξ)))
+    # sparse_rows = findall(bit_sparse)
+    recipeF = recipe[.!bit_sparse, :]
+    _Ξ = Ξ[.!bit_sparse, :]
+    mse = sum(abs2, Y - X * Ξ) / length(Y) # compare to original data
+    return STLSQresult(recipe, recipeF, Ξ, _Ξ, mse, Ysyms, Xsyms)
 end
+
 
 """
     residual(f, df)
@@ -76,133 +64,199 @@ function residual(f, df)
 end
 
 
-const dict_superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
-function num2sup(num)
-    if (num == 0) || (num == 1)
-        return ""
-    else
-        return reduce(*, (getindex.(Ref(dict_superdigit), reverse(digits(num, base = 10)))))
-    end
+# const dict_superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
+# function num2sup(num)
+#     if (num == 0) || (num == 1)
+#         return ""
+#     else
+#         return reduce(*, (getindex.(Ref(dict_superdigit), reverse(digits(num, base = 10)))))
+#     end
+# end
+# function Θ(X::AbstractMatrix;
+#     N = 1, M = 0, f_ = Function[], C = 1, λ = 0, sparse_rows = [])
+#     # λ is just for dummy argument for add_subsystem! function
+#     nr, nc = size(X)
+#     padding = zeros(nr)
+#     nz_ = Int64[]
+#     i = 0
+#     incest = UnitRange.(1, cumsum([length(multiexponents(nc+1, N)); length(f_)*nc; 2M*nc]))
+#     incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
+
+#     ansatz = []
+#     for k in 0:N
+#         for case = collect(multiexponents(nc, k))
+#             i += 1
+#             if i ∈ sparse_rows θx = padding else
+#                 push!(nz_, i)
+#                 θx = prod(X .^ case', dims = 2)
+#             end
+#             push!(ansatz, θx)
+#         end
+#     end
+#     ΘX = hcat(ansatz...)
+#     for x ∈ eachcol(X)
+#         for f in f_
+#             i += 1
+#             if i ∈ sparse_rows θx = padding else
+#                 push!(nz_, i)
+#                 θx = f.(x)
+#             end
+#             ΘX = [ΘX θx]
+#         end
+#         for m in 1:M
+#             i += 1
+#             if i ∈ sparse_rows θx = padding else
+#                 push!(nz_, i)
+#                 θx = cospi.(m*x)
+#             end
+#             ΘX = [ΘX θx]
+#         end
+#         for m in 1:M
+#             i += 1
+#             if i ∈ sparse_rows θx = padding else
+#                 push!(nz_, i)
+#                 θx = sinpi.(m*x)
+#             end
+#             ΘX = [ΘX θx]
+#         end
+#     end
+
+#     for c in 2:C
+#         for j_ in combinations(2:size(ΘX, 2), c)
+#             if !any(Ref(j_) .⊆ incest)
+#                 i += 1
+#                 if i ∈ sparse_rows θx = padding else
+#                     push!(nz_, i)
+#                     θx = .*([ΘX[:, j] for j in j_]...)
+#                 end
+#                 ΘX = [ΘX θx]
+#             end
+#         end
+#     end
+
+#     return ΘX[:, nz_]
+# end
+#    Θ(X::AbstractVector; kargs...) = Θ(reshape(X, 1, :); kargs...)
+# Θ(X::AbstractDataFrame; kargs...) = Θ(Matrix(X); kargs...)
+#      Θ(X::DataFrameRow; kargs...) = Θ(collect(X); kargs...)
+# function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
+#     # λ is just for dummy argument for add_subsystem! function
+#     dim = length(X)
+#     ΘX = []
+#     incest = UnitRange.(1, cumsum([length(multiexponents(dim+1, N)); length(f_)*dim; 2M*dim]))
+#     incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
+
+#     for k in 0:N
+#         for case = collect(multiexponents(dim, k))
+#             # push!(ΘX, reduce(*, ((X .* num2sup.(case))[.!iszero.(case)])))
+#             push!(ΘX, join(((X .* num2sup.(case))[.!iszero.(case)]), " "))
+#         end
+#     end
+#     for x in X
+#         for f in f_
+#             push!(ΘX, "$(string(f))($x)")
+#         end
+#         for m in 1:M
+#             _m = ifelse(m |> isone, "", string(m))
+#             push!(ΘX, ("cos$(_m)π$x"))
+#         end
+#         for m in 1:M
+#             _m = ifelse(m |> isone, "", string(m))
+#             push!(ΘX, ("sin$(_m)π$x"))
+#         end
+#     end
+
+#     dim = length(ΘX)
+#     for c in 2:C
+#         for j_ in combinations(2:dim, c)
+#             if !any(Ref(j_) .⊆ incest)
+#                 push!(ΘX, *([ΘX[j] for j in j_]...))
+#             end
+#         end
+#     end
+
+#     replace!(ΘX, "" => "1")
+#     return ΘX
+# end
+function pretty_term(xyz)
+    dict_sup = Dict(1 => "", 2 => "²", 3 => "³", 4 => "⁴", 5 => "⁵", 6 => "⁶", 7 => "⁷", 8 => "⁸", 9 => "⁹")
+    xyz_ = split(xyz, '⋅')
+    xyz1 = sort(unique(xyz_))
+    deg_ = [count(xyz_ .== x) for x in xyz1]
+    return join(xyz1 .* [dict_sup[d] for d in deg_], '⋅')
 end
-function Θ(X::AbstractMatrix;
-    N = 1, M = 0, f_ = Function[], C = 1, λ = 0, sparse_rows = [])
-    # λ is just for dummy argument for add_subsystem! function
-    nr, nc = size(X)
-    padding = zeros(nr)
-    nz_ = Int64[]
-    i = 0
-    incest = UnitRange.(1, cumsum([length(multiexponents(nc+1, N)); length(f_)*nc; 2M*nc]))
-    incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
-
-    ansatz = []
-    for k in 0:N
-        for case = collect(multiexponents(nc, k))
-            i += 1
-            if i ∈ sparse_rows θx = padding else
-                push!(nz_, i)
-                θx = prod(X .^ case', dims = 2)
+constant(x) = 1
+function cook(xnames; poly = 0:1, trig = 0:0, trigpi = 0:0, f_ = [])
+    xnames = string.(xnames)
+    idx = 0
+    recipe = DataFrame(index = Int64[], deg = Int64[], term = String[], func = [], funh = [], vecv = [])
+    for d = UnitRange(extrema(poly)...)
+        if d == 0
+            push!(recipe, [0, 0, "1", constant, vec, [1]])
+        elseif d == 1
+            for i in eachindex(xnames)
+                idx += 1
+                push!(recipe, [idx, 1, xnames[i], identity, vec, [i]])
             end
-            push!(ansatz, θx)
-        end
-    end
-    ΘX = hcat(ansatz...)
-    for x ∈ eachcol(X)
-        for f in f_
-            i += 1
-            if i ∈ sparse_rows θx = padding else
-                push!(nz_, i)
-                θx = f.(x)
-            end
-            ΘX = [ΘX θx]
-        end
-        for m in 1:M
-            i += 1
-            if i ∈ sparse_rows θx = padding else
-                push!(nz_, i)
-                θx = cospi.(m*x)
-            end
-            ΘX = [ΘX θx]
-        end
-        for m in 1:M
-            i += 1
-            if i ∈ sparse_rows θx = padding else
-                push!(nz_, i)
-                θx = sinpi.(m*x)
-            end
-            ΘX = [ΘX θx]
-        end
-    end
-
-    for c in 2:C
-        for j_ in combinations(2:size(ΘX, 2), c)
-            if !any(Ref(j_) .⊆ incest)
-                i += 1
-                if i ∈ sparse_rows θx = padding else
-                    push!(nz_, i)
-                    θx = .*([ΘX[:, j] for j in j_]...)
+        else
+            for i in eachindex(xnames)
+                rcp = recipe[recipe.deg .== (d-1), :]
+                for j in i:nrow(rcp)
+                    idx += 1
+                    push!(recipe, [idx, d, "$(xnames[i])⋅$(rcp.term[j])", prod, eachrow, sort([i; rcp.vecv[j]])])
                 end
-                ΘX = [ΘX θx]
             end
         end
     end
+    for m in trigpi
+        iszero(m) && break
+        for i in eachindex(xnames)
+            eval(Meta.parse("x$(m) = x -> $m * x"))
+            idx += 1
+            push!(recipe, [idx, 1, "sin$(m)π($(xnames[i]))", sinpi, eval(Meta.parse("x$m")), [i]])
+            idx += 1
+            push!(recipe, [idx, 1, "cos$(m)π($(xnames[i]))", cospi, eval(Meta.parse("x$m")), [i]])
+        end
+    end
+    for m in trig
+        iszero(m) && break
+        for i in eachindex(xnames)
+            eval(Meta.parse("x$(m) = x -> $m * x"))
+            idx += 1
+            push!(recipe, [idx, 1, "sin($(m))($(xnames[i]))", sin, eval(Meta.parse("x$m")), [i]])
+            idx += 1
+            push!(recipe, [idx, 1, "cos($(m))($(xnames[i]))", cos, eval(Meta.parse("x$m")), [i]])
+        end
+    end
+    for f in f_
+        idx += 1
+        push!(recipe, [idx, 1, string(f), f, f, [1]])
+    end
+    recipe = recipe[recipe.deg .∈ Ref(poly), :]
+    recipe.term = pretty_term.(recipe.term)
 
-    return ΘX[:, nz_]
+    return recipe[:, [:index, :term, :func, :funh, :vecv]]
 end
-   Θ(X::AbstractVector; kargs...) = Θ(reshape(X, 1, :); kargs...)
-Θ(X::AbstractDataFrame; kargs...) = Θ(Matrix(X); kargs...)
-     Θ(X::DataFrameRow; kargs...) = Θ(collect(X); kargs...)
-function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
-    # λ is just for dummy argument for add_subsystem! function
-    dim = length(X)
-    ΘX = []
-    incest = UnitRange.(1, cumsum([length(multiexponents(dim+1, N)); length(f_)*dim; 2M*dim]))
-    incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
 
-    for k in 0:N
-        for case = collect(multiexponents(dim, k))
-            # push!(ΘX, reduce(*, ((X .* num2sup.(case))[.!iszero.(case)])))
-            push!(ΘX, join(((X .* num2sup.(case))[.!iszero.(case)]), " "))
-        end
-    end
-    for x in X
-        for f in f_
-            push!(ΘX, "$(string(f))($x)")
-        end
-        for m in 1:M
-            _m = ifelse(m |> isone, "", string(m))
-            push!(ΘX, ("cos$(_m)π$x"))
-        end
-        for m in 1:M
-            _m = ifelse(m |> isone, "", string(m))
-            push!(ΘX, ("sin$(_m)π$x"))
-        end
-    end
+Θ(X, recipe) = hcat([dr.func.(dr.funh(X[:, dr.vecv])) for dr in eachrow(recipe)]...)
+Θ(X::AbstractVector, recipe) = Θ(reshape(X, 1, :), recipe)
+Θ(X::AbstractDataFrame, recipe) = Θ(Matrix(X), recipe)
+Θ(X::DataFrameRow, recipe) = Θ(collect(X), recipe)
 
-    dim = length(ΘX)
-    for c in 2:C
-        for j_ in combinations(2:dim, c)
-            if !any(Ref(j_) .⊆ incest)
-                push!(ΘX, *([ΘX[j] for j in j_]...))
-            end
-        end
-    end
-
-    replace!(ΘX, "" => "1")
-    return ΘX
-end
 import Base: print, println
 import PrettyTables: pretty_table
 print(s::STLSQresult) = print(pretty_table(s))
 println(s::STLSQresult) = println(pretty_table(s))
 function pretty_table(s::STLSQresult)
-    table = [1:size(s.sparse_matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C) s.sparse_matrix]
+    table = [eachindex(f.recipe.term) f.recipe.term f.matrix]
+    # table = [1:size(s.matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C) s.matrix]
     table[table .== 0] .= ""
     return pretty_table(String, table; header = ["idx"; "basis"; string.(s.lname)])
 end
 
 function jacobian(T::Type, s::STLSQresult)
     rname = eval(Meta.parse("@variables $(join(string.(s.rname), " "))"))
-    fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.sparse_matrix, dims = 1))
+    fnexp = vec(sum(Θ(rname, N = s.N, M = s.M, f_ = s.f_, C = s.C)' .* s.matrix, dims = 1))
 
     J = Symbolics.jacobian(fnexp, rname)
     if T == Matrix
@@ -278,7 +332,7 @@ function labeling!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
     datasets = [data[set, :] for set in sets]
 
     n = length(datasets)
-    min_m = SINDy(datasets[1][1:10, :], vrbl...; cnfg...).sparse_matrix.m
+    min_m = SINDy(datasets[1][1:10, :], vrbl...; cnfg...).matrix.m
     sampled = [ds[centerpick(nrow(ds), min_m), :] for ds in datasets]
     f__ = fill(SINDy(datasets[1][1:10, :], vrbl...; cnfg...), n, n)
     mse__ = fill(Inf, n, n)
