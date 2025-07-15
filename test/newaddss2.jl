@@ -70,6 +70,44 @@ DataFrame(
 )
 SINDy(S_[24], vrbl...; B_[6]..., λ = 1e-2) |> print
 
+function add_fold!(data::AbstractDataFrame, k = 5)
+    data[!, :fold] .= 1 .+ mod.(shuffle(1:nrow(data)), k)
+    return data
+end
 add_fold!
 folder = [rand(datasets[1], n = 20) for _ in 1:10]
 f_ = [SINDy(fold, vrbl...; B_[6]...) for fold in folder]
+
+
+
+
+
+n0 = 176
+_data = data[1:n0, :]
+cnfg = cook(last(vrbl), poly = 0:2)
+M = Θ(_data[:, last(vrbl)], cnfg)
+R = rankAnalysis2(M)
+corM = rankAnalysis3(M)
+itr = 0
+for _ in 1:nrow(cnfg)
+    itr += 1
+    println("="^60, "\nitration: $itr")
+    R = rankAnalysis2(M)
+    println("rank / term = $(1 + maximum(R)) / $(nrow(cnfg))")
+    if (1 + maximum(R)) == nrow(cnfg)
+        @info "all terms are linearly independent"
+        break
+    end
+    suspect = findall(R .== maximum(R))
+    del1, del2 = argmax(corM).I
+    println("suspect: $(cnfg.term[del1]) and $(cnfg.term[del2]) with correlation $(corM[del1, del2])")
+    f1_ = [SINDy(_data[_data.fold .!= k, :], vrbl, cnfg[Not(del1), :]) for k in 1:5]
+    f2_ = [SINDy(_data[_data.fold .!= k, :], vrbl, cnfg[Not(del2), :]) for k in 1:5]
+    mmsw1 = sum.(abs2, [residual(f1_[k], _data[_data.fold .== k, :]) for k in 1:5])
+    mmse2 = sum.(abs2, [residual(f2_[k], _data[_data.fold .== k, :]) for k in 1:5])
+    del = mmsw1 < mmse2 ? del1 : del2
+    println("delete suspect: $(cnfg.term[del])")
+    cnfg = cnfg[Not(del), :]
+    M = M[:, Not(del)]
+    corM = corM[Not(del), Not(del)]
+end

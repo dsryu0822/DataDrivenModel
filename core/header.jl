@@ -7,7 +7,7 @@ packages = [:Combinatorics, :LinearAlgebra, :SparseArrays, :DataFrames,
 required = setdiff(packages, getproperty.(values(Pkg.dependencies()), :name))
 if required |> !isempty
     @info "Installing required packages: $(required)"
-    Pkg.add.(installed)
+    Pkg.add.(required)
 end
 @time "All packages load" eval(Meta.parse("using $(join(packages, ", "))"))
 mm = Plots.mm
@@ -25,4 +25,5 @@ elseif Sys.islinux()
 end
 @info "$(now()) - @$device $(nthreads()) threads"
 
+include("../core/utils.jl")
 include("../core/factorio.jl")

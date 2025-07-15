@@ -4,19 +4,23 @@ struct STLSQresult
     matrix::AbstractMatrix
     matrixF::AbstractMatrix # fast version of `matrix`
     mse::Float64
+    aic::Float64
     lname::AbstractVector
     rname::AbstractVector
 end
 function Base.show(io::IO, s::STLSQresult)
-    show(io, "f_with_nz$(nrow(s.recipe))")
+    # show(io, "f_with_nz$(nrow(s.recipe))")
+    print(io, "f_with_nz$(nrow(s.recipe))")
     # show(io, "text/plain", s.matrix)
     # print(io, "\nnumber of terms: ", nrow(s.recipe), "\t mse = ", s.mse)
 end
 function (s::STLSQresult)(x) # fast but unstable
     return vec(Θ(x, s.recipeF) * s.matrixF)
 end
-(s::STLSQresult)(data::DataFrameRow) = s(collect(data[s.rname]))
-(s::STLSQresult)(data::AbstractDataFrame) = vcat(s.(eachrow(data[:, s.rname]))...)
+# (s::STLSQresult)(data::AbstractDataFrame) = vcat(s.(eachrow(data[:, s.rname]))...)
+(s::STLSQresult)(data::AbstractDataFrame) = DataFrame(stack(s.(eachrow(data[:, s.rname])))', s.lname)
+# (s::STLSQresult)(data::DataFrameRow) = s(collect(data[s.rname]))
+
 
 function STLSQ(ΘX, Ẋ; λ = 0, verbose = false)
     L₂ = norm.(eachcol(ΘX))
@@ -40,7 +44,7 @@ function STLSQ(ΘX, Ẋ; λ = 0, verbose = false)
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     return Ξ
 end
-function SINDy(df::AbstractDataFrame, vrbl::Tuple, recipe::AbstractDataFrame; λ = 0)
+function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; λ = 0)
     Ysyms, Xsyms = vrbl
     X = Θ(df[:, Xsyms], recipe)
     Y = Matrix(df[:, Ysyms])
@@ -50,7 +54,8 @@ function SINDy(df::AbstractDataFrame, vrbl::Tuple, recipe::AbstractDataFrame; λ
     recipeF = recipe[.!bit_sparse, :]
     _Ξ = Ξ[.!bit_sparse, :]
     mse = sum(abs2, Y - X * Ξ) / length(Y) # compare to original data
-    return STLSQresult(recipe, recipeF, Ξ, _Ξ, mse, Ysyms, Xsyms)
+    aic = length(Y) * log(mse) + 2nrow(recipe)
+    return STLSQresult(recipe, recipeF, Ξ, _Ξ, mse, aic, Ysyms, Xsyms)
 end
 
 
@@ -60,180 +65,59 @@ end
 Calculate the residual of the SINDy model `f` with respect to the data frame `df`.
 """
 function residual(f, df)
-    return sum.(abs2, f.(eachrow(df[:, f.rname])) - collect.(eachrow(df[:, f.lname])))
+    return f.(eachrow(df[:, f.rname])) - collect.(eachrow(df[:, f.lname]))
 end
 
-
-# const dict_superdigit = Dict(0:9 .=> ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"])
-# function num2sup(num)
-#     if (num == 0) || (num == 1)
-#         return ""
-#     else
-#         return reduce(*, (getindex.(Ref(dict_superdigit), reverse(digits(num, base = 10)))))
-#     end
-# end
-# function Θ(X::AbstractMatrix;
-#     N = 1, M = 0, f_ = Function[], C = 1, λ = 0, sparse_rows = [])
-#     # λ is just for dummy argument for add_subsystem! function
-#     nr, nc = size(X)
-#     padding = zeros(nr)
-#     nz_ = Int64[]
-#     i = 0
-#     incest = UnitRange.(1, cumsum([length(multiexponents(nc+1, N)); length(f_)*nc; 2M*nc]))
-#     incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
-
-#     ansatz = []
-#     for k in 0:N
-#         for case = collect(multiexponents(nc, k))
-#             i += 1
-#             if i ∈ sparse_rows θx = padding else
-#                 push!(nz_, i)
-#                 θx = prod(X .^ case', dims = 2)
-#             end
-#             push!(ansatz, θx)
-#         end
-#     end
-#     ΘX = hcat(ansatz...)
-#     for x ∈ eachcol(X)
-#         for f in f_
-#             i += 1
-#             if i ∈ sparse_rows θx = padding else
-#                 push!(nz_, i)
-#                 θx = f.(x)
-#             end
-#             ΘX = [ΘX θx]
-#         end
-#         for m in 1:M
-#             i += 1
-#             if i ∈ sparse_rows θx = padding else
-#                 push!(nz_, i)
-#                 θx = cospi.(m*x)
-#             end
-#             ΘX = [ΘX θx]
-#         end
-#         for m in 1:M
-#             i += 1
-#             if i ∈ sparse_rows θx = padding else
-#                 push!(nz_, i)
-#                 θx = sinpi.(m*x)
-#             end
-#             ΘX = [ΘX θx]
-#         end
-#     end
-
-#     for c in 2:C
-#         for j_ in combinations(2:size(ΘX, 2), c)
-#             if !any(Ref(j_) .⊆ incest)
-#                 i += 1
-#                 if i ∈ sparse_rows θx = padding else
-#                     push!(nz_, i)
-#                     θx = .*([ΘX[:, j] for j in j_]...)
-#                 end
-#                 ΘX = [ΘX θx]
-#             end
-#         end
-#     end
-
-#     return ΘX[:, nz_]
-# end
-#    Θ(X::AbstractVector; kargs...) = Θ(reshape(X, 1, :); kargs...)
-# Θ(X::AbstractDataFrame; kargs...) = Θ(Matrix(X); kargs...)
-#      Θ(X::DataFrameRow; kargs...) = Θ(collect(X); kargs...)
-# function Θ(X::Vector{String}; N = 1, M = 0, f_ = Function[], C = 1, λ = 0)
-#     # λ is just for dummy argument for add_subsystem! function
-#     dim = length(X)
-#     ΘX = []
-#     incest = UnitRange.(1, cumsum([length(multiexponents(dim+1, N)); length(f_)*dim; 2M*dim]))
-#     incest = [Int64.(incest[1]), setdiff(incest[2], incest[1]), setdiff(incest[3], incest[2])]
-
-#     for k in 0:N
-#         for case = collect(multiexponents(dim, k))
-#             # push!(ΘX, reduce(*, ((X .* num2sup.(case))[.!iszero.(case)])))
-#             push!(ΘX, join(((X .* num2sup.(case))[.!iszero.(case)]), " "))
-#         end
-#     end
-#     for x in X
-#         for f in f_
-#             push!(ΘX, "$(string(f))($x)")
-#         end
-#         for m in 1:M
-#             _m = ifelse(m |> isone, "", string(m))
-#             push!(ΘX, ("cos$(_m)π$x"))
-#         end
-#         for m in 1:M
-#             _m = ifelse(m |> isone, "", string(m))
-#             push!(ΘX, ("sin$(_m)π$x"))
-#         end
-#     end
-
-#     dim = length(ΘX)
-#     for c in 2:C
-#         for j_ in combinations(2:dim, c)
-#             if !any(Ref(j_) .⊆ incest)
-#                 push!(ΘX, *([ΘX[j] for j in j_]...))
-#             end
-#         end
-#     end
-
-#     replace!(ΘX, "" => "1")
-#     return ΘX
-# end
 function pretty_term(xyz)
-    dict_sup = Dict(1 => "", 2 => "²", 3 => "³", 4 => "⁴", 5 => "⁵", 6 => "⁶", 7 => "⁷", 8 => "⁸", 9 => "⁹")
+    xyz = replace(xyz, "sin1" => "sin", "cos1" => "cos", "pi1" => "π", "pi" => "π")
+    dict_sup = Dict("0" => "⁰", "1" => "¹", "2" => "²", "3" => "³", "4" => "⁴", "5" => "⁵", "6" => "⁶", "7" => "⁷", "8" => "⁸", "9" => "⁹")
     xyz_ = split(xyz, '⋅')
     xyz1 = sort(unique(xyz_))
     deg_ = [count(xyz_ .== x) for x in xyz1]
-    return join(xyz1 .* [dict_sup[d] for d in deg_], '⋅')
+    str_deg_ = [replace(string(d), dict_sup...) for d in deg_]
+    str_deg_ = replace(str_deg_, "¹" => "")
+    return join(xyz1 .* str_deg_, '⋅')
 end
 constant(x) = 1
-function cook(xnames; poly = 0:1, trig = 0:0, trigpi = 0:0, f_ = [])
+for m in 1:(2^10) eval(Meta.parse("_$(m)(x) = $m * x")) end
+function cook(xnames; poly = 0:1, trig = 0:0, f_ = [], format = sinpi)
     xnames = string.(xnames)
-    idx = 0
-    recipe = DataFrame(index = Int64[], deg = Int64[], term = String[], func = [], funh = [], vecv = [])
+    recipe = DataFrame(deg = Int64[], term = String[], func = [], funh = [], vecv = [])
     for d = UnitRange(extrema(poly)...)
-        if d == 0
-            push!(recipe, [0, 0, "1", constant, vec, [1]])
-        elseif d == 1
+        if d == 1
             for i in eachindex(xnames)
-                idx += 1
-                push!(recipe, [idx, 1, xnames[i], identity, vec, [i]])
+                push!(recipe, [1, xnames[i], identity, vec, [i]])
             end
         else
             for i in eachindex(xnames)
                 rcp = recipe[recipe.deg .== (d-1), :]
                 for j in i:nrow(rcp)
-                    idx += 1
-                    push!(recipe, [idx, d, "$(xnames[i])⋅$(rcp.term[j])", prod, eachrow, sort([i; rcp.vecv[j]])])
+                    push!(recipe, [d, "$(xnames[i])⋅$(rcp.term[j])", prod, eachrow, sort([i; rcp.vecv[j]])])
                 end
             end
         end
     end
-    for m in trigpi
-        iszero(m) && break
-        for i in eachindex(xnames)
-            eval(Meta.parse("x$(m) = x -> $m * x"))
-            idx += 1
-            push!(recipe, [idx, 1, "sin$(m)π($(xnames[i]))", sinpi, eval(Meta.parse("x$m")), [i]])
-            idx += 1
-            push!(recipe, [idx, 1, "cos$(m)π($(xnames[i]))", cospi, eval(Meta.parse("x$m")), [i]])
-        end
+    if 0 ∈ poly
+        pushfirst!(recipe, [0, "1", constant, vec, [1]])
     end
+    recipe = recipe[recipe.deg .∈ Ref(poly), :]
+
+    fsin, fcos = format ∈ [sin, cos] ? (sin, cos) : format ∈ [sind, cosd] ? (sind, cosd) : (sinpi, cospi)
     for m in trig
-        iszero(m) && break
+        iszero(m) && continue
         for i in eachindex(xnames)
-            eval(Meta.parse("x$(m) = x -> $m * x"))
-            idx += 1
-            push!(recipe, [idx, 1, "sin($(m))($(xnames[i]))", sin, eval(Meta.parse("x$m")), [i]])
-            idx += 1
-            push!(recipe, [idx, 1, "cos($(m))($(xnames[i]))", cos, eval(Meta.parse("x$m")), [i]])
+            push!(recipe, [m, string(fsin, m, xnames[i]), fsin, eval(Meta.parse("_$m")), [i]])
+            push!(recipe, [m, string(fcos, m, xnames[i]), fcos, eval(Meta.parse("_$m")), [i]])
         end
     end
     for f in f_
-        idx += 1
-        push!(recipe, [idx, 1, string(f), f, f, [1]])
+        for i in eachindex(xnames)
+            push!(recipe, [0, "$(string(f))($(xnames[i]))", f, vec, [i]])
+        end
     end
-    recipe = recipe[recipe.deg .∈ Ref(poly), :]
     recipe.term = pretty_term.(recipe.term)
+    unique!(recipe, :term)
+    insertcols!(recipe, 1, :index => 1:nrow(recipe))
 
     return recipe[:, [:index, :term, :func, :funh, :vecv]]
 end
@@ -248,7 +132,7 @@ import PrettyTables: pretty_table
 print(s::STLSQresult) = print(pretty_table(s))
 println(s::STLSQresult) = println(pretty_table(s))
 function pretty_table(s::STLSQresult)
-    table = [eachindex(f.recipe.term) f.recipe.term f.matrix]
+    table = [eachindex(s.recipe.term) s.recipe.term s.matrix]
     # table = [1:size(s.matrix, 1) Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C) s.matrix]
     table[table .== 0] .= ""
     return pretty_table(String, table; header = ["idx"; "basis"; string.(s.lname)])
@@ -321,31 +205,93 @@ function detect_jump(data, vrbl; dos = 0)
 end
 
 """
-    labeling!(data, vrbl, cnfg; dos = 0)
+    mutate(s, k)
+
+Mutates the `k`-th element of the boolean vector `s` by flipping its value.
+"""
+function mutate(s, k)
+    _s = deepcopy(s)
+    _s[k] = .!_s[k]
+    return _s
+end
+"""
+    forwardselect(DATA, vrbl, cnfg)
+
+Performs forward selection on the datasets using the specified variables and configuration.
+Returns the configuration that minimizes the Akaike Information Criterion (AIC).
+"""
+function forwardselect(cnfg, data, vrbl)
+    jumpt = detect_jump(data, vrbl)
+    sets = set_divider(jumpt)
+    datasets = [data[set, :] for set in sets]
+    sampled = [ds[centerpick(nrow(ds), 50), :] for ds in datasets]
+
+    taboo = Dict()
+    strand_ = []
+    for i in 1:nrow(cnfg)
+        strand = zeros(Bool, nrow(cnfg))
+        strand = mutate(strand, i)
+
+        aic_ = [Inf]
+        for itr in 1:1000
+            if itr == 1000 @warn "Forward selection reached maximum iterations without convergence." end
+
+            aic = fill(Inf, nrow(cnfg))
+            for k in eachindex(strand)
+                mutation = mutate(strand, k)
+                iszero(mutation) && continue
+                _cnfg = cnfg[mutation, :]           
+                any([rank(Θ(smpl, _cnfg)) for smpl in sampled] .< count(mutation)) && continue
+
+                _aic = [SINDy(smpl, vrbl, _cnfg).aic for smpl in sampled]
+                aic[k] = sum(_aic)
+            end
+            strand = mutate(strand, argmin(aic))
+            if minimum(aic) < minimum(aic_)
+                push!(aic_, minimum(aic))
+            else
+                break
+            end
+        end
+        push!(strand_, minimum(aic_) => strand)
+    end
+    strand = last.(strand_)[argmin(first.(strand_))]
+
+    return cnfg[strand, :]
+end
+
+"""
+    centerpick(n, m)
+
+Select `m` evenly spaced indices from `1:n`, excluding the first and last indices.
+"""
+centerpick(n, m) = round.(Int64, range(1, n, m+2))[2:end-1]
+"""
+    labeling!(data, vrbl, cnfg; θ = 0)
 
 Label the subsystems in DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
 `dos` is the degree of smoothness.
 """
-function labeling!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
-    jumpt = detect_jump(data, vrbl; dos)
+function labeling!(data, vrbl, cnfg; θ = 0)
+    jumpt = detect_jump(data, vrbl)
     sets = set_divider(jumpt)
     datasets = [data[set, :] for set in sets]
+    sampled = [ds[centerpick(nrow(ds), 50), :] for ds in datasets]
+    # cnfg = forwardselect(sampled, vrbl, cnfg)
 
-    n = length(datasets)
-    min_m = SINDy(datasets[1][1:10, :], vrbl...; cnfg...).matrix.m
-    sampled = [ds[centerpick(nrow(ds), min_m), :] for ds in datasets]
-    f__ = fill(SINDy(datasets[1][1:10, :], vrbl...; cnfg...), n, n)
-    mse__ = fill(Inf, n, n)
-    dist__ = zeros(n, n)
-    for (i,j) = doublerange(length(datasets))
-        if i ≤ j continue end
-        f__[i, j] = SINDy([sampled[i]; sampled[j]], vrbl...; cnfg...)
-        f__[j, i] = f__[i, j]
-        mse__[i, j] = f__[i, j].MSE
-        mse__[j, i] = mse__[i, j]
+    f_ = [SINDy(smpl, vrbl, cnfg, λ = 1e-3) for smpl in sampled]
+    L = zeros(length(f_), length(f_))
+    for i in eachindex(f_)
+        for j in eachindex(f_)
+            if i > j
+                L[i, j] = sum(abs2, f_[i].matrix - f_[j].matrix)
+                L[j, i] = L[i, j]
+            end
+        end
     end
-    subsys = connected_components(SimpleGraph(mse__ .< θ))
-    f_ = [SINDy([sampled[ss]...;], vrbl...; cnfg...) for ss in subsys]; # print.(f_)
+    # scatter(filter(!iszero, vec(L)), yscale = :log10)
+    subsys = connected_components(SimpleGraph(L .< θ))
+    f_ = [SINDy([sampled[ss]...;], vrbl, cnfg) for ss in subsys]; # print.(f_)
 
     label = zeros(Int64, nrow(data))
     for i in eachindex(subsys)
@@ -353,12 +299,14 @@ function labeling!(data, vrbl, cnfg; θ = 1e-24, dos = 0)
             label[sets[j]] .= i
         end
     end
+
     bit_blank = iszero.(label)
-    label[bit_blank] .= argmin.(eachrow(stack([residual(f, data[bit_blank, :]) for f in f_])))
+    label[bit_blank] .= argmin.(eachrow(sum.(abs2, stack([residual(f, data[bit_blank, :]) for f in f_]))))
     data.label = label
 
     return data
 end
+
 
 function dryad(data, vrbl) # fairy of tree and forest
     labels = data.label
