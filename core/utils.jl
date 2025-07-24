@@ -1,14 +1,18 @@
 Rsq(x, y) = 1 .- sum(abs2, (x .- y)) / sum(abs2, (x .- mean(x)))
 APE(x, y) = abs.(x .- y) ./ abs.(x)
 MAPE(x, y) = mean(APE(x, y))
-MSE(x, y) = mean(abs2, (x .- y))
+accuracy(x, y) = count(x .== y) / length(x)
 ranking(x) = sortperm(sortperm(x, rev = true))
+
+MSE(x, y) = mean(abs2, (x .- y))
+MSE(f, data) = sum(abs2, stack(residual(f, data))) / prod(size(data[:, f.lname]))
+AIC(f, data) = prod(size(data[:, f.lname]))*log(MSE(f, data)) + 2nrow(f.recipe)
 
 cov(x, y) = mean((x .- mean(x)) .* (y .- mean(y)))
 cor(x, y) = cov(x, y) / (std(x) * std(y))
 
 import Base.rand
-rand(df::AbstractDataFrame; n = 1) = df[rand(1:nrow(df), n), :]
+rand(df::AbstractDataFrame; n::Integer = 1) = df[rand(1:nrow(df), n), :]
 
 """
     add_fold!(data::AbstractDataFrame; k = 5, seed = -1)

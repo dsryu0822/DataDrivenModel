@@ -220,7 +220,7 @@ end
 Performs forward selection on the datasets using the specified variables and configuration.
 Returns the configuration that minimizes the Akaike Information Criterion (AIC).
 """
-function forwardselect(cnfg, data, vrbl)
+function forwardselect(cnfg, data, vrbl; maxitr = 1000)
     jumpt = detect_jump(data, vrbl)
     sets = set_divider(jumpt)
     datasets = [data[set, :] for set in sets]
@@ -233,18 +233,23 @@ function forwardselect(cnfg, data, vrbl)
         strand = mutate(strand, i)
 
         aic_ = [Inf]
-        for itr in 1:1000
-            if itr == 1000 @warn "Forward selection reached maximum iterations without convergence." end
-
+        for itr in 1:maxitr
+            if itr == maxitr @warn "Forward selection reached maximum iterations without convergence." end
+            
             aic = fill(Inf, nrow(cnfg))
             for k in eachindex(strand)
                 mutation = mutate(strand, k)
                 iszero(mutation) && continue
-                _cnfg = cnfg[mutation, :]           
-                any([rank(Θ(smpl, _cnfg)) for smpl in sampled] .< count(mutation)) && continue
+                if hash(mutation) ∈ keys(taboo)
+                    aic[k] = taboo[hash(mutation)]
+                else
+                    _cnfg = cnfg[mutation, :]           
+                    any([rank(Θ(smpl, _cnfg)) for smpl in sampled] .< count(mutation)) && continue
 
-                _aic = [SINDy(smpl, vrbl, _cnfg).aic for smpl in sampled]
-                aic[k] = sum(_aic)
+                    _aic = [SINDy(smpl, vrbl, _cnfg).aic for smpl in sampled]
+                    aic[k] = sum(_aic)
+                    taboo[hash(mutation)] = aic[k]
+                end
             end
             strand = mutate(strand, argmin(aic))
             if minimum(aic) < minimum(aic_)
@@ -256,7 +261,7 @@ function forwardselect(cnfg, data, vrbl)
         push!(strand_, minimum(aic_) => strand)
     end
     strand = last.(strand_)[argmin(first.(strand_))]
-
+    
     return cnfg[strand, :]
 end
 
@@ -279,7 +284,7 @@ function labeling!(data, vrbl, cnfg; θ = 0)
     sampled = [ds[centerpick(nrow(ds), 50), :] for ds in datasets]
     # cnfg = forwardselect(sampled, vrbl, cnfg)
 
-    f_ = [SINDy(smpl, vrbl, cnfg, λ = 1e-3) for smpl in sampled]
+    f_ = [SINDy(smpl, vrbl, cnfg) for smpl in sampled]
     L = zeros(length(f_), length(f_))
     for i in eachindex(f_)
         for j in eachindex(f_)
@@ -308,16 +313,21 @@ function labeling!(data, vrbl, cnfg; θ = 0)
 end
 
 
-function dryad(data, vrbl) # fairy of tree and forest
+function dryad(data, vrbll; method = :tree) # fairy of tree and forest
+    # _data = deepcopy(data[(data.label .!= circshift(data.label, -1)) .|| (data.label .!= circshift(data.label, 1)), :])
+    # add_fold!(_data)
+    apply_ = method == :forest ? apply_forest : apply_tree
+    build_ = method == :forest ? build_forest : build_tree
+
     labels = data.label
-    features = Matrix(data[:, vrbl])
+    features = Matrix(data[:, last(vrbl)])
     acc_ = []
     for seed in 1:10
-        Dtree = build_tree(data.label, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
-        push!(acc_, count(labels .== apply_tree(Dtree, features)) / length(labels))
+        Dtree = build_(data.label, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
+        push!(acc_, count(labels .== apply_(Dtree, features)) / length(labels))
         if maximum(acc_) ≈ 1 break end #; else print("█") end
     end
-    Dtree = build_tree(data.label, features, rng = argmax(acc_))
+    Dtree = build_(data.label, features, rng = argmax(acc_))
     # println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
     return Dtree
 end

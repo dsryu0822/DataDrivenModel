@@ -41,6 +41,7 @@ end
 #     return V
 # end
 function solve(f_, v, t_, DT = nothing)
+    apply_ = typeof(DT) <: Root ? apply_tree : apply_forest
     h = t_[2] - t_[1]
     V = zeros(length(t_), length(v))
     if DT |> isnothing
@@ -51,7 +52,7 @@ function solve(f_, v, t_, DT = nothing)
     else
         for k in eachindex(t_)
             V[k, :] = v
-            s = apply_tree(DT, v)
+            s = apply_(DT, v)
             v, _ = RK4(f_[s], v, h)
         end
     end
@@ -336,56 +337,69 @@ DataFrame(factory_lorenz(args...; kargs...), ["x", "y", "z", "dx", "dy", "dz"])
 # DataFrame(factory_rkvt(args...; kargs...), ["x1", "x2", "dx1", "dx2"])
 
 
-# const _R = 22 # 22
-# const _L = 20_m # 20m
-# const _C = 47_μ # 22μ
-# const _T = 400μ
-# const _γ = 11.7 # 11.75238
-# const _η = 1309.5 # 1309.524
-# const _RC = _R*_C
-# Vr(t) = _γ + _η * (mod(t, _T))
-# function factory_buck(E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7)    
-#     function sys(VI::AbstractVector, nonsmooth::Real)
-#         V, I = VI
-
-#         V̇ = - V/(_RC) + I/_C
-#         İ = - (V/_L) + nonsmooth
-#         return [V̇, İ]
-#     end
-#     EdL = E/_L
+function factory_buck(E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1e-7)    
+    μ = 1e-6
+    m = 1e-3
+    _R = 22 # 22
+    _L = 20_m # 20m
+    _C = 47_μ # 22μ
+    _T = 400μ
+    _γ = 11.7 # 11.75238
+    _η = 1309.5 # 1309.524
+    _RC = _R*_C
+    Vr(t) = _γ + _η * (mod(t, _T))
     
-#     t_ = first(tspan):dt:last(tspan)
-#     len_t_ = length(t_)
+    function sys(VI::AbstractVector, nonsmooth::Real)
+        V, I = VI
 
-#     t, tk = .0, 0, 0
-#     v = ic; DIM = length(v)
-#     traj = zeros(len_t_+2, 2DIM)
-#     while tk ≤ len_t_
-#         V, I = v
-#         nonsmooth = ifelse(V < Vr(t), EdL, 0); t += dt
-#         v, dv = RK4(sys, v, dt, nonsmooth)
-
-#         if t ≥ first(t_)
-#             tk += 1
-#             traj[tk+1,         1:DIM ] =  v
-#             traj[tk  , DIM .+ (1:DIM)] = dv
-#         end
-#     end
-#     return traj[2:(end-2), :]
-# end
-# factory_buck(T::Type, args...; kargs...) = 
-# DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI"])
-
-function factory_(sysname::AbstractString)
-    if sysname == "lorenz"
-        return factory_lorenz
-    elseif sysname == "soft"
-        return factory_soft
-    elseif sysname == "hrnm"
-        return factory_hrnm
-    elseif sysname == "gear"
-        return factory_gear
-    else
-        error("The system name is not defined.")
+        V̇ = - V/(_RC) + I/_C
+        İ = - (V/_L) + nonsmooth
+        return [V̇, İ]
     end
+    EdL = E/_L
+    
+    t_ = first(tspan):dt:last(tspan)
+    len_t_ = length(t_)
+
+    t, tk = .0, 0, 0
+    v = ic; DIM = length(v)
+    traj = zeros(len_t_+2, 2DIM+2)
+    while tk ≤ len_t_
+        V, I = v
+        Vrt = Vr(t)
+        nonsmooth = ifelse(V < Vrt, EdL, 0); t += dt
+        v, dv = RK4(sys, v, dt, nonsmooth)
+
+        if t ≥ first(t_)
+            tk += 1
+            traj[tk+1,         1:DIM ] =   v
+            traj[tk  , DIM .+ (1:DIM)] =  dv
+            traj[tk  ,       2DIM + 1] =   t
+            traj[tk  ,       2DIM + 2] = Vrt
+        end
+    end
+    return traj[2:(end-2), :]
 end
+factory_buck(T::Type, args...; kargs...) = 
+DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI", "Vr"])
+
+# function factory_(sysname::AbstractString)
+#     if sysname == "lorenz"
+#         return factory_lorenz
+#     elseif sysname == "soft"
+#         return factory_soft
+#     elseif sysname == "hrnm"
+#         return factory_hrnm
+#     elseif sysname == "gear"
+#         return factory_gear
+#     else
+#         error("The system name is not defined.")
+#     end
+# end
+factory_ = Dict(
+    "lorenz" => factory_lorenz,
+    "soft" => factory_soft,
+    "hrnm" => factory_hrnm,
+    "gear" => factory_gear,
+    "buck" => factory_buck,
+)
