@@ -64,8 +64,8 @@ include("../core/header.jl")
 
 # A_[121]
 # A_[161]
-traj0 = CSV.read("G:/lorenz96/lorenz96_0121.csv", DataFrame)
-traj1 = CSV.read("G:/lorenz96/lorenz96_0161.csv", DataFrame)
+traj0 = CSV.read("../lorenz96/lorenz96_0121.csv", DataFrame)
+traj1 = CSV.read("../lorenz96/lorenz96_0161.csv", DataFrame)
 
 vrbl = ([:dt, :dx1, :dx2, :dx3, :dx4, :dx5, :dx6], [:t, :x1, :x2, :x3, :x4, :x5, :x6])
 cnfg = cook(last(vrbl), poly = 0:2, trig = 0:2, format = sin)
