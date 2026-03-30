@@ -1,4 +1,12 @@
-Rsq(x, y) = 1 .- sum(abs2, (x .- y)) / sum(abs2, (x .- mean(x)))
+"""
+
+    Rsq(ŷ, y)
+
+Calculates the coefficient of determination (R-squared) between predicted values `ŷ` and actual values `y`.
+
+"""
+Rsq(ŷ, y) = 1 - sum(abs2, (y .- ŷ)) / sum(abs2, (y .- mean(y)))
+# Rsq(ŷ, y) = sum(abs2, (ŷ .- mean(y))) / sum(abs2, (y .- mean(y)))
 APE(x, y) = abs.(x .- y) ./ abs.(x)
 MAPE(x, y) = mean(APE(x, y))
 accuracy(x, y) = count(x .== y) / length(x)

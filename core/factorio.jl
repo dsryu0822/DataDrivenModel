@@ -381,7 +381,7 @@ function factory_buck(E::Number; ic = [12.0, 0.55], tspan = [0.00, 0.01], dt = 1
     return traj[2:(end-2), :]
 end
 factory_buck(T::Type, args...; kargs...) = 
-DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI", "Vr"])
+DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI", "t", "Vr"])
 
 # function factory_(sysname::AbstractString)
 #     if sysname == "lorenz"
