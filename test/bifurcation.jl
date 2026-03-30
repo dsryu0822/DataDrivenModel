@@ -92,8 +92,8 @@ end
 @showprogress @threads for k in eachindex(α_)
     α = α_[k]
     g = syntheticSINDy(α*f0.matrix + (1-α)*f1.matrix, vrbl, cnfg)
-    @time traj = solve(g, [0,0,1,1,1,1,1], 0:1e-3:25)
-    # _traj = DataFrame(traj[1500001:end, :], ["t", "x1", "x2", "x3", "x4", "x5", "x6"])
-    _traj = DataFrame(traj, ["t", "x1", "x2", "x3", "x4", "x5", "x6"])
+    @time traj = solve(g, [0,0,1,1,1,1,1], 0:1e-3:2500)
+    _traj = DataFrame(traj[1500001:end, :], ["t", "x1", "x2", "x3", "x4", "x5", "x6"])
+    # _traj = DataFrame(traj, ["t", "x1", "x2", "x3", "x4", "x5", "x6"])
     CSV.write("../lorenz96SINDy/lorenz96SINDy_$(lpad(k, 4, '0')).csv", _traj)
 end
