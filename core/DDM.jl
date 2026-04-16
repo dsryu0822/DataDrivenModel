@@ -1,4 +1,5 @@
 struct STLSQresult
+    method::String
     recipe::AbstractDataFrame
     recipeF::AbstractDataFrame # fast version of `recipe`
     matrix::AbstractMatrix
@@ -27,7 +28,8 @@ function (s::STLSQresult)(data::AbstractDataFrame)
 end
 
 
-function STLSQ(ΘX, Ẋ; λ = 0, verbose = false)
+function STLSQ(ΘX, Ẋ; λ = 0, verbose = false,
+    mask = zeros(Bool, size(ΘX, 2), size(Ẋ, 2)))
     L₂ = norm.(eachcol(ΘX))
     ΘX = ΘX ./ L₂'
     # L₂ is for column-wise normalization to ensure restricted isometry property
@@ -37,7 +39,7 @@ function STLSQ(ΘX, Ẋ; λ = 0, verbose = false)
     _🚫 = 0
     while true
         verbose && print(".")
-        🚫 = abs.(Ξ) .< (λ * L₂)
+        🚫 = (abs.(Ξ) .< (λ * L₂)) .|| mask
         Ξ[🚫] .= 0
         for j in 1:dim
             i_ = .!🚫[:, j]
@@ -49,11 +51,11 @@ function STLSQ(ΘX, Ẋ; λ = 0, verbose = false)
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     return Ξ
 end
-function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; λ = 0)
+function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; λ = 0, mask = zeros(Bool, length(first(sysms)), nrow(recipe)), method = "SINDy")
     Ysyms, Xsyms = sysms
     X = Θ(df[:, Xsyms], recipe)
     Y = Matrix(df[:, Ysyms])
-    Ξ = STLSQ(X, Y, λ = λ)
+    Ξ = STLSQ(X, Y, λ = λ, mask = mask)
     bit_sparse = all.(map(x -> iszero.(x), eachrow(Ξ)))
     # sparse_rows = findall(bit_sparse)
     recipeF = recipe[.!bit_sparse, :]
@@ -61,10 +63,10 @@ function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; �
     mse = sum(abs2, Y - X * Ξ) / length(Y) # compare to original data
     aic = length(Y) * log(mse) + 2nrow(recipe)
     r2 = Rsq(vec(X * Ξ), vec(Y))
-    return STLSQresult(recipe, recipeF, Ξ, _Ξ, mse, aic, r2, Ysyms, Xsyms)
+    return STLSQresult(method, recipe, recipeF, Ξ, _Ξ, mse, aic, r2, Ysyms, Xsyms)
 end
 function SINDy()
-    return STLSQresult(DataFrame(), DataFrame(), zeros(1,1), zeros(1,1), 0.0, 0.0, 0.0, [], [])
+    return STLSQresult("null", DataFrame(), DataFrame(), zeros(1,1), zeros(1,1), 0.0, 0.0, 0.0, [], [])
 end
 
 # TODO: Add ISTA (Iterative Shrinkage-Thresholding Algorithm) for L1 regularization

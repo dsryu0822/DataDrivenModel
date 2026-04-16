@@ -1,11 +1,11 @@
 """
 
-    Rsq(ŷ, y)
+    Rsq(y, ŷ)
 
 Calculates the coefficient of determination (R-squared) between predicted values `ŷ` and actual values `y`.
 
 """
-Rsq(ŷ, y) = 1 - sum(abs2, (y .- ŷ)) / sum(abs2, (y .- mean(y)))
+Rsq(y, ŷ) = 1 - sum(abs2, (y .- ŷ)) / sum(abs2, (y .- mean(y)))
 # Rsq(ŷ, y) = sum(abs2, (ŷ .- mean(y))) / sum(abs2, (y .- mean(y)))
 APE(x, y) = abs.(x .- y) ./ abs.(x)
 MAPE(x, y) = mean(APE(x, y))
@@ -55,3 +55,31 @@ function add_fold!(data::AbstractDataFrame; k = 5, seed = -1)
     data[!, :fold] .= 1 .+ mod.(shuffle(1:nrow(data)), k)
     return data
 end
+
+"""
+    add_diff(D::AbstractDataFrame; method = :FDM)
+
+Adds difference columns to the DataFrame `D` based on the specified method.
+The new columns are named with a "d" prefix followed by the original column names.
+
+- If `method` is `:FDM`, it computes the finite difference along the first dimension and appends it to the original DataFrame, excluding the last row.
+- If `method` is `:TVD`, it applies a total variation diminishing difference method to each column and appends the results to the original DataFrame.
+
+"""
+function add_diff(D::AbstractDataFrame; method = :FDM)
+    dnames = "d" .* names(D)
+    if method == :FDM
+        return [DataFrame(diff(Matrix(D), dims = 1), dnames) D[1:(end-1), :]]
+    elseif method == :TVD
+        return [DataFrame([tvdiff(z, 10, 100, dx = 1) for z in eachcol(D)], dnames) D]
+    else
+        throw(ArgumentError("method must be :FDM or :TVD"))
+    end
+end
+
+"""
+    half(x)
+
+    Splits the input vector `x` into two halves and returns them as a tuple.
+"""
+half(x) = (x[1:div(length(x), 2)], x[div(length(x), 2)+1:end])

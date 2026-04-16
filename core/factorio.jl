@@ -16,6 +16,13 @@ function RK4(J::AbstractMatrix, U::AbstractMatrix, h=1e-2)
     V4 = J*(U + h*V3)
     return U + (h/6)*(V1 + 2V2 + 2V3 + V4)
 end
+# function RK4(f::Function, v::AbstractVector, h=1e-2)
+#     V1 = f(v)
+#     V2 = f(v + (h/2)*V1)
+#     V3 = f(v + (h/2)*V2)
+#     V4 = f(v + h*V3)
+#     return v + (h/6)*(V1 + 2V2 + 2V3 + V4)
+# end
 function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2, nonsmooth=nothing)
     if nonsmooth |> isnothing
         V1 = f(v)

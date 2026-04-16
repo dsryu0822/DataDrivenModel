@@ -44,7 +44,7 @@ include("../core/header.jl")
 #     CSV.write("G:/lorenz96/lorenz96_$(lpad(k, 4, '0')).csv", _traj)
 # end
 
-# function arglocalmax(x)
+# function arglmax(x)
 #     bits = circshift(x, 1) .< x .> circshift(x, -1)
 #     bits[1] = false
 #     bits[end] = false
@@ -52,15 +52,15 @@ include("../core/header.jl")
 # end
 # scatter(repeat([3.2], length(_traj.x1[almx1])), _traj.x1[almx1])
 
-# plt_bfcn = plot(legend = :none)
-# @showprogress for k in eachindex(A_)
-#     _traj = CSV.read("G:/lorenz96/lorenz96_$(lpad(k, 4, '0')).csv", DataFrame)
-#     x1 = _traj.x1[_traj.t .> 1000]
-#     almx1 = arglocalmax(x1)
-#     scatter!(plt_bfcn, repeat([A_[k]], length(x1[almx1])), x1[almx1], color = :black, ms = 1, ma = 0.05)
-# end
-# plt_bfcn
-# png(plt_bfcn, "bifurcation_plot.png")
+plt_bfcn = plot(legend = :none)
+@showprogress for k in eachindex(A_)
+    _traj = CSV.read("G:/lorenz96SINDy/lorenz96SINDy_$(lpad(k, 4, '0')).csv", DataFrame)
+    x1 = _traj.x1[_traj.t .> 1000]
+    almx1 = arglmax(x1)
+    scatter!(plt_bfcn, repeat([α_[k]], length(x1[almx1])), x1[almx1], color = :red, ms = 1, ma = 0.05)
+end
+plot(plt_bfcn, xticks = [-3.5, 0, 1, 4], xflip = true)
+png("bifurcation_plot.png")
 
 # A_[121]
 # A_[161]
