@@ -1,20 +1,23 @@
 """
 
-    Rsq(y, ŷ)
+    rsq(y, ŷ)
 
 Calculates the coefficient of determination (R-squared) between predicted values `ŷ` and actual values `y`.
 
 """
-Rsq(y, ŷ) = 1 - sum(abs2, (y .- ŷ)) / sum(abs2, (y .- mean(y)))
-# Rsq(ŷ, y) = sum(abs2, (ŷ .- mean(y))) / sum(abs2, (y .- mean(y)))
-APE(x, y) = abs.(x .- y) ./ abs.(x)
-MAPE(x, y) = mean(APE(x, y))
+rsq(y, ŷ) = 1 - (sum(abs2, (y .- ŷ)) / sum(abs2, (y .- mean(y))))
+
+
+mae(x, y) = mean(abs, x - y)
+mse(x, y) = mean(abs2, x - y)
+rmse(x, y) = sqrt.(mean(abs2, x - y))
+ape(x, y) = abs.(x .- y) ./ abs.(x)
+mape(x, y) = mean(ape(x, y))
 accuracy(x, y) = count(x .== y) / length(x)
 ranking(x) = sortperm(sortperm(x, rev = true))
 
-MSE(x, y) = mean(abs2, (x .- y))
-MSE(f, data) = sum(abs2, stack(residual(f, data))) / prod(size(data[:, f.lname]))
-AIC(f, data) = prod(size(data[:, f.lname]))*log(MSE(f, data)) + 2nrow(f.recipe)
+# mse(f, data) = sum(abs2, stack(residual(f, data))) / prod(size(data[:, f.lname]))
+# aic(f, data) = prod(size(data[:, f.lname]))*log(mse(f, data)) + 2nrow(f.recipe)
 
 cov(x, y) = mean((x .- mean(x)) .* (y .- mean(y)))
 cor(x, y) = cov(x, y) / (std(x) * std(y))
@@ -66,12 +69,17 @@ The new columns are named with a "d" prefix followed by the original column name
 - If `method` is `:TVD`, it applies a total variation diminishing difference method to each column and appends the results to the original DataFrame.
 
 """
-function add_diff(D::AbstractDataFrame; method = :FDM)
+function add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
     dnames = "d" .* names(D)
     if method == :FDM
         return [DataFrame(diff(Matrix(D), dims = 1), dnames) D[1:(end-1), :]]
     elseif method == :TVD
-        return [DataFrame([tvdiff(z, 10, 100, dx = 1) for z in eachcol(D)], dnames) D]
+        D_ = [D]
+        for k in 1:order
+            push!(D_, DataFrame([tvdiff(z, 10, 100, dx = 1) for z in eachcol(last(D_))], dnames))
+            dnames = "d" .* dnames
+        end
+        return hcat(reverse(D_)...)
     else
         throw(ArgumentError("method must be :FDM or :TVD"))
     end
@@ -83,3 +91,32 @@ end
     Splits the input vector `x` into two halves and returns them as a tuple.
 """
 half(x) = (x[1:div(length(x), 2)], x[div(length(x), 2)+1:end])
+
+"""
+    up(array)
+
+    Returns the array excluding the last row.
+"""
+up(matrix) = matrix[1:(end-1),:]
+
+"""
+    dw(array)
+
+    Returns the array excluding the first row.
+"""
+dw(matrix) = matrix[2:end,:]
+
+
+function arglmax(x)
+    bits = circshift(x, 1) .< x .> circshift(x, -1)
+    bits[1] = false
+    bits[end] = false
+    return findall(bits)
+end
+
+function arglmin(x)
+    bits = circshift(x, 1) .> x .< circshift(x, -1)
+    bits[1] = false
+    bits[end] = false
+    return findall(bits)
+end

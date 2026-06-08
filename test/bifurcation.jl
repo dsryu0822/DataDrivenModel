@@ -1,56 +1,56 @@
 include("../core/header.jl")
 
-# function factory_lorenz96(A::Number; ic = [0,0,1,1,1,1,1], tspan = [0., 10.], dt = 1e-4)
-#     function sys(v::AbstractVector)
-#         T, x1, x2, x3, x4, x5, x6 = v
+function factory_lorenz96(A::Number; ic = [0,0,1,1,1,1,1], tspan = [0., 10.], dt = 1e-4)
+    function sys(v::AbstractVector)
+        T, x1, x2, x3, x4, x5, x6 = v
 
-#         dT = 1
-#         dx1 = x6*(x2 - x5) - x1
-#         dx2 = x1*(x3 - x6) - x2
-#         dx3 = x2*(x4 - x1) - x3
-#         dx4 = x3*(x5 - x2) - x4
-#         dx5 = x4*(x6 - x3) - x5
-#         dx6 = x5*(x1 - x4) - x6
-#         return [dT; [dx1, dx2, dx3, dx4, dx5, dx6] .+ (A*sin(2T) + 2)]
-#     end
+        dT = 1
+        dx1 = x6*(x2 - x5) - x1
+        dx2 = x1*(x3 - x6) - x2
+        dx3 = x2*(x4 - x1) - x3
+        dx4 = x3*(x5 - x2) - x4
+        dx5 = x4*(x6 - x3) - x5
+        dx6 = x5*(x1 - x4) - x6
+        return [dT; [dx1, dx2, dx3, dx4, dx5, dx6] .+ (A*sin(2T) + 2)]
+    end
 
         
-#     t_ = first(tspan):dt:last(tspan)
-#     len_t_ = length(t_)
+    t_ = first(tspan):dt:last(tspan)
+    len_t_ = length(t_)
     
-#     t, tk = .0, 0
-#     v = ic; DIM = length(v)
-#     traj = zeros(len_t_+2, 2DIM)
-#     while tk ≤ len_t_
-#         t,_,_ = v
-#         v, dv = RK4(sys, v, dt)
+    t, tk = .0, 0
+    v = ic; DIM = length(v)
+    traj = zeros(len_t_+2, 2DIM)
+    while tk ≤ len_t_
+        t,_,_ = v
+        v, dv = RK4(sys, v, dt)
 
-#         if t ≥ first(t_)
-#             tk += 1
-#             traj[tk+1,         1:DIM ] =  v
-#             traj[tk  , DIM .+ (1:DIM)] = dv
-#         end
-#     end
-#     return traj[2:(end-2), :]
-# end
-# factory_lorenz96(T::Type, args...; kargs...) =
-# DataFrame(factory_lorenz96(args...; kargs...), ["t", "x1", "x2", "x3", "x4", "x5", "x6", "dt", "dx1", "dx2", "dx3", "dx4", "dx5", "dx6"])
+        if t ≥ first(t_)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  v
+            traj[tk  , DIM .+ (1:DIM)] = dv
+        end
+    end
+    return traj[2:(end-2), :]
+end
+factory_lorenz96(T::Type, args...; kargs...) =
+DataFrame(factory_lorenz96(args...; kargs...), ["t", "x1", "x2", "x3", "x4", "x5", "x6", "dt", "dx1", "dx2", "dx3", "dx4", "dx5", "dx6"])
 
-# A_ = 1:0.01:4
-# @showprogress @threads for k in eachindex(A_)
-#     A = A_[k]
-#     traj = factory_lorenz96(DataFrame, A, tspan = [0., 2500], dt = 1e-3)
-#     _traj = traj[150001:end, :]
-#     CSV.write("G:/lorenz96/lorenz96_$(lpad(k, 4, '0')).csv", _traj)
-# end
+A_ = 1:0.01:4
+@showprogress @threads for k in eachindex(A_)
+    A = A_[k]
+    traj = factory_lorenz96(DataFrame, A, tspan = [0., 2500], dt = 1e-3)
+    _traj = traj[150001:end, :]
+    CSV.write("G:/lorenz96/lorenz96_$(lpad(k, 4, '0')).csv", _traj)
+end
 
-# function arglmax(x)
-#     bits = circshift(x, 1) .< x .> circshift(x, -1)
-#     bits[1] = false
-#     bits[end] = false
-#     return findall(bits)
-# end
-# scatter(repeat([3.2], length(_traj.x1[almx1])), _traj.x1[almx1])
+function arglmax(x)
+    bits = circshift(x, 1) .< x .> circshift(x, -1)
+    bits[1] = false
+    bits[end] = false
+    return findall(bits)
+end
+scatter(repeat([3.2], length(_traj.x1[almx1])), _traj.x1[almx1])
 
 plt_bfcn = plot(legend = :none)
 @showprogress for k in eachindex(A_)

@@ -1,9 +1,9 @@
-include("DDM.jl")
+# include("DDM.jl")
 
-const _k = 1e+3
-const _m = 1e-3
-const _μ = 1e-6
-const _n = 1e-9
+# const _k = 1e+3
+# const _m = 1e-3
+# const _μ = 1e-6
+# const _n = 1e-9
 
 function euler(f::Function, v::AbstractVector, h=1e-2)
     V1 = f(v)
@@ -16,13 +16,13 @@ function RK4(J::AbstractMatrix, U::AbstractMatrix, h=1e-2)
     V4 = J*(U + h*V3)
     return U + (h/6)*(V1 + 2V2 + 2V3 + V4)
 end
-# function RK4(f::Function, v::AbstractVector, h=1e-2)
-#     V1 = f(v)
-#     V2 = f(v + (h/2)*V1)
-#     V3 = f(v + (h/2)*V2)
-#     V4 = f(v + h*V3)
-#     return v + (h/6)*(V1 + 2V2 + 2V3 + V4)
-# end
+function RK4(f::Function, v::AbstractVector, h=1e-2)
+    V1 = f(v)
+    V2 = f(v + (h/2)*V1)
+    V3 = f(v + (h/2)*V2)
+    V4 = f(v + h*V3)
+    return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
+end
 function RK4(f::Union{Function, STLSQresult}, v::AbstractVector, h=1e-2, nonsmooth=nothing)
     if nonsmooth |> isnothing
         V1 = f(v)
@@ -390,23 +390,81 @@ end
 factory_buck(T::Type, args...; kargs...) = 
 DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI", "t", "Vr"])
 
-# function factory_(sysname::AbstractString)
-#     if sysname == "lorenz"
-#         return factory_lorenz
-#     elseif sysname == "soft"
-#         return factory_soft
-#     elseif sysname == "hrnm"
-#         return factory_hrnm
-#     elseif sysname == "gear"
-#         return factory_gear
-#     else
-#         error("The system name is not defined.")
-#     end
-# end
+
+frac(x, y) = x ./ y
+function factory_hastingpowell(a0::Number; ic = [0., 1, 1, 1], tspan = 0:1e-2:10)
+      b0, w0, d0, w1, d1,  w2, d2, a1, w3, d3,  c3 = (
+    0.05,  1, 10,  2, 10, 1.5, 10,  1,  2, 20, 0.7 )
+    function sys(v::AbstractVector)
+        _,v1,v2,v3 = v
+
+        dt = 1
+        dv1 = a0*v1 - b0*v1^2 - w0*frac(v1*v2, d0 + v1)
+        dv2 = w1*frac(v1*v2, d1 + v1) - w2*frac(v2*v3, d2 + v2) - a1*v2
+        dv3 = w3*frac(v2*v3, d3 + v2) - c3*v3
+        return [dt, dv1, dv2, dv3]
+    end
+        
+    len_t_ = length(tspan); h = tspan.step.hi
+    v = ic; DIM = length(v)
+    traj = zeros(2+len_t_, 2DIM); traj[1, 1:DIM] = v
+
+    tk = 0
+    while tk ≤ len_t_
+        t,_,_,_ = v
+        v, dv = RK4(sys, v, h)
+
+        if t ≥ first(tspan)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  v
+            traj[tk  , DIM .+ (1:DIM)] = dv
+        end
+    end
+    return traj[1:(end-2), :]
+end
+factory_hastingpowell(T::Type, args...; kargs...) =
+DataFrame(factory_hastingpowell(args...; kargs...), ["t", "v1", "v2", "v3", "dt", "dv1", "dv2", "dv3"])[:, Not(:dt)]
+
+
+function factory_foodchain(K::Number; ic = [0., 0.4rand() + 0.6, 0.4rand() + 0.15, 0.5rand() + 0.3], tspan = 0:1e-2:10)
+    xc,    yc,   xp,    yp,      R0,  C0 = (
+    0.4, 2.009, 0.08, 2.876, 0.16129, 0.5)
+    function sys(v::AbstractVector)
+        _,R,C,P = v
+
+        dt = 1
+        dR = R*(1 - frac(R,K)) - xc*yc*frac(C*R, R + R0)
+        dC = xc*C*(frac(yc*R, R + R0) - 1) - xp*yp*frac(P*C, C + C0)
+        dP = xp*P*(frac(yp*C, C + C0) - 1)
+        return [dt, dR, dC, dP]
+    end
+
+    len_t_ = length(tspan); h = tspan.step.hi
+    v = ic; DIM = length(v)
+    traj = zeros(2+len_t_, 2DIM); traj[1, 1:DIM] = v
+
+    tk = 0
+    while tk ≤ len_t_
+        t,_,_,_ = v
+        v, dv = RK4(sys, v, h)
+
+        if t ≥ first(tspan)
+            tk += 1
+            traj[tk+1,         1:DIM ] =  v
+            traj[tk  , DIM .+ (1:DIM)] = dv
+        end
+    end
+    return traj[1:(end-2), :]
+end
+factory_foodchain(T::Type, args...; kargs...) =
+DataFrame(factory_foodchain(args...; kargs...), ["t", "R", "C", "P", "dt", "dR", "dC", "dP"])[:, Not(:dt)]
+
 factory_ = Dict(
     "lorenz" => factory_lorenz,
     "soft" => factory_soft,
     "hrnm" => factory_hrnm,
     "gear" => factory_gear,
     "buck" => factory_buck,
+    "hastingpowell" => factory_hastingpowell,
+    "foodchain" => factory_foodchain,
 )

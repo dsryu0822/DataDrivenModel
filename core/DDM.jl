@@ -29,7 +29,8 @@ end
 
 
 function STLSQ(ΘX, Ẋ; λ = 0, verbose = false,
-    mask = zeros(Bool, size(ΘX, 2), size(Ẋ, 2)))
+    # mask = zeros(Bool, size(ΘX, 2), size(Ẋ, 2)))
+    mask = true)
     L₂ = norm.(eachcol(ΘX))
     ΘX = ΘX ./ L₂'
     # L₂ is for column-wise normalization to ensure restricted isometry property
@@ -40,6 +41,7 @@ function STLSQ(ΘX, Ẋ; λ = 0, verbose = false,
     while true
         verbose && print(".")
         🚫 = (abs.(Ξ) .< (λ * L₂)) .|| mask
+        # 🚫 = (abs.(Ξ) .< (λ * L₂))
         Ξ[🚫] .= 0
         for j in 1:dim
             i_ = .!🚫[:, j]
@@ -51,7 +53,7 @@ function STLSQ(ΘX, Ẋ; λ = 0, verbose = false,
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     return Ξ
 end
-function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; λ = 0, mask = zeros(Bool, length(first(sysms)), nrow(recipe)), method = "SINDy")
+function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; λ = 0, mask = zeros(Bool, nrow(recipe), length(first(sysms))), method = "SINDy")
     Ysyms, Xsyms = sysms
     X = Θ(df[:, Xsyms], recipe)
     Y = Matrix(df[:, Ysyms])
@@ -62,7 +64,7 @@ function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; �
     _Ξ = Ξ[.!bit_sparse, :]
     mse = sum(abs2, Y - X * Ξ) / length(Y) # compare to original data
     aic = length(Y) * log(mse) + 2nrow(recipe)
-    r2 = Rsq(vec(X * Ξ), vec(Y))
+    r2 = rsq(vec(X * Ξ), vec(Y))
     return STLSQresult(method, recipe, recipeF, Ξ, _Ξ, mse, aic, r2, Ysyms, Xsyms)
 end
 function SINDy()
@@ -120,23 +122,23 @@ Generate a recipe for SINDy based on the specified polynomial and trigonometric 
 """
 function cook(xnames; poly = 0:1, trig = 0:0, f_ = [], format = sinpi)
     xnames = string.(xnames)
-    recipe = DataFrame(deg = Int64[], term = String[], func = [], funh = [], vecv = [])
+    recipe = DataFrame(deg = Int64[], term = String[], func = [], funh = [], vecv = [], tex = [])
     for d = UnitRange(extrema(poly)...)
         if d == 1
             for i in eachindex(xnames)
-                push!(recipe, [1, xnames[i], identity, vec, [i]])
+                push!(recipe, [1, xnames[i], identity, vec, [i], xnames[i]])
             end
         else
             for i in eachindex(xnames)
                 rcp = recipe[recipe.deg .== (d-1), :]
                 for j in i:nrow(rcp)
-                    push!(recipe, [d, "$(xnames[i])⋅$(rcp.term[j])", prod, eachrow, sort([i; rcp.vecv[j]])])
+                    push!(recipe, [d, "$(xnames[i])⋅$(rcp.term[j])", prod, eachrow, sort([i; rcp.vecv[j]]), "$(xnames[i])*$(rcp.tex[j])"])
                 end
             end
         end
     end
     if 0 ∈ poly
-        pushfirst!(recipe, [0, "1", constant, vec, [1]])
+        pushfirst!(recipe, [0, "1", constant, vec, [1], ""])
     end
     recipe = recipe[recipe.deg .∈ Ref(poly), :]
 
@@ -144,20 +146,20 @@ function cook(xnames; poly = 0:1, trig = 0:0, f_ = [], format = sinpi)
     for m in trig
         iszero(m) && continue
         for i in eachindex(xnames)
-            push!(recipe, [m, string(fsin, m, xnames[i]), fsin, eval(Meta.parse("_$m")), [i]])
-            push!(recipe, [m, string(fcos, m, xnames[i]), fcos, eval(Meta.parse("_$m")), [i]])
+            push!(recipe, [m, string(fsin, m, xnames[i]), fsin, eval(Meta.parse("_$m")), [i], string(fsin, "(", m, xnames[i], ")")])
+            push!(recipe, [m, string(fcos, m, xnames[i]), fcos, eval(Meta.parse("_$m")), [i], string(fcos, "(", m, xnames[i], ")")])
         end
     end
     for f in f_
         for i in eachindex(xnames)
-            push!(recipe, [0, "$(string(f))($(xnames[i]))", f, vec, [i]])
+            push!(recipe, [0, "$(string(f))($(xnames[i]))", f, vec, [i], ""])
         end
     end
     recipe.term = pretty_term.(recipe.term)
     unique!(recipe, :term)
     insertcols!(recipe, 1, :index => 1:nrow(recipe))
 
-    return recipe[:, [:index, :term, :func, :funh, :vecv]]
+    return recipe[:, [:index, :term, :func, :funh, :vecv, :tex]]
 end
 
 Θ(X, recipe) = hcat([dr.func.(dr.funh(X[:, dr.vecv])) for dr in eachrow(recipe)]...)
@@ -382,48 +384,106 @@ function gram_schmidt(J)
     return U, V
 end
 
-
-
-function export_tex(s::STLSQresult; digits = 4)
-    coeflines = vec.(eachcol(s.matrixF))
-    bases = s.recipeF.term
-    texstring = ""
-    for (coefline, LHS) in zip(coeflines, s.lname)
-        texstring *= "$LHS =&"
-        for (coef, basis) in zip(coefline, bases)
-            if iszero(coef)
-                continue
-            else
-                texstring *= " + $(round(coef, digits=digits))\\,$basis"
+string2function(str) = eval(Meta.parse(str))
+function define(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 5)
+    header = join(setdiff(sindy.rname, sindy.lname), ", ") * " = u; " * join(sindy.lname, ", ") * " = du" 
+    du = ["[$j]" for j in eachindex(sindy.lname)] .* " = "
+    if sindy.method == "SINDy"
+        header = "function $(fname)(du, u, p, t)\n" * header
+        du = "du" .* du
+    elseif sindy.method == "SINDyPI"
+        header = "function $(fname)(out, du, u, p, t)\n" * header
+        du = "out" .* du
+    end
+    factors = sindy.recipe.term[sindy.recipe.func .== identity]
+    for j in eachindex(du)
+        for i in eachindex(sindy.recipe.tex)
+            if sindy.matrix[i, j] |> !iszero
+                du[j] *= " + "*string(round(sindy.matrix[i, j]; sigdigits))*sindy.recipe.tex[i]
             end
         end
-        texstring *= " \\\\\n"
-        texstring = replace(texstring, "& +" => "&")
-        texstring = replace(texstring, "+ -" => "- ")
     end
-    texstring = replace(texstring, Dict(["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"] .=> ["^{$k}" for k in 0:9])...)
-    return texstring
+    if sindy.method == "SINDyPI"
+        du = du .* " - " .* sindy.lname
+    end
+    body = replace(join(du, "\n"), "=  + " => "= ", "+ -" => "- ")
+    footer = "end"
+    function_string = join([header, body, footer], "\n")
+    if T == Function
+        return string2function(function_string)
+    else
+        if T != String
+            @warn "T should be either Function or String. Returning String by default."
+        end
+        return function_string
+    end
+end
+define(f) = define(String, f)
+
+"""
+    termprod(config::AbstractDataFrame, term::AbstractString, num::Integer)
+
+    - `config`: a configuration DataFrame.
+    - `term`: a string representing the new term to be added to the configuration.
+    - `num`: an integer representing the index of the new term in the configuration.
+"""
+function termprod(config::AbstractDataFrame, term::AbstractString, num::Integer)
+    _config = deepcopy(config)
+    _config.term  = replace.("$term⋅" .* _config.term, "⋅1" => "")
+    for i in eachindex(_config.func)
+        push!(_config.vecv[i], num)
+        if _config.func[i] == constant
+            _config.func[i] = identity
+            _config.vecv[i] = [num]
+        elseif _config.func[i] == identity
+            _config.func[i] = prod
+            _config.funh[i] = eachrow
+        end
+    end
+    return _config
+end
+"""
+    cookPI(variable; kargs...)
+
+    - `variable`: a tuple of two vectors of strings.
+    - `kargs`: see `cook`.
+
+"""
+function cookPI(variable; kargs...)
+    vnames = last(variable)
+    dvnames = first(variable)
+
+    config = cook(vnames; kargs...)
+    masking = [zeros(Bool, nrow(config), length(dvnames))]
+    config_ = [config]
+    for l in eachindex(dvnames)
+        newconfig = termprod(config, dvnames[l], l+length(vnames))
+        masking_tmp = ones(Bool, nrow(config), length(dvnames)); masking_tmp[2:end, l] .= false
+        push!(masking, masking_tmp)
+        push!(config_, newconfig)
+    end
+    _config = [config_...;]
+    _config.index = 1:nrow(_config)
+    return _config, [masking...;]
+end
+function SINDyPI(df, variable, config; kargs...)
+    _variable = (first(variable), [reverse(variable)...;])
+    _config, mask = config
+    # try
+    # catch e
+    #     @warn "You may tried ordinary cook configuration. Try use `cookPI` instead of `cook`."
+    #     throw(e)
+    # end
+    return SINDy(df, _variable, _config; mask = mask, method = "SINDyPI", kargs...)
 end
 
-function export_py(s::STLSQresult; digits = 99)
-    coeflines = vec.(eachcol(s.sparse_matrix))
-    bases = Θ(string.(s.rname), N = s.N, M = s.M, f_ = s.f_, C = s.C)
-    texstring = "def f($(join(string.(s.rname), ", "))):\n\t return ["
-    for (coefline, LHS) = zip(coeflines, s.lname)
-        texstring *= ""
-        for (coef, basis) = zip(coefline, bases)
-            if coef |> iszero
-                continue
-            else
-                texstring *= " + $(round.(coef; digits))*$(replace(basis, " " => "*"))"
-            end
-        end
-        texstring *= ", "
-        texstring = replace(texstring, "+ -" => "- ")
-    end
-    texstring = replace(texstring, "[ + " => "[")
-    texstring = replace(texstring, "[ - " => "[")
-    texstring = replace(texstring * "]", ", ]" => "]")
-    texstring = replace(texstring, Dict(["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"] .=> ["**$k" for k in 0:9])...)
-    return texstring
+function syntheticSINDy(Ξ, sysms::Tuple, recipe::AbstractDataFrame; method = "synthetic")
+    Ysyms, Xsyms = sysms
+    bit_sparse = all.(map(x -> iszero.(x), eachrow(Ξ)))
+    recipeF = recipe[.!bit_sparse, :]
+    _Ξ = Ξ[.!bit_sparse, :]
+    mse = 0
+    aic = -Inf
+    r2 = 1
+    return STLSQresult(method, recipe, recipeF, Ξ, _Ξ, mse, aic, r2, Ysyms, Xsyms)
 end
