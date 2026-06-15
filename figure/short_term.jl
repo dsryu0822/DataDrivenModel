@@ -11,13 +11,13 @@ cnfg = (; f_ = [cospi, sign], λ = 1e-1)
 dt = 1e-5; tspan = [0, 10]; θ = 1e-16;
 # dt = 1e-5 is good to bifurcation diagram but not for lyapunov spectrum, 1e-6 is needed
 # θ1 = 1e-8; θ2 = 1e-12; θ3 = 1e-5; min_rank = 21;
-@time trng = factory_soft(DataFrame, 0.1, ic = [0, .0446272, -0.119564]; tspan, dt)
+@time trng = factory_softimpact(DataFrame, 0.1, ic = [0, .0446272, -0.119564]; tspan, dt)
 add_subsystem!(trng, vrbl, cnfg; θ)
 f_ = [SINDy(df, vrbl...; cnfg...) for df in groupby(trng, :subsystem)] # print.(f_)
 Dtree = dryad(trng, last(vrbl)); # print_tree(Dtree)
 # prd1 = DataFrame(solve(f_, collect(trng[1, last(vrbl)]), dt, 0:dt:10, Dtree), last(vrbl))
 
-@time test = factory_soft(DataFrame, 0.1, ic = [0, .000129715, .301469]; tspan = 2tspan, dt)
+@time test = factory_softimpact(DataFrame, 0.1, ic = [0, .000129715, .301469]; tspan = 2tspan, dt)
 prd2 = DataFrame(solve(f_, collect(test[1, last(vrbl)]), dt, first(2tspan):dt:last(2tspan), Dtree), last(vrbl))[1:end-1, :]
 
 # q1 = plot(xticks = [0, 10], yticks = [.05, -.05], xlims = [0, 10], legend = :none)
@@ -38,7 +38,7 @@ prd2 = DataFrame(solve(f_, collect(test[1, last(vrbl)]), dt, first(2tspan):dt:la
 
 # plot(q1, q2, q3, q4, layout = (4, 1), size = (800, 800), right_margin = 3mm, dpi = 300)
 # png("q1234")
-@time temp1 = factory_soft(DataFrame, 0.1, ic = [0, .000129715, .301469]; tspan = 10tspan, dt)
+@time temp1 = factory_softimpact(DataFrame, 0.1, ic = [0, .000129715, .301469]; tspan = 10tspan, dt)
 temp2 = DataFrame(solve(f_, collect(temp1[1, last(vrbl)]), dt, first(10tspan):dt:last(10tspan), Dtree), last(vrbl))[1:end-1, :]
 
 uvargs = (; xlabel = L"u", ylabel = L"\dot{u}", legend = :none, lw = .1)

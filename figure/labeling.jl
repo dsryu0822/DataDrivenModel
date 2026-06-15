@@ -10,7 +10,7 @@ vrbl = [:dt, :du, :dv], [:t, :u, :v]
 cnfg = (; f_ = [cospi], λ = 1e-1)
 dt = 1e-5;
 
-@time _trng = factory_soft(DataFrame, 0.1, tspan = [0, 10], ic = [0, .0446272, -0.119564]; dt)
+@time _trng = factory_softimpact(DataFrame, 0.1, tspan = [0, 10], ic = [0, .0446272, -0.119564]; dt)
 # _trng.gt = 3 .- 2(_trng.u .> 0.05) .- (_trng.u .< -0.05)
 _trng.gt = 1 .+ (abs.(_trng.u) .> 0.05)
 θ_ = logrange(1e-20, 1e+2, 11)

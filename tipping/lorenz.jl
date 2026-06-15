@@ -2,7 +2,7 @@ include("../core/DDM.jl")
 include("../core/header.jl")
 include("tippingutils.jl")
 
-import DifferentialEquations as DE
+using DifferentialEquations
 import Sundials
 import DiffEqBase
 
@@ -14,8 +14,8 @@ function lorenz!(du, u, p, t)
     du[3] = x*y - β*z
     du[4] = -1e-2
 end
-prob = DE.ODEProblem(lorenz!, [1, 1, 1, 230], (0, 3000), [10, 8/3])
-sol = DE.solve(prob, DE.RK4(), saveat = 0:1e-3:3000)
+prob = ODEProblem(lorenz!, [1, 1, 1, 230], (0, 3000), [10, 8/3])
+sol = solve(prob, RK4(), saveat = 0:1e-3:3000)
 
 bit_xm = arglmax(sol[3, :])
 scatter(sol.t[bit_xm], sol[3, :][bit_xm], msw = 0, ylims = [220, 320], ms = 1, color = :black, legend = :none, alpha = 0.5, xformatter = t -> 230 - t/100, xlims = [0, 3000])
@@ -48,13 +48,13 @@ plot(
 
     tspan = (0, 50)
     sargs = (; reltol = 1e-6, initializealg = DiffEqBase.BrownFullBasicInit(), saveat = 0:1e-3:100)
-    prob0 = DE.DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
-    sol0 = DE.solve(prob0, Sundials.IDA(); sargs...)
+    prob0 = DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
+    sol0 = solve(prob0, Sundials.IDA(); sargs...)
 
     define(f1) |> print
 
-    prob1 = DE.DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
-    sol1 = DE.solve(prob1, Sundials.IDA(); sargs...)
+    prob1 = DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
+    sol1 = solve(prob1, Sundials.IDA(); sargs...)
 
     plot(
         plot(eachrow(stack(sol0.u))..., ticks = [], color = :blue),
@@ -68,8 +68,8 @@ vrtl = []
 @showprogress for k in eachindex(α_)
     α = α_[k]
     g = syntheticSINDy((1-α)*f0.matrix + α*f1.matrix, vrbl, cnfg[1])
-    probg = DE.DAEProblem(define(Function, g), collect(traj0[1, vrbl[2]]), collect(traj0[1, vrbl[1]]), (0, 100), differential_vars = ones(Bool, length(vrbl[1])))
-    solg = DE.solve(probg, Sundials.IDA(); sargs...)
+    probg = DAEProblem(define(Function, g), collect(traj0[1, vrbl[2]]), collect(traj0[1, vrbl[1]]), (0, 100), differential_vars = ones(Bool, length(vrbl[1])))
+    solg = solve(probg, Sundials.IDA(); sargs...)
     traj = solg[3, :][solg.t .> 90]
     points = arglmax(traj[:, 1])
     push!(vrtl, traj[points, 1])
@@ -101,8 +101,8 @@ end
 t_ = []
 sol_ = [collect(traj0[1, vrbl[2]])[:, :]']
 @showprogress for t0 in 0:100:5900
-    prob = DE.DAEProblem(affined, collect(traj0[1, vrbl[1]]), last(eachrow(last(sol_)))[:], (t0, t0+100), differential_vars = ones(Bool, length(vrbl[1])))
-    sol = DE.solve(prob, Sundials.IDA(); initializealg = DiffEqBase.BrownFullBasicInit(), reltol = 1e-6)
+    prob = DAEProblem(affined, collect(traj0[1, vrbl[1]]), last(eachrow(last(sol_)))[:], (t0, t0+100), differential_vars = ones(Bool, length(vrbl[1])))
+    sol = solve(prob, Sundials.IDA(); initializealg = DiffEqBase.BrownFullBasicInit(), reltol = 1e-6)
     push!(t_, sol.t)
     push!(sol_, sol[1:3, :]')
 end

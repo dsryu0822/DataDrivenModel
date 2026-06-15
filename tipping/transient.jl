@@ -1,8 +1,6 @@
 include("../core/header.jl")
 include("tippingutils.jl")
 
-default(framestyle = :box, dpi = 180)
-
 """''''''''''''''''''''''''''''''''''''''''''''''''''''
 
                     bifurcation diagram
@@ -85,10 +83,10 @@ cnfg = cook(last(vrbl); poly = 0:4)
 @time f1 = SINDy(traj1, vrbl, cnfg, λ = 1e-8); f1 |> print
 
 tspan = (0, 5000)
-prob0 = DE.ODEProblem(define(Function, f0), collect(traj0[1, vrbl[2]]), tspan)
-sol0 = DE.solve(prob0);
-prob1 = DE.ODEProblem(define(Function, f1), collect(traj1[1, vrbl[2]]), tspan)
-sol1 = DE.solve(prob1);
+prob0 = ODEProblem(define(Function, f0), collect(traj0[1, vrbl[2]]), tspan)
+sol0 = solve(prob0);
+prob1 = ODEProblem(define(Function, f1), collect(traj1[1, vrbl[2]]), tspan)
+sol1 = solve(prob1);
 plt_pp_3 = plot(eachrow(stack(sol0.u[1:20]))...; ticks = true, largs..., color = :red)
 plt_pp_4 = plot(eachrow(stack(sol1.u[1:20]))...; ticks = true, largs..., color = :red)
 # plot(
@@ -115,10 +113,10 @@ define(f1) |> print
 
 ftspan = (0, 5000)
 sargs = (; reltol = 1e-6, initializealg = DiffEqBase.BrownFullBasicInit(), saveat = 4000:1:5000)
-prob0 = DE.DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
-sol0 = DE.solve(prob0, Sundials.IDA(); sargs...);
-prob1 = DE.DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
-sol1 = DE.solve(prob1, Sundials.IDA(); sargs...);
+prob0 = DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
+sol0 = solve(prob0, Sundials.IDA(); sargs...);
+prob1 = DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
+sol1 = solve(prob1, Sundials.IDA(); sargs...);
 plt_pp_5 = plot(eachrow(stack(sol0.u))...; largs..., color = :blue)
 plt_pp_6 = plot(eachrow(stack(sol1.u))...; largs..., color = :blue)
 # plot(
@@ -149,8 +147,8 @@ for k in eachindex(α_)
 end
 @showprogress @threads for k in eachindex(α_)
     for l in 1:1000
-        probg = DE.DAEProblem(f_[k], rand(3), rand(3), (0, 5000), differential_vars = ones(Bool, length(vrbl[1])))
-        solg = DE.solve(probg, Sundials.IDA(); sargs...)
+        probg = DAEProblem(f_[k], rand(3), rand(3), (0, 5000), differential_vars = ones(Bool, length(vrbl[1])))
+        solg = solve(probg, Sundials.IDA(); sargs...)
         trajg = DataFrame(stack(solg.u)', [:R, :C, :P])
 
         bits = arglmin(trajg.P)
@@ -183,8 +181,8 @@ png("bifurcation.png")
 ) / 2
 begin
 α = 4.7778656471520655
-probg = DE.DAEProblem(define(Function, syntheticSINDy((1-α)*f0.matrix + α*f1.matrix, vrbl, cnfg[1], method = "SINDyPI"), sigdigits = 12), ones(3), [.85, .22, .8], (0, 10000), differential_vars = ones(Bool, length(vrbl[1])))
-solg = DE.solve(probg, Sundials.IDA(); sargs...)
+probg = DAEProblem(define(Function, syntheticSINDy((1-α)*f0.matrix + α*f1.matrix, vrbl, cnfg[1], method = "SINDyPI"), sigdigits = 12), ones(3), [.85, .22, .8], (0, 10000), differential_vars = ones(Bool, length(vrbl[1])))
+solg = solve(probg, Sundials.IDA(); sargs...)
 trajg = DataFrame(stack(solg.u)', [:R, :C, :P])
 plot(trajg.P, label = :none, color = :black, ylims = [0, 1.1], xlims = [0, 10000], xlabel = L"t", ylabel = L"P", title = L"α = %$α", margin = 5mm)
 png("G:/temp.png")
@@ -211,8 +209,8 @@ icc = shuffle([[r...] for r in eachrow(traj[:, [:R, :C, :P]])])
 tau2__ = [zeros(1000) for k in eachindex(ε_)]
 for k in eachindex(ε_)
     @showprogress @threads for l in eachindex(tau2__[k])
-        prob = DE.ODEProblem(food_chain, icc[l], (0, 100000), [0.99976+ε_[k]])
-        sol = DE.solve(prob; sargs...)
+        prob = ODEProblem(food_chain, icc[l], (0, 100000), [0.99976+ε_[k]])
+        sol = solve(prob; sargs...)
         tau = findfirst(sol[3, :] .< 0.55)
         tau2__[k][l] = !isnothing(tau) ? sol.t[tau] : last(sol.t)
     end
@@ -227,9 +225,9 @@ plt_scl2 = scatter(ε_, mean.(tau2__), scale = :log10, size = [400, 400], color 
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''"""
 α_c = 4.777865647
-# probg = DE.DAEProblem(define(Function, syntheticSINDy((1-α_c)*f0.matrix + α_c*f1.matrix, vrbl, cnfg[1], method = "SINDyPI"), sigdigits = 12),
+# probg = DAEProblem(define(Function, syntheticSINDy((1-α_c)*f0.matrix + α_c*f1.matrix, vrbl, cnfg[1], method = "SINDyPI"), sigdigits = 12),
 #                       ones(3), [.85, .21, .8], (0, 10000), differential_vars = ones(Bool, length(vrbl[1])))
-# solg = DE.solve(probg, Sundials.IDA(); sargs...)
+# solg = solve(probg, Sundials.IDA(); sargs...)
 # trajg = DataFrame(stack(solg.u)', [:R, :C, :P])
 # icc = shuffle([[r...] for r in eachrow(trajg)])
 # define(String, syntheticSINDy((1-α_c)*f0.matrix + α_c*f1.matrix, vrbl, cnfg[1], method = "SINDyPI"), sigdigits = 12)
@@ -245,14 +243,14 @@ end
 tau1__ = [zeros(10) for k in eachindex(α_)]
 for k in eachindex(α_)
     @showprogress @threads for l in eachindex(tau1__[k])
-        probg = DE.DAEProblem(f_[k], ones(3), icc[l], (0, 1e+7), differential_vars = ones(Bool, length(vrbl[1])))
-        solg = DE.solve(probg, Sundials.IDA(); sargs...)
+        probg = DAEProblem(f_[k], ones(3), icc[l], (0, 1e+7), differential_vars = ones(Bool, length(vrbl[1])))
+        solg = solve(probg, Sundials.IDA(); sargs...)
         t_ = solg.t
         u_ = solg.u
         for _ in 1:100
             if last(u_)[3] > .55
-                probg = DE.DAEProblem(f_[k], ones(3), icc[l], (last(t_), 1e+7), differential_vars = ones(Bool, length(vrbl[1])))
-                solg = DE.solve(probg, Sundials.IDA(); sargs...)
+                probg = DAEProblem(f_[k], ones(3), icc[l], (last(t_), 1e+7), differential_vars = ones(Bool, length(vrbl[1])))
+                solg = solve(probg, Sundials.IDA(); sargs...)
                 t_ = solg.t
                 u_ = solg.u
             end
@@ -276,11 +274,9 @@ tau2__[1] |> histogram
 begin
     include("../core/header.jl")
     # include("tippingutils.jl")
-    import DifferentialEquations as DE
+    using DifferentialEquations
     import Sundials
     import DiffEqBase
-    
-    default(framestyle = :box, dpi = 180)
 
     traj0 = factory_foodchain(DataFrame, 0.95, ic = [0, 0.820915, 0.158239, 0.953786], tspan = 0:1e-1:5000)
     traj1 = factory_foodchain(DataFrame, 0.96, ic = [0, 0.820915, 0.158239, 0.953786], tspan = 0:1e-1:5000)
@@ -292,7 +288,7 @@ begin
     @time f1 = SINDyPI(traj1, vrbl, cnfg, λ = 1e-8); f1 |> print
 
     condition(u,t,integrator) = 0.1 - u[3]
-    affect!(integrator) = DE.terminate!(integrator)
-    cb = DE.ContinuousCallback(condition,affect!)
+    affect!(integrator) = terminate!(integrator)
+    cb = ContinuousCallback(condition,affect!)
     sargs = (; reltol = 1e-24, initializealg = DiffEqBase.BrownFullBasicInit(), callback = cb)
 end

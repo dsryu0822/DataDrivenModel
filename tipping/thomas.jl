@@ -1,5 +1,5 @@
 include("../core/header.jl")
-import DifferentialEquations as DE
+using DifferentialEquations
 
 function thomas(du, u, p, t)
     x, y, z = u
@@ -13,7 +13,7 @@ end
 
 bfcn = Dict()
 @showprogress @threads for b in .10:1e-4:.24
-    sol = DE.solve(DE.ODEProblem(thomas, rand(3), (0, 2000), [b]), DE.RK4(), dt = 1e-2, adaptive=false)
+    sol = solve(ODEProblem(thomas, rand(3), (0, 2000), [b]), RK4(), dt = 1e-2, adaptive=false)
     x_ = sol[1, sol.t .> 1000]
     bfcn[b] = x_[arglmax(x_)]
 end
@@ -31,10 +31,9 @@ function factory_thomas(b::Number; ic = rand(3), tspan = 0:1e-2:2000)
         du[3] = sin(x) - b*z
         return du
     end
-    t0 = first(tspan)
-    sol = DE.solve(DE.ODEProblem(thomas, ic, (0, last(tspan)), [b]), DE.RK4(), dt = tspan.step.hi, adaptive=false)
+    sol = solve(ODEProblem(thomas, ic, (0, last(tspan)), [b]), RK4(), dt = tspan.step.hi, adaptive=false)
     matrix = Matrix([sol.t'; sol[:, :]; stack([thomas(zeros(3), u, [b], 0) for u in sol.u])]')
-    return matrix[sol.t .≥ t0, :][1:end-1, :]
+    return matrix[sol.t .≥ first(tspan), :][1:end-1, :]
 end
 factory_thomas(T::Type, args...; kargs...) =
 DataFrame(factory_thomas(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
@@ -51,11 +50,11 @@ cnfg = cook(last(vrbl); poly = 0:1, trig = [1], format = sin)
 @time f0 = SINDy(traj0, vrbl, cnfg; λ = 1e-3); f0 |> print
 @time f1 = SINDy(traj1, vrbl, cnfg; λ = 1e-3); f1 |> print
 
-prob0 = DE.ODEProblem(define(Function, f0), collect(traj0[1, vrbl[2]]), (0, 2000))
-sol0 = DE.solve(prob0, DE.RK4(), dt = 1e-2, adaptive=false);
+prob0 = ODEProblem(define(Function, f0), collect(traj0[1, vrbl[2]]), (0, 2000))
+sol0 = solve(prob0, RK4(), dt = 1e-2, adaptive=false);
 plt_pp_3 = plot(eachrow(stack(sol0.u))...; color = :blue)
-prob1 = DE.ODEProblem(define(Function, f1), collect(traj1[1, vrbl[2]]), (0, 2000))
-sol1 = DE.solve(prob1, DE.RK4(), dt = 1e-2, adaptive=false);
+prob1 = ODEProblem(define(Function, f1), collect(traj1[1, vrbl[2]]), (0, 2000))
+sol1 = solve(prob1, RK4(), dt = 1e-2, adaptive=false);
 plt_pp_4 = plot(eachrow(stack(sol1.u))...; color = :blue)
 plot(plt_pp_1, plt_pp_2, plt_pp_3, plt_pp_4, legend = :none, size = [600, 600])
 
@@ -72,7 +71,7 @@ define(f_[1]) |> println
 bfcn = Dict()
 @showprogress for k in eachindex(α_)
     try
-        sol = DE.solve(DE.ODEProblem(f_[k], rand(3), (0, 2000), []), DE.RK4(), dt = 1e-2, adaptive=false)
+        sol = solve(ODEProblem(f_[k], rand(3), (0, 2000), []), RK4(), dt = 1e-2, adaptive=false)
         x_ = sol[1, sol.t .> 1000]
         bfcn[α_[k]] = x_[arglmax(x_)]
     catch e

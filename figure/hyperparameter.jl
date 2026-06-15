@@ -14,7 +14,7 @@ dt = 1e-5; tspan = [0, 10]; θ = 1e-16;
 if isfile("hyperparameter/0 data.csv")
     data = CSV.read("hyperparameter/0 data.csv", DataFrame)
 else
-    @time data = factory_soft(DataFrame, 0.1, ic = [0, .0446272, -0.119564]; tspan, dt)
+    @time data = factory_softimpact(DataFrame, 0.1, ic = [0, .0446272, -0.119564]; tspan, dt)
     CSV.write("hyperparameter/0 data.csv", data, bom = true)
 end
 # add_subsystem!(data, vrbl, cnfg; θ)

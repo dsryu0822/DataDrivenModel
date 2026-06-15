@@ -120,3 +120,10 @@ function arglmin(x)
     bits[end] = false
     return findall(bits)
 end
+
+"""
+    dict2bifurcation(bfcn)
+
+    Converts a dictionary of bifurcation data into two vectors: one for the keys (parameters) and one for the values (bifurcation points). The keys are repeated according to the length of their corresponding values.
+"""
+dict2bifurcation(bfcn) = [[fill(k, length(v)) for (k,v) in bfcn]...;], [values(bfcn)...;]

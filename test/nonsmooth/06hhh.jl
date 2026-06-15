@@ -1,7 +1,7 @@
 solve(_f_)
 
 
-hhh_ = factory_soft(DataFrame, 0.1, ic = [0, .000129715, .301469]; tspan = [0, 12], dt)
+hhh_ = factory_softimpact(DataFrame, 0.1, ic = [0, .000129715, .301469]; tspan = [0, 12], dt)
 @time hhh4 = DataFrame(solve(_f_, collect(hhh_[1, 1:3]), (10dt), 0:(10dt):12, _Dtree), last(vrbl));
 @time hhh5 = DataFrame(solve(_f_, collect(hhh_[1, 1:3]), (dt), 0:(dt):12, _Dtree), last(vrbl));
 @time hhh6 = DataFrame(solve(_f_, collect(hhh_[1, 1:3]), (dt/10), 0:(dt/10):12, _Dtree), last(vrbl));

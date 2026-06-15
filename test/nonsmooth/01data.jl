@@ -18,7 +18,7 @@ dt = 1e-5; tspan = [30, 50]; θ = 1e-6;
     try
         filename1 = "data/soft/$(lpad(dr.idx, 5, '0')).csv"
         if !isfile(filename1)
-            state = factory_soft(DataFrame, dr.bp; tspan, dt)[:, last(vrbl)]
+            state = factory_softimpact(DataFrame, dr.bp; tspan, dt)[:, last(vrbl)]
             M_state = Matrix(state)
             derivative = (M_state[2:(end-0),:] - M_state[1:(end-1),:]) ./ dt
             data = [state[1:(end-1), :] DataFrame(derivative, first(vrbl))]

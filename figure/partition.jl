@@ -8,7 +8,7 @@ include("../core/header.jl")
 vrbl = [:dt, :du, :dv], [:t, :u, :v]
 dt = 1e-5 / 10; tspan = [30, 50];
 
-@time trng = factory_soft(DataFrame, 0.1; tspan, dt)
+@time trng = factory_softimpact(DataFrame, 0.1; tspan, dt)
 trng.ss = Int64.(abs.(trng.u) .> 0.05)
 
 ##########################################################################

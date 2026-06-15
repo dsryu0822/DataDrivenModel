@@ -1,7 +1,7 @@
 include("../core/header.jl")
 include("tippingutils.jl")
 
-import DifferentialEquations as DE
+using DifferentialEquations
 import Sundials
 import DiffEqBase
 
@@ -58,14 +58,14 @@ define(f2) |> print
 
 tspan = (0, 100)
 sargs = (; reltol = 1e-6, initializealg = DiffEqBase.BrownFullBasicInit())
-prob0 = DE.DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
-sol0 = DE.solve(prob0, Sundials.IDA(); sargs...)
+prob0 = DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
+sol0 = solve(prob0, Sundials.IDA(); sargs...)
 
-prob1 = DE.DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
-sol1 = DE.solve(prob1, Sundials.IDA(); sargs...)
+prob1 = DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
+sol1 = solve(prob1, Sundials.IDA(); sargs...)
 
-prob2 = DE.DAEProblem(define(Function, f2), collect(traj2[1, vrbl[1]]), collect(traj2[1, vrbl[2]]), tspan , differential_vars = ones(Bool, length(vrbl[1])))
-sol2 = DE.solve(prob2, Sundials.IDA(); sargs...)
+prob2 = DAEProblem(define(Function, f2), collect(traj2[1, vrbl[1]]), collect(traj2[1, vrbl[2]]), tspan , differential_vars = ones(Bool, length(vrbl[1])))
+sol2 = solve(prob2, Sundials.IDA(); sargs...)
 
 plot(
     plot(eachrow(stack(sol0.u))..., color = :blue),
@@ -80,8 +80,8 @@ vrtl2 = []
 @showprogress for k in eachindex(α_)
     α = α_[k]
     g = syntheticSINDy((1-α)*f0.matrix + α*f1.matrix, vrbl, cnfg[1])
-    probg = DE.DAEProblem(define(Function, g), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), (0, 1000), differential_vars = ones(Bool, length(vrbl[1])))
-    solg = DE.solve(probg, Sundials.IDA(); sargs...)
+    probg = DAEProblem(define(Function, g), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), (0, 1000), differential_vars = ones(Bool, length(vrbl[1])))
+    solg = solve(probg, Sundials.IDA(); sargs...)
     traj = stack(solg.u)'[end, :]
     push!(vrtl1, traj[1])
     push!(vrtl2, traj[2])

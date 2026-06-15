@@ -26,6 +26,11 @@ function (s::STLSQresult)(data::AbstractDataFrame)
     end
     return DataFrame(reshape(fitted, :, length(s.lname)), s.lname)
 end
+function ssolve(sindy::STLSQresult, ic, tspan)
+    sol = solve(ODEProblem(define(Function, sindy), ic, (0, last(tspan))), saveat = tspan)
+    matrix = Matrix([sol.t sol[:, :]'])
+    return matrix
+end
 
 
 function STLSQ(ΘX, Ẋ; λ = 0, verbose = false,

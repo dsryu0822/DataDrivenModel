@@ -69,67 +69,45 @@ end
         next generation reservoir computing
 
 '''''''''''''''''''''''''''''''''''''''''''''"""
-
 struct NGRC
     Wout::Matrix{Float64}
     λ::Float64
 end
-function selfprod(asdf)
-    asdf_ = []
-    for i in axes(asdf, 2)
-        for j in axes(asdf, 2)
+function Base.show(io::IO, s::NGRC)
+    Base.print(io, "f: R^$(size(s.Wout, 1)) → R^$(size(s.Wout, 2))")
+end
+function selfprod(M)
+    m = size(M, 2)
+    P = similar(M, eltype(M), size(M, 1), m * (m + 1) ÷ 2)
+    k = 1
+    @inbounds for i in 1:m
+        for j in 1:m
             if i < j continue end
-            push!(asdf_, asdf[:, i] .* asdf[:, j])
+            P[:, k] = M[:, i] .* M[:, j]
+            k += 1
         end
     end
-    return stack(asdf_)
+    return P
 end
-function ngrc(df, syms; λ = 0)
-    Ssyms, Rsyms = syms
-    S = dw(Matrix(df[:, Ssyms]))
-    _R = Matrix(df[:, Rsyms])
-    R = [ones(nrow(df)-1) [dw(_R) up(_R)] selfprod([dw(_R) up(_R)])]
-    Wout = (R'R + λ*I) \ R'S
-    return NGRC(Wout, λ)
+function tikhonov_λ(X, y)
+    U, s, V = svd(X)
+    return λ -> V * (Diagonal(s ./ (s.^2 .+ λ)) * U'y)
+end
+function ngrc_sweep(df, Sidcs, Uidcs)
+    X = Matrix(df)
+    S = dw(X[:, Sidcs]) # target
+    U = X[:, Uidcs]     # observer
+    R = selfprod([ones(size(U, 1)-1) dw(U) up(U)])
+    # Wout = (R'R + λ*I) \ R'S
+    # return NGRC(Wout, λ)
+    return tikhonov_λ(R, S)
+end
+function ngrc(df, Sindcs, Uincs; λ = 0)
+    Wout = ngrc_sweep(df, Sindcs, Uincs)
+    return NGRC(Wout(λ), λ)
 end
 function (s::NGRC)(X)
-    X = Matrix(X)
-    _X = [ones(size(X, 1)-1) [dw(X) up(X)] selfprod([dw(X) up(X)])]
-    return _X * s.Wout
+    U = Matrix(X)
+    R = selfprod([ones(size(U, 1)-1) dw(U) up(U)])
+    return R * s.Wout
 end
-
-
-# using DataFrames, CSV, Combinatorics, LinearAlgebra
-
-# # data = CSV.read("G:/seasurface/nino3.4/data_GLBv0.08.csv", DataFrame)
-
-# M = reshape('a':'y', 5, 5)
-# [up(M) dw(M)]
-
-
-# [[up(M) dw(M)] selfprod([up(M) dw(M)])]
-
-# M .* ('a':'e')
-# ('a':'e') .* M
-
-# vrbl = (["u", "v"], ["w", "x", "y", "z"])
-
-# syms = vrbl
-# Ssyms, Rsyms = syms
-# λ = 1
-# df = DataFrame([rand(100) for _ in 1:6], ["u", "v", "w", "x", "y", "z"])
-
-# S = dw(Matrix(df[:, Ssyms]))
-# _R = Matrix(df[:, Rsyms])
-# R = [ones(nrow(df)-1) [dw(_R) up(_R)] selfprod([dw(_R) up(_R)])]
-
-# Wout = (R'R + λ*I) \ R'S
-
-# f = ngrc(df, vrbl)
-# [Matrix(df[Not(1), Ssyms]) f(df[:, Rsyms])]
-
-# lstm = CSV.read("C:/Users/rmsms/OneDrive/바탕 화면/lstm_output1_30_2023.01.01.csv", DataFrame)
-# i_ = [1, 126, 251]
-# j_ = 1:125:626
-# j_ = [1, 126, 251, 376, 501, 626]
-
