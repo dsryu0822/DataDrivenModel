@@ -192,7 +192,7 @@ CSV.write("!$(device) $(sysname)_bfcn_rcvd.csv", bfcn, bom = true)
 #     data = DataFrame(solve(f_, [0.1, 0.1, 0.1, eps()], dt, 0:dt:last(1500), Dtree), last(vrbl))
 #     data = data[(nrow(data) ÷ 3):end, :]
 
-#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = last(tspan))
+#     λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = last(saveat))
 #     dr[names(schedules)[3:end]] .= λ
     
 #     vrtc[dr.idx] = bifurcation_(sysname, data, dr.bp)

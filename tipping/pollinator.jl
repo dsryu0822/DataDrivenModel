@@ -5,7 +5,7 @@ using DifferentialEquations
 import Sundials
 import DiffEqBase
 
-function factory_pollinator(κ::Number; ic = [0., 1, 1], tspan = 0:1e-2:10)
+function factory_pollinator(κ::Number; ic = [0., 1, 1], saveat = 0:1e-2:10)
       α, β,  _h,   γp,   γA = (
     0.3, 1, 0.4, 1.93, 1.77 )
     function sys(v::AbstractVector)
@@ -26,7 +26,7 @@ function factory_pollinator(κ::Number; ic = [0., 1, 1], tspan = 0:1e-2:10)
         t,_,_ = v
         v, dv = RK4(sys, v, h)
 
-        if t ≥ first(tspan)
+        if t ≥ first(saveat)
             tk += 1
             traj[tk+1,         1:DIM ] =  v
             traj[tk  , DIM .+ (1:DIM)] = dv
@@ -37,9 +37,9 @@ end
 factory_pollinator(T::Type, args...; kargs...) =
 DataFrame(factory_pollinator(args...; kargs...), ["t", "P", "A", "dt", "dP", "dA"])[:, Not(:dt)]
 
-traj0 = factory_pollinator(DataFrame, 0.74, ic = [0, .5, .5], tspan = 0:1e-2:100)
-traj1 = factory_pollinator(DataFrame, 0.75, ic = [0, .5, .5], tspan = 0:1e-2:100)
-traj2 = factory_pollinator(DataFrame, 0.90, ic = [0, .5, .5], tspan = 0:1e-2:100)
+traj0 = factory_pollinator(DataFrame, 0.74, ic = [0, .5, .5], saveat = 0:1e-2:100)
+traj1 = factory_pollinator(DataFrame, 0.75, ic = [0, .5, .5], saveat = 0:1e-2:100)
+traj2 = factory_pollinator(DataFrame, 0.90, ic = [0, .5, .5], saveat = 0:1e-2:100)
 plot(
     plot(traj0.P, traj0.A, color = :black),
     plot(traj1.P, traj1.A, color = :black),

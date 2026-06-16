@@ -3,7 +3,8 @@ import Pkg
 packages = [:Combinatorics, :LinearAlgebra, :SparseArrays, :DataFrames,
             :PrettyTables, :Symbolics, :CSV, :DecisionTree, :Random,
             :StatsBase, :Dates, :ProgressMeter, :Plots, :LaTeXStrings,
-            :Colors, :ColorSchemes, :JLD2, :Graphs, :DifferentialEquations
+            :Colors, :ColorSchemes, :JLD2, :Graphs,
+            :DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :Sundials, :DiffEqBase
             ] .|> string
 try
     @time "All packages load" eval(Meta.parse("using $(join(packages, ", "))"))

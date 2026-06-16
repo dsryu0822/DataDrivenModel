@@ -26,8 +26,9 @@ function (s::STLSQresult)(data::AbstractDataFrame)
     end
     return DataFrame(reshape(fitted, :, length(s.lname)), s.lname)
 end
-function ssolve(sindy::STLSQresult, ic, tspan)
-    sol = solve(ODEProblem(define(Function, sindy), ic, (0, last(tspan))), saveat = tspan)
+function ssolve(sindy::STLSQresult, ic, saveat)
+    sol = solve(ODEProblem(define(Function, sindy), ic, (0, last(saveat))),
+          RK4(), maxiters = 1e+7, dt = saveat.step.hi, adaptive=false; saveat)
     matrix = Matrix([sol.t sol[:, :]'])
     return matrix
 end
@@ -125,8 +126,8 @@ Generate a recipe for SINDy based on the specified polynomial and trigonometric 
 - `format`: Format for trigonometric functions (e.g., `sin`, `cos`, `sinpi`, `cospi`).
 
 """
-function cook(xnames; poly = 0:1, trig = 0:0, f_ = [], format = sinpi)
-    xnames = string.(xnames)
+function cook(names; poly = 0:1, trig = 0:0, f_ = [], format = sinpi)
+    xnames = string.(last(names))
     recipe = DataFrame(deg = Int64[], term = String[], func = [], funh = [], vecv = [], tex = [])
     for d = UnitRange(extrema(poly)...)
         if d == 1
@@ -390,7 +391,7 @@ function gram_schmidt(J)
 end
 
 string2function(str) = eval(Meta.parse(str))
-function define(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 5)
+function define(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
     header = join(setdiff(sindy.rname, sindy.lname), ", ") * " = u; " * join(sindy.lname, ", ") * " = du" 
     du = ["[$j]" for j in eachindex(sindy.lname)] .* " = "
     if sindy.method == "SINDy"
@@ -458,11 +459,12 @@ function cookPI(variable; kargs...)
     vnames = last(variable)
     dvnames = first(variable)
 
-    config = cook(vnames; kargs...)
+    config = cook(variable; kargs...)
     masking = [zeros(Bool, nrow(config), length(dvnames))]
     config_ = [config]
     for l in eachindex(dvnames)
         newconfig = termprod(config, dvnames[l], l+length(vnames))
+        newconfig.tex .*= "*$(dvnames[l])"; newconfig.tex[1] = dvnames[l]
         masking_tmp = ones(Bool, nrow(config), length(dvnames)); masking_tmp[2:end, l] .= false
         push!(masking, masking_tmp)
         push!(config_, newconfig)
@@ -474,11 +476,6 @@ end
 function SINDyPI(df, variable, config; kargs...)
     _variable = (first(variable), [reverse(variable)...;])
     _config, mask = config
-    # try
-    # catch e
-    #     @warn "You may tried ordinary cook configuration. Try use `cookPI` instead of `cook`."
-    #     throw(e)
-    # end
     return SINDy(df, _variable, _config; mask = mask, method = "SINDyPI", kargs...)
 end
 
@@ -491,4 +488,7 @@ function syntheticSINDy(Ξ, sysms::Tuple, recipe::AbstractDataFrame; method = "s
     aic = -Inf
     r2 = 1
     return STLSQresult(method, recipe, recipeF, Ξ, _Ξ, mse, aic, r2, Ysyms, Xsyms)
+end
+function syntheticSINDy(Ξ, sysms::Tuple, recipe; method = "synthetic")
+    return syntheticSINDy(Ξ, sysms::Tuple, first(recipe); method)
 end

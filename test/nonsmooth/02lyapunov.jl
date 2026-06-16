@@ -97,7 +97,7 @@ smse(SINDy_) = sum(getproperty.(SINDy_, :MSE))
     end
 
     data = DataFrame(solve(f_, [0.1, 0.1, 0.1, eps()], dt, 0:dt:last(tspan), Dtree), last(vrbl))
-    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = last(tspan))
+    λ = lyapunov_exponent(data[:, last(vrbl)], J_, Dtree, dr.bp, T = last(saveat))
     dr[[:λ1, :λ2, :λ3, :λ4]] .= λ
     CSV.write("output/...$(device)ing gear_lyapunov_rcvd.csv", schedules, bom = true)
 end

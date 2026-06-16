@@ -392,7 +392,7 @@
 
 
 frac(x, y) = x ./ y
-function factory_hastingpowell(a0::Number; ic = [0., 1, 1, 1], tspan = 0:1e-2:10)
+function factory_hastingpowell(a0::Number; ic = [0., 1, 1, 1], saveat = 0:1e-2:10)
       b0, w0, d0, w1, d1,  w2, d2, a1, w3, d3,  c3 = (
     0.05,  1, 10,  2, 10, 1.5, 10,  1,  2, 20, 0.7 )
     function sys(v::AbstractVector)
@@ -414,7 +414,7 @@ function factory_hastingpowell(a0::Number; ic = [0., 1, 1, 1], tspan = 0:1e-2:10
         t,_,_,_ = v
         v, dv = RK4(sys, v, h)
 
-        if t ≥ first(tspan)
+        if t ≥ first(saveat)
             tk += 1
             traj[tk+1,         1:DIM ] =  v
             traj[tk  , DIM .+ (1:DIM)] = dv
@@ -425,8 +425,15 @@ end
 factory_hastingpowell(T::Type, args...; kargs...) =
 DataFrame(factory_hastingpowell(args...; kargs...), ["t", "v1", "v2", "v3", "dt", "dv1", "dv2", "dv3"])[:, Not(:dt)]
 
+RK4 = OrdinaryDiffEqLowOrderRK.RK4
 
-function factory_lorenz63(pp; ic = [5, 5, 5], tspan = 0:1e-3:1000)
+"""
+    factory_lorenz63(σ, ρ, β; ic = [5, 5, 5], saveat = 0:1e-3:1000)
+
+The Lorenz system is a system of ordinary differential equations first studied by Edward Lorenz.
+It is notable for having chaotic solutions for certain parameter values and initial conditions.
+"""
+function factory_lorenz63(pp; ic = [5, 5, 5], saveat = 0:1e-3:1000)
     function lorenz63(du, u, p, t)
         x, y, z = u; σ, ρ, β = p
         
@@ -435,49 +442,75 @@ function factory_lorenz63(pp; ic = [5, 5, 5], tspan = 0:1e-3:1000)
         du[3] = x*y - β*z
         return du
     end
-    sol = solve(ODEProblem(lorenz63, ic, (0, last(tspan)), pp), saveat = tspan)
+    sol = solve(ODEProblem(lorenz63, ic, (0, last(saveat)), pp), RK4(), maxiters = 1e+7, dt = saveat.step.hi, adaptive=false)
     matrix = Matrix([sol.t'; sol[:, :]; stack([lorenz63(zeros(3), u, pp, 0) for u in sol.u])]')
-    return matrix[sol.t .≥ first(tspan), :][1:end-1, :]
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
 factory_lorenz63(T::Type, args...; kargs...) =
 DataFrame(factory_lorenz63(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
 
 
-function factory_foodchain(K::Number; ic = [0., 0.4rand() + 0.6, 0.4rand() + 0.15, 0.5rand() + 0.3], tspan = 0:1e-2:10)
-    xc,    yc,   xp,    yp,      R0,  C0 = (
+function factory_foodchain(K::Number; ic = [.85, rand(), .8], saveat = 0:1e-2:10)
+     xc,    yc,   xp,    yp,      R0,  C0 = (
     0.4, 2.009, 0.08, 2.876, 0.16129, 0.5)
-    function sys(v::AbstractVector)
-        _,R,C,P = v
+    function sys(du, u, p, t)
+        R,C,P = u
+        K = p[1]
 
-        dt = 1
-        dR = R*(1 - frac(R,K)) - xc*yc*frac(C*R, R + R0)
-        dC = xc*C*(frac(yc*R, R + R0) - 1) - xp*yp*frac(P*C, C + C0)
-        dP = xp*P*(frac(yp*C, C + C0) - 1)
-        return [dt, dR, dC, dP]
+        du[1] = R*(1 - frac(R,K)) - xc*yc*frac(C*R, R + R0)
+        du[2] = xc*C*(frac(yc*R, R + R0) - 1) - xp*yp*frac(P*C, C + C0)
+        du[3] = xp*P*(frac(yp*C, C + C0) - 1)
+        return du
     end
-
-    len_t_ = length(tspan); h = tspan.step.hi
-    v = ic; DIM = length(v)
-    traj = zeros(2+len_t_, 2DIM); traj[1, 1:DIM] = v
-
-    tk = 0
-    while tk ≤ len_t_
-        t,_,_,_ = v
-        v, dv = RK4(sys, v, h)
-
-        if t ≥ first(tspan)
-            tk += 1
-            traj[tk+1,         1:DIM ] =  v
-            traj[tk  , DIM .+ (1:DIM)] = dv
-        end
-    end
-    return traj[1:(end-2), :]
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [K]), RK4(), dt = saveat.step.hi, adaptive=false)
+    matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [K], 0) for u in sol.u])]')
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
 factory_foodchain(T::Type, args...; kargs...) =
-DataFrame(factory_foodchain(args...; kargs...), ["t", "R", "C", "P", "dt", "dR", "dC", "dP"])[:, Not(:dt)]
+DataFrame(factory_foodchain(args...; kargs...), ["t", "R", "C", "P", "dR", "dC", "dP"])
 
 
-function factory_thomas(b::Number; ic = rand(3), tspan = 0:1e-2:2000)
+# function _RK4(f::Function, v::AbstractVector, h=1e-2)
+#     V1 = f(v)
+#     V2 = f(v + (h/2)*V1)
+#     V3 = f(v + (h/2)*V2)
+#     V4 = f(v + h*V3)
+#     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
+# end
+# function factory_foodchain(K::Number; ic = [0., 0.4rand() + 0.6, 0.4rand() + 0.15, 0.5rand() + 0.3], saveat = 0:1e-2:10)
+#     xc,    yc,   xp,    yp,      R0,  C0 = (
+#     0.4, 2.009, 0.08, 2.876, 0.16129, 0.5)
+#     function sys(v::AbstractVector)
+#         _,R,C,P = v
+
+#         dt = 1
+#         dR = R*(1 - frac(R,K)) - xc*yc*frac(C*R, R + R0)
+#         dC = xc*C*(frac(yc*R, R + R0) - 1) - xp*yp*frac(P*C, C + C0)
+#         dP = xp*P*(frac(yp*C, C + C0) - 1)
+#         return [dt, dR, dC, dP]
+#     end
+
+#     len_t_ = length(saveat); h = saveat.step.hi
+#     v = ic; DIM = length(v)
+#     traj = zeros(2+len_t_, 2DIM); traj[1, 1:DIM] = v
+
+#     tk = 0
+#     while tk ≤ len_t_
+#         t,_,_,_ = v
+#         v, dv = _RK4(sys, v, h)
+
+#         if t ≥ first(saveat)
+#             tk += 1
+#             traj[tk+1,         1:DIM ] =  v
+#             traj[tk  , DIM .+ (1:DIM)] = dv
+#         end
+#     end
+#     return traj[1:(end-2), :]
+# end
+# factory_foodchain(T::Type, args...; kargs...) =
+# DataFrame(factory_foodchain(args...; kargs...), ["t", "R", "C", "P", "dt", "dR", "dC", "dP"])[:, Not(:dt)]
+
+function factory_thomas(b::Number; ic = rand(3), saveat = 0:1e-2:2000)
     function thomas(du, u, p, t)
         x, y, z = u
         b = p[1]
@@ -487,9 +520,9 @@ function factory_thomas(b::Number; ic = rand(3), tspan = 0:1e-2:2000)
         du[3] = sin(x) - b*z
         return du
     end
-    sol = solve(ODEProblem(thomas, ic, (0, last(tspan)), [b]), RK4(), dt = tspan.step.hi, adaptive=false)
+    sol = solve(ODEProblem(thomas, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false)
     matrix = Matrix([sol.t'; sol[:, :]; stack([thomas(zeros(3), u, [b], 0) for u in sol.u])]')
-    return matrix[sol.t .≥ first(tspan), :][1:end-1, :]
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
 factory_thomas(T::Type, args...; kargs...) =
 DataFrame(factory_thomas(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])

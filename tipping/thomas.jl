@@ -21,7 +21,7 @@ scatter([[fill(k, length(v)) for (k,v) in bfcn]...;], [values(bfcn)...;], msw = 
 png("G:/bifurcation.png")
 
 
-function factory_thomas(b::Number; ic = rand(3), tspan = 0:1e-2:2000)
+function factory_thomas(b::Number; ic = rand(3), saveat = 0:1e-2:2000)
     function thomas(du, u, p, t)
         x, y, z = u
         b = p[1]
@@ -31,9 +31,9 @@ function factory_thomas(b::Number; ic = rand(3), tspan = 0:1e-2:2000)
         du[3] = sin(x) - b*z
         return du
     end
-    sol = solve(ODEProblem(thomas, ic, (0, last(tspan)), [b]), RK4(), dt = tspan.step.hi, adaptive=false)
+    sol = solve(ODEProblem(thomas, ic, (0, last(saveat)), [b]), RK4(), dt = tspan.step.hi, adaptive=false)
     matrix = Matrix([sol.t'; sol[:, :]; stack([thomas(zeros(3), u, [b], 0) for u in sol.u])]')
-    return matrix[sol.t .≥ first(tspan), :][1:end-1, :]
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
 factory_thomas(T::Type, args...; kargs...) =
 DataFrame(factory_thomas(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
@@ -44,8 +44,8 @@ traj1 = factory_thomas(DataFrame, .150, tspan = 1000:1e-2:2000)
 plt_pp_2 = plot(traj1.x, traj1.y, traj1.z, color = :black)
 
 vrbl = reverse(half(names(traj0)[2:end]))
-# cnfg = cook(last(vrbl); poly = 0:5)
-cnfg = cook(last(vrbl); poly = 0:1, trig = [1], format = sin)
+# cnfg = cook(vrbl; poly = 0:5)
+cnfg = cook(vrbl; poly = 0:1, trig = [1], format = sin)
 
 @time f0 = SINDy(traj0, vrbl, cnfg; λ = 1e-3); f0 |> print
 @time f1 = SINDy(traj1, vrbl, cnfg; λ = 1e-3); f1 |> print

@@ -9,7 +9,7 @@ import DiffEqBase
 hrzn = []
 vrcl = []
 for a0 = 0.15:0.001:2.0
-    data = factory_hastingpowell(DataFrame, a0, tspan = 0:1e-2:1000)[50001:end, :]
+    data = factory_hastingpowell(DataFrame, a0, saveat = 0:1e-2:1000)[50001:end, :]
     bits = arglmax(data.v1)
     push!(hrzn, [a0 for _ in bits])
     push!(vrcl, data.v1[bits])
@@ -17,9 +17,9 @@ end
 scatter([hrzn...;], [vrcl...;], ms = 1, msw = 0, color = :black, alpha = 0.5, legend = :none, xlims = [1.5, 2.0], ylims = [25, 40])
 png("G:/temp.png")
 
-traj0 = factory_hastingpowell(DataFrame, 1.7, tspan = 0:1e-2:1000)[50000:end, :]
-traj1 = factory_hastingpowell(DataFrame, 1.8, tspan = 0:1e-2:1000)[50000:end, :]
-traj2 = factory_hastingpowell(DataFrame, 2.0, tspan = 0:1e-2:1000)[50000:end, :]
+traj0 = factory_hastingpowell(DataFrame, 1.7, saveat = 0:1e-2:1000)[50000:end, :]
+traj1 = factory_hastingpowell(DataFrame, 1.8, saveat = 0:1e-2:1000)[50000:end, :]
+traj2 = factory_hastingpowell(DataFrame, 2.0, saveat = 0:1e-2:1000)[50000:end, :]
 plot(
     plot(traj0.v1, traj0.v2, traj0.v3, color = :black),
     plot(traj1.v1, traj1.v2, traj1.v3, color = :black),

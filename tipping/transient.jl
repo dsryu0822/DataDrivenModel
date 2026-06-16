@@ -1,5 +1,4 @@
 include("../core/header.jl")
-include("tippingutils.jl")
 
 """''''''''''''''''''''''''''''''''''''''''''''''''''''
 
@@ -10,7 +9,7 @@ hrzn = []
 vrtl = []
 @async @showprogress for k in 0.9:0.0001:1
     for _ in 1:500
-        traj = factory_foodchain(DataFrame, k, ic = [0, .85, .2 + .8rand(), .8], tspan = 0:1e-1:10000)[90000:end,:]
+        traj = factory_foodchain(DataFrame, k, ic = [0, .85, .2 + .8rand(), .8], saveat = 0:1e-1:10000)[90000:end,:]
         bits = arglmin(traj.P)
         if maximum(traj.P) > 0.55
             push!(hrzn, fill(k, length(bits)))
@@ -37,7 +36,7 @@ png("bifurcaiton.png")
 # ''''''''''''''''''''''''''''''''''''''''''''''''''"""''
 # tau_ = zeros(100000)
 # @showprogress @threads for k in eachindex(tau_)
-#     traj = factory_foodchain(DataFrame, 0.99976 + 2e-4, ic = rand(4), tspan = 0:1e-0:5000)
+#     traj = factory_foodchain(DataFrame, 0.99976 + 2e-4, ic = rand(4), saveat = 0:1e-0:5000)
 #     tau = findlast(diff(cumsum(traj.P .< 0.55)) .== 0)
 #     tau_[k] = !isnothing(tau) ? tau : -1
 # end
@@ -53,8 +52,8 @@ png("bifurcaiton.png")
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''"""''
 ic_chaos = [0.0, 0.9409608959542848, 0.38622912152951383, 0.7186582935906595]
-traj1 = factory_foodchain(DataFrame, 0.99976 - 4e-5, ic = ic_chaos, tspan = 0:1e-1:10000)[1:10:end,:]
-traj2 = factory_foodchain(DataFrame, 0.99976 + 4e-5, ic = ic_chaos, tspan = 0:1e-1:10000)[1:10:end,:]
+traj1 = factory_foodchain(DataFrame, 0.99976 - 4e-5, ic = ic_chaos, saveat = 0:1e-1:10000)[1:10:end,:]
+traj2 = factory_foodchain(DataFrame, 0.99976 + 4e-5, ic = ic_chaos, saveat = 0:1e-1:10000)[1:10:end,:]
 teargs = (; color = :black, legend = :none, ylims = [0, 1.1], yticks = [0, 0.55, 1.1], xlims = [0, 9000])
 
 plt_te_1 = plot(traj1.P; teargs...)
@@ -69,15 +68,15 @@ plt_te = plot(plt_te_1, plt_te_2, layout = (2, 1), right_margin = 2mm, size = [4
 ''''''''''''''''''''''''''''''''''''''''''''''''''''"""
 largs = (; xlabel = L"R", ylabel = L"C", zlabel = L"P", xticks = [0.3, 0.8], yticks = [0.2, 0.45], zticks = [0.65, 1.0])
 
-traj0 = factory_foodchain(DataFrame, 0.95, ic = [0, 0.820915, 0.158239, 0.953786], tspan = 0:1e-1:5000)
-traj1 = factory_foodchain(DataFrame, 0.96, ic = [0, 0.820915, 0.158239, 0.953786], tspan = 0:1e-1:5000)
+traj0 = factory_foodchain(DataFrame, 0.95, ic = [0, 0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
+traj1 = factory_foodchain(DataFrame, 0.96, ic = [0, 0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
 _traj0 = traj0[traj0.t .≥ 4000,:]
 _traj1 = traj1[traj1.t .≥ 4000,:]
 plt_pp_1 = plot(_traj0.R, _traj0.C, _traj0.P; largs..., color = :black)
 plt_pp_2 = plot(_traj1.R, _traj1.C, _traj1.P; largs..., color = :black)
 
 vrbl = reverse(half(names(traj0)[2:end]))
-cnfg = cook(last(vrbl); poly = 0:4)
+cnfg = cook(vrbl; poly = 0:4)
 
 @time f0 = SINDy(traj0, vrbl, cnfg, λ = 1e-8); f0 |> print
 @time f1 = SINDy(traj1, vrbl, cnfg, λ = 1e-8); f1 |> print
@@ -111,8 +110,8 @@ cnfg = cookPI(vrbl; poly = 0:3)
 define(f0) |> print
 define(f1) |> print
 
-ftspan = (0, 5000)
-sargs = (; reltol = 1e-6, initializealg = DiffEqBase.BrownFullBasicInit(), saveat = 4000:1:5000)
+tspan = (0, 5000)
+sargs = (; reltol = 1e-6, initializealg = DiffEqBase.BrownFullBasicInit())
 prob0 = DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
 sol0 = solve(prob0, Sundials.IDA(); sargs...);
 prob1 = DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), tspan, differential_vars = ones(Bool, length(vrbl[1])))
@@ -203,7 +202,7 @@ function food_chain(du, u, p, t)
     du[2] = xc*C*(frac(yc*R, R + R0) - 1) - xp*yp*frac(P*C, C + C0)
     du[3] = xp*P*(frac(yp*C, C + C0) - 1)
 end
-traj = factory_foodchain(DataFrame, .99976, ic = [0, .5, .5, .8], tspan = 0:1e-1:10000)[40000:end,:]
+traj = factory_foodchain(DataFrame, .99976, ic = [0, .5, .5, .8], saveat = 0:1e-1:10000)[40000:end,:]
 icc = shuffle([[r...] for r in eachrow(traj[:, [:R, :C, :P]])])
 ε_ = exp10.(range(-5, -2, 20))
 tau2__ = [zeros(1000) for k in eachindex(ε_)]
@@ -273,13 +272,13 @@ plt_trs
 tau2__[1] |> histogram
 begin
     include("../core/header.jl")
-    # include("tippingutils.jl")
+    include("../core/factorio.jl")
     using DifferentialEquations
     import Sundials
     import DiffEqBase
 
-    traj0 = factory_foodchain(DataFrame, 0.95, ic = [0, 0.820915, 0.158239, 0.953786], tspan = 0:1e-1:5000)
-    traj1 = factory_foodchain(DataFrame, 0.96, ic = [0, 0.820915, 0.158239, 0.953786], tspan = 0:1e-1:5000)
+    traj0 = factory_foodchain(DataFrame, 0.95, ic = [0, 0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
+    traj1 = factory_foodchain(DataFrame, 0.96, ic = [0, 0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
 
     vrbl = reverse(half(names(traj0)[2:end]))
     cnfg = cookPI(vrbl; poly = 0:3)
