@@ -41,6 +41,10 @@ function (s::Reservoir)(U)
     S_pred = s.Wout * R .+ s.c
     return S_pred    
 end
+function (s::Reservoir)(U::DataFrame)
+    return s(Matrix(U)')
+end
+
 function reservoir_computing(U::AbstractMatrix, S::AbstractMatrix;
     seed = 0, warmup = 10,
     N = 500, D = 2, α = 0.5, β = 1e-2, ρ = 1.0, σ = 1.0, ξ = 1.0)
@@ -61,6 +65,11 @@ function reservoir_computing(U::AbstractMatrix, S::AbstractMatrix;
     Wout = S*R'inv(R*R' + (β*LinearAlgebra.I))
     c = -vec(Wout * mean(R, dims = 2) - mean(S, dims = 2))
     return Reservoir(M, P, N, α, β, ρ, A, ξ, Win, Wout, c, r_[end])
+end
+function reservoir_computing(df, Sidcs, Uidcs; kargs...)
+    S = Matrix(df[:, Sidcs])'
+    U = Matrix(df[:, Uidcs])'
+    return reservoir_computing(U, S; kargs...)
 end
 
 
@@ -103,8 +112,12 @@ function ngrc_sweep(df, Sidcs, Uidcs)
     return tikhonov_λ(R, S)
 end
 function ngrc(df, Sindcs, Uincs; λ = 0)
-    Wout = ngrc_sweep(df, Sindcs, Uincs)
-    return NGRC(Wout(λ), λ)
+    X = Matrix(df)
+    S = dw(X[:, Sindcs]) # target
+    U = X[:, Uincs]     # observer
+    R = selfprod([ones(size(U, 1)-1) dw(U) up(U)])
+    Wout = (R'R + λ*I) \ R'S
+    return NGRC(Wout, λ)
 end
 function (s::NGRC)(X)
     U = Matrix(X)

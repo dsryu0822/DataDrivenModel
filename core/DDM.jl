@@ -27,7 +27,8 @@ function (s::STLSQresult)(data::AbstractDataFrame)
     return DataFrame(reshape(fitted, :, length(s.lname)), s.lname)
 end
 function ssolve(sindy::STLSQresult, ic, saveat)
-    sol = solve(ODEProblem(define(Function, sindy), ic, (0, last(saveat))),
+    g = define(Function, sindy, fname = "f_$(rand(UInt64))")
+    sol = solve(ODEProblem(g, ic, (0, last(saveat))),
           RK4(), maxiters = 1e+7, dt = saveat.step.hi, adaptive=false; saveat)
     matrix = Matrix([sol.t sol[:, :]'])
     return matrix
@@ -424,7 +425,7 @@ function define(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
         return function_string
     end
 end
-define(f) = define(String, f)
+define(f; args...) = define(String, f; args...)
 
 """
     termprod(config::AbstractDataFrame, term::AbstractString, num::Integer)

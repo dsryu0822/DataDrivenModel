@@ -1,6 +1,11 @@
 include("../core/header.jl")
 include("../core/factorio.jl")
 
+"""''''''''''''''''''''''''''''''''''''''''''''''''''
+
+                    Lorenz-63
+
+''''''''''''''''''''''''''''''''''''''''''''''''''"""
 sol = factory_lorenz63(DataFrame, [10, 28, 8/3])[200000:end, :]
 plot(sol.x, sol.y, sol.z, alpha = .5)
 
@@ -30,6 +35,7 @@ cnfg = cook(vrbl, poly = 0:2)
 f0 = SINDy(traj0, vrbl, cnfg; λ = 1e-3); f0 |> print
 f1 = SINDy(traj1, vrbl, cnfg; λ = 1e-3); f1 |> print
 
+define(f0) |> print
 rcvd0 = ssolve(f0, rand(3), 900:1e-3:1000)
 rcvd1 = ssolve(f1, rand(3), 900:1e-3:1000)
 plot(
@@ -88,8 +94,13 @@ png("temp")
 
 largs = (; xlabel = L"R", ylabel = L"C", zlabel = L"P", xticks = [0.3, 0.8], yticks = [0.2, 0.45], zticks = [0.65, 1.0])
 
-traj0 = factory_foodchain(DataFrame, 0.95, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
-traj1 = factory_foodchain(DataFrame, 0.96, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
+
+p0 = .95; p1 = .955
+βmin = (0.9 - p0) / (p1 - p0)
+βmax = (1.0 - p0) / (p1 - p0)
+
+traj0 = factory_foodchain(DataFrame, p0, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
+traj1 = factory_foodchain(DataFrame, p1, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
 plt_pp_1 = plot(traj0.R, traj0.C, traj0.P; largs..., color = :black)
 plt_pp_2 = plot(traj1.R, traj1.C, traj1.P; largs..., color = :black)
 
@@ -101,16 +112,28 @@ cnfg = cook(vrbl; poly = 0:4)
 
 tspan = (0, 5000)
 prob0 = ODEProblem(define(Function, f0), collect(traj0[1, vrbl[2]]), tspan, RK4(), maxiters = 1e+7, dt = 1e-2, adaptive=false; saveat = 4000:1e-2:5000)
-sol0 = solve(prob0);
+sol0 = solve(prob0, RK4(), maxiters = 1e+7, dt = 1e-2, adaptive=false; saveat = 4000:1e-2:5000)
 prob1 = ODEProblem(define(Function, f1), collect(traj1[1, vrbl[2]]), tspan, RK4(), maxiters = 1e+7, dt = 1e-2, adaptive=false; saveat = 4000:1e-2:5000)
-sol1 = solve(prob1);
+sol1 = solve(prob1, RK4(), maxiters = 1e+7, dt = 1e-2, adaptive=false; saveat = 4000:1e-2:5000)
 plt_pp_3 = plot(sol0[1,:], sol0[2, :], sol0[3, :]; largs..., color = :red)
 plt_pp_4 = plot(sol1[1,:], sol1[2, :], sol1[3, :]; largs..., color = :red)
-plot(plt_pp_1, plt_pp_2, plt_pp_3, plt_pp_4)
+
+vrbl = reverse(half(names(traj0)[2:end]))
+cnfg = cookPI(vrbl; poly = 0:3)
+@time f0 = SINDyPI(traj0, vrbl, cnfg, λ = 1e-8); f0 |> print # define(f0) |> print
+@time f1 = SINDyPI(traj1, vrbl, cnfg, λ = 1e-8); f1 |> print # define(f1) |> print
+
+prob0 = DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), (0, 5000), differential_vars = ones(Bool, length(vrbl[1])))
+sol0 = solve(prob0, Sundials.IDA(), initializealg = DiffEqBase.BrownFullBasicInit(), reltol = 1e-6);
+prob1 = DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), (0, 5000), differential_vars = ones(Bool, length(vrbl[1])))
+sol1 = solve(prob1, Sundials.IDA(), initializealg = DiffEqBase.BrownFullBasicInit(), reltol = 1e-6)
+plt_pp_5 = plot(eachrow(stack(sol0.u))...; color = :blue)
+plt_pp_6 = plot(eachrow(stack(sol1.u))...; color = :blue)
+plot(plt_pp_1, plt_pp_2, plt_pp_3, plt_pp_4, plt_pp_5, plt_pp_6; layout = (2, 3), size = (1200, 800))
 
 if !isfile("bifurcation_foodchain_failed.jld2")
     @info "Calculating bifurcation data for foodchain from recovered models..."
-    α_ = -6:1e-2:5
+    α_ = -5:1e-2:5
     f_ = [define(Function, syntheticSINDy((1-α)*f0.matrix + α*f1.matrix, vrbl, cnfg, method = "SINDy"), fname = "f_$k") for (k, α) in enumerate(α_)]
     bfcn = Dict{Float64, Vector{Float64}}()
     @showprogress @threads for k in eachindex(α_)        
@@ -134,21 +157,9 @@ else
 end
 scatter(dict2bifurcation(bfcn)..., ms = .5, ma = .5, msw = 0, color = :red); png("temp")
 
-vrbl = reverse(half(names(traj0)[2:end]))
-cnfg = cookPI(vrbl; poly = 0:3)
-@time f0 = SINDyPI(traj0, vrbl, cnfg, λ = 1e-8); f0 |> print # define(f0) |> print
-@time f1 = SINDyPI(traj1, vrbl, cnfg, λ = 1e-8); f1 |> print # define(f1) |> print
-
-prob0 = DAEProblem(define(Function, f0), collect(traj0[1, vrbl[1]]), collect(traj0[1, vrbl[2]]), (0, 5000), differential_vars = ones(Bool, length(vrbl[1])))
-sol0 = solve(prob0, Sundials.IDA(), initializealg = DiffEqBase.BrownFullBasicInit(), reltol = 1e-6);
-prob1 = DAEProblem(define(Function, f1), collect(traj1[1, vrbl[1]]), collect(traj1[1, vrbl[2]]), (0, 5000), differential_vars = ones(Bool, length(vrbl[1])))
-sol1 = solve(prob1, Sundials.IDA(), initializealg = DiffEqBase.BrownFullBasicInit(), reltol = 1e-6)
-plt_pp_5 = plot(eachrow(stack(sol0.u))...; color = :blue)
-plt_pp_6 = plot(eachrow(stack(sol1.u))...; color = :blue)
-
 if !isfile("bifurcation_foodchain_recover.jld2")
     @info "Calculating bifurcation data for foodchain from recovered models..."
-    α_ = -6:1e-2:5
+    α_ = -5:1e-2:5
     f_ = [define(Function, syntheticSINDy((1-α)*f0.matrix + α*f1.matrix, vrbl, cnfg, method = "SINDyPI"), fname = "f_$k") for (k, α) in enumerate(α_)]
     bfcn = Dict{Float64, Vector{Float64}}()
     @showprogress @threads for k in eachindex(α_)
@@ -166,8 +177,107 @@ else
     @info "Loading bifurcation data for foodchain from recovered models from file..."
     JLD2.@load "bifurcation_foodchain_recover.jld2" bfcn
 end
+for (k, v) in bfcn
+    if k < -5
+        delete!(bfcn, k)
+    end
+end
 scatter(dict2bifurcation(bfcn)..., ms = 1, ma = .5, msw = 0, color = :blue); png("temp")
 
-_bfcn = deepcopy(bfcn)
 
-bfcn = deepcopy(_bfcn)
+"""''''''''''''''''''''''''''''''''''''''''''''''''''
+
+                        Thomas
+
+''''''''''''''''''''''''''''''''''''''''''''''''''"""
+ic0 = [0.0, 0.0, .1]
+
+sol = factory_thomas(DataFrame, 0.1)
+plot(sol.x, sol.y, sol.z)
+
+b_ = .14:2e-5:.16
+if !isfile("bifurcation_thomas.jld2")
+    @info "Calculating bifurcation data for Thomas..."
+    bfcn = Dict{Float64, Vector{Float64}}()
+    @showprogress @threads for k in eachindex(b_)
+        sol = factory_thomas(DataFrame, b_[k], ic = ic0)
+        x_ = sol.x[sol.t .≥ 1000]
+        bfcn[b_[k]] = x_[arglmax(x_)]
+    end
+    JLD2.@save "bifurcation_thomas.jld2" bfcn
+else
+    @info "Loading bifurcation data for Thomas from file..."
+    JLD2.@load "bifurcation_thomas.jld2" bfcn
+end
+scatter(dict2bifurcation(bfcn)..., ms = .5, ma = .5, msw = 0, color = :black); png("temp")
+
+traj0 = factory_thomas(DataFrame, .140, saveat = 1000:1e-2:2000)
+traj1 = factory_thomas(DataFrame, .141, saveat = 1000:1e-2:2000)
+plt_pp_1 = plot(traj0.x, traj0.y, traj0.z, color = :black)
+plt_pp_2 = plot(traj1.x, traj1.y, traj1.z, color = :black)
+
+vrbl = reverse(half(names(traj0)[2:end]))
+cnfg = cook(vrbl; poly = 0:1, trig = [1], format = sin)
+
+@time f0 = SINDy(traj0, vrbl, cnfg; λ = 1e-3); f0 |> print
+@time f1 = SINDy(traj1, vrbl, cnfg; λ = 1e-3); f1 |> print
+
+prob0 = ODEProblem(define(Function, f0), collect(traj0[1, vrbl[2]]), (0, 2000))
+sol0 = solve(prob0, RK4(), dt = 1e-2, adaptive=false);
+plt_pp_3 = plot(eachrow(stack(sol0.u))...; color = :blue)
+prob1 = ODEProblem(define(Function, f1), collect(traj1[1, vrbl[2]]), (0, 2000))
+sol1 = solve(prob1, RK4(), dt = 1e-2, adaptive=false);
+plt_pp_4 = plot(eachrow(stack(sol1.u))...; color = :blue)
+plot(plt_pp_1, plt_pp_2, plt_pp_3, plt_pp_4, legend = :none, size = [600, 600])
+
+if !isfile("bifurcation_thomas_recover.jld2")
+    @info "Calculating bifurcation data for Thomas from recovered models..."
+    α_ = 0:1e-2:20
+    f_ = [define(Function, syntheticSINDy((1-α)*f0.matrix + α*f1.matrix, vrbl, cnfg, method = "SINDy"), fname = "f_$k") for (k, α) in enumerate(α_)]
+    bfcn = Dict{Float64, Vector{Float64}}()
+    @showprogress @threads for k in eachindex(α_)
+        sol = solve(ODEProblem(f_[k], ic0, (0, 2000)), RK4(), maxiters = 1e+7, dt = 1e-2, adaptive=false)
+        x_ = sol[1, sol.t .> 1000]
+        bfcn[α_[k]] = x_[arglmax(x_)]
+    end
+    JLD2.@save "bifurcation_thomas_recover.jld2" bfcn
+else
+    @info "Loading bifurcation data for Thomas from recovered models from file..."
+    JLD2.@load "bifurcation_thomas_recover.jld2" bfcn
+end
+scatter(dict2bifurcation(bfcn)..., ms = .5, ma = .5, msw = 0, color = :blue); png("temp")
+
+# ic0 = [0.0, 0.0, .1]
+# traj0 = factory_thomas(DataFrame, .135, ic = ic0, saveat = 1000:1e-2:2000)
+cnfg = cook(vrbl; poly = 0:5)
+traj0 = factory_thomas(DataFrame, .140, ic = ic0, saveat = 1000:1e-2:2000)
+traj1 = factory_thomas(DataFrame, .141, ic = ic0, saveat = 1000:1e-2:2000)
+@time g0 = SINDy(traj0, vrbl, cnfg; λ = 1e-3); g0 |> print
+@time g1 = SINDy(traj1, vrbl, cnfg; λ = 1e-3); g1 |> print
+plt_pp_1 = plot(traj0.x, traj0.y, traj0.z, color = :black)
+plt_pp_2 = plot(traj1.x, traj1.y, traj1.z, color = :black)
+
+if !isfile("bifurcation_thomas_failed.jld2")
+    @info "Calculating bifurcation data for Thomas from recovered models with failed SINDy..."
+    α_ = 0:1e-2:20
+    g_ = [define(Function, syntheticSINDy((1-α)*g0.matrix + α*g1.matrix, vrbl, cnfg, method = "SINDy"), fname = "g_$k") for (k, α) in enumerate(α_)]
+    bfcn = Dict{Float64, Vector{Float64}}()
+    @showprogress @threads for k in eachindex(α_)
+        sol = solve(ODEProblem(g_[k], ic0, (0, 2000)), RK4(), maxiters = 1e+7, dt = 1e-2, adaptive=false)
+        x_ = sol[1, sol.t .> 1000]
+        bfcn[α_[k]] = x_[arglmax(x_)]
+    end
+    JLD2.@save "bifurcation_thomas_failed.jld2" bfcn
+else
+    @info "Loading bifurcation data for Thomas from recovered models with failed SINDy from file..."
+    JLD2.@load "bifurcation_thomas_failed.jld2" bfcn
+end
+scatter(dict2bifurcation(bfcn)..., ms = .5, ma = .5, msw = 0, color = :red); png("temp")
+
+ - f0.matrix + f1.matrix
+
+ import Base: show
+
+function show(io::IO, f::Float64)
+    @printf(io, "%.16f", f)
+end

@@ -8,13 +8,13 @@ Calculates the coefficient of determination (R-squared) between predicted values
 rsq(y, ŷ) = 1 - (sum(abs2, (y .- ŷ)) / sum(abs2, (y .- mean(y))))
 
 
-mae(x, y) = mean(abs, x - y)
-mse(x, y) = mean(abs2, x - y)
-rmse(x, y) = sqrt.(mean(abs2, x - y))
 ape(x, y) = abs.(x .- y) ./ abs.(x)
-mape(x, y) = mean(ape(x, y))
 accuracy(x, y) = count(x .== y) / length(x)
 ranking(x) = sortperm(sortperm(x, rev = true))
+mae(x, y; kargs...) = mean(abs, x - y; kargs...)
+mse(x, y; kargs...) = mean(abs2, x - y; kargs...)
+rmse(x, y; kargs...) = sqrt.(mean(abs2, x - y; kargs...))
+mape(x, y; kargs...) = mean(ape(x, y); kargs...)
 
 # mse(f, data) = sum(abs2, stack(residual(f, data))) / prod(size(data[:, f.lname]))
 # aic(f, data) = prod(size(data[:, f.lname]))*log(mse(f, data)) + 2nrow(f.recipe)
@@ -60,7 +60,7 @@ function add_fold!(data::AbstractDataFrame; k = 5, seed = -1)
 end
 
 """
-    add_diff(D::AbstractDataFrame; method = :FDM)
+    add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
 
 Adds difference columns to the DataFrame `D` based on the specified method.
 The new columns are named with a "d" prefix followed by the original column names.

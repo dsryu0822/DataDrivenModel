@@ -391,41 +391,40 @@
 # DataFrame(factory_buck(args...; kargs...), ["V", "I", "dV", "dI", "t", "Vr"])
 
 
-frac(x, y) = x ./ y
-function factory_hastingpowell(a0::Number; ic = [0., 1, 1, 1], saveat = 0:1e-2:10)
-      b0, w0, d0, w1, d1,  w2, d2, a1, w3, d3,  c3 = (
-    0.05,  1, 10,  2, 10, 1.5, 10,  1,  2, 20, 0.7 )
-    function sys(v::AbstractVector)
-        _,v1,v2,v3 = v
+# function factory_hastingpowell(a0::Number; ic = [0., 1, 1, 1], saveat = 0:1e-2:10)
+#       b0, w0, d0, w1, d1,  w2, d2, a1, w3, d3,  c3 = (
+#     0.05,  1, 10,  2, 10, 1.5, 10,  1,  2, 20, 0.7 )
+#     function sys(v::AbstractVector)
+#         _,v1,v2,v3 = v
 
-        dt = 1
-        dv1 = a0*v1 - b0*v1^2 - w0*frac(v1*v2, d0 + v1)
-        dv2 = w1*frac(v1*v2, d1 + v1) - w2*frac(v2*v3, d2 + v2) - a1*v2
-        dv3 = w3*frac(v2*v3, d3 + v2) - c3*v3
-        return [dt, dv1, dv2, dv3]
-    end
+#         dt = 1
+#         dv1 = a0*v1 - b0*v1^2 - w0*frac(v1*v2, d0 + v1)
+#         dv2 = w1*frac(v1*v2, d1 + v1) - w2*frac(v2*v3, d2 + v2) - a1*v2
+#         dv3 = w3*frac(v2*v3, d3 + v2) - c3*v3
+#         return [dt, dv1, dv2, dv3]
+#     end
         
-    len_t_ = length(tspan); h = tspan.step.hi
-    v = ic; DIM = length(v)
-    traj = zeros(2+len_t_, 2DIM); traj[1, 1:DIM] = v
+#     len_t_ = length(tspan); h = tspan.step.hi
+#     v = ic; DIM = length(v)
+#     traj = zeros(2+len_t_, 2DIM); traj[1, 1:DIM] = v
 
-    tk = 0
-    while tk ≤ len_t_
-        t,_,_,_ = v
-        v, dv = RK4(sys, v, h)
+#     tk = 0
+#     while tk ≤ len_t_
+#         t,_,_,_ = v
+#         v, dv = RK4(sys, v, h)
 
-        if t ≥ first(saveat)
-            tk += 1
-            traj[tk+1,         1:DIM ] =  v
-            traj[tk  , DIM .+ (1:DIM)] = dv
-        end
-    end
-    return traj[1:(end-2), :]
-end
-factory_hastingpowell(T::Type, args...; kargs...) =
-DataFrame(factory_hastingpowell(args...; kargs...), ["t", "v1", "v2", "v3", "dt", "dv1", "dv2", "dv3"])[:, Not(:dt)]
+#         if t ≥ first(saveat)
+#             tk += 1
+#             traj[tk+1,         1:DIM ] =  v
+#             traj[tk  , DIM .+ (1:DIM)] = dv
+#         end
+#     end
+#     return traj[1:(end-2), :]
+# end
+# factory_hastingpowell(T::Type, args...; kargs...) =
+# DataFrame(factory_hastingpowell(args...; kargs...), ["t", "v1", "v2", "v3", "dt", "dv1", "dv2", "dv3"])[:, Not(:dt)]
 
-RK4 = OrdinaryDiffEqLowOrderRK.RK4
+frac(x, y) = x ./ y
 
 """
     factory_lorenz63(σ, ρ, β; ic = [5, 5, 5], saveat = 0:1e-3:1000)
@@ -434,7 +433,7 @@ The Lorenz system is a system of ordinary differential equations first studied b
 It is notable for having chaotic solutions for certain parameter values and initial conditions.
 """
 function factory_lorenz63(pp; ic = [5, 5, 5], saveat = 0:1e-3:1000)
-    function lorenz63(du, u, p, t)
+    function sys(du, u, p, t)
         x, y, z = u; σ, ρ, β = p
         
         du[1] = σ*(y - x)
@@ -442,13 +441,12 @@ function factory_lorenz63(pp; ic = [5, 5, 5], saveat = 0:1e-3:1000)
         du[3] = x*y - β*z
         return du
     end
-    sol = solve(ODEProblem(lorenz63, ic, (0, last(saveat)), pp), RK4(), maxiters = 1e+7, dt = saveat.step.hi, adaptive=false)
-    matrix = Matrix([sol.t'; sol[:, :]; stack([lorenz63(zeros(3), u, pp, 0) for u in sol.u])]')
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), pp); saveat)
+    matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, pp, 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
 factory_lorenz63(T::Type, args...; kargs...) =
 DataFrame(factory_lorenz63(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
-
 
 function factory_foodchain(K::Number; ic = [.85, rand(), .8], saveat = 0:1e-2:10)
      xc,    yc,   xp,    yp,      R0,  C0 = (
@@ -462,56 +460,15 @@ function factory_foodchain(K::Number; ic = [.85, rand(), .8], saveat = 0:1e-2:10
         du[3] = xp*P*(frac(yp*C, C + C0) - 1)
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [K]), RK4(), dt = saveat.step.hi, adaptive=false)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [K]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [K], 0) for u in sol.u])]')
-    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
+    return matrix[sol.t .≥ first(saveat), :]
 end
 factory_foodchain(T::Type, args...; kargs...) =
 DataFrame(factory_foodchain(args...; kargs...), ["t", "R", "C", "P", "dR", "dC", "dP"])
 
-
-# function _RK4(f::Function, v::AbstractVector, h=1e-2)
-#     V1 = f(v)
-#     V2 = f(v + (h/2)*V1)
-#     V3 = f(v + (h/2)*V2)
-#     V4 = f(v + h*V3)
-#     return v + (h/6)*(V1 + 2V2 + 2V3 + V4), V1
-# end
-# function factory_foodchain(K::Number; ic = [0., 0.4rand() + 0.6, 0.4rand() + 0.15, 0.5rand() + 0.3], saveat = 0:1e-2:10)
-#     xc,    yc,   xp,    yp,      R0,  C0 = (
-#     0.4, 2.009, 0.08, 2.876, 0.16129, 0.5)
-#     function sys(v::AbstractVector)
-#         _,R,C,P = v
-
-#         dt = 1
-#         dR = R*(1 - frac(R,K)) - xc*yc*frac(C*R, R + R0)
-#         dC = xc*C*(frac(yc*R, R + R0) - 1) - xp*yp*frac(P*C, C + C0)
-#         dP = xp*P*(frac(yp*C, C + C0) - 1)
-#         return [dt, dR, dC, dP]
-#     end
-
-#     len_t_ = length(saveat); h = saveat.step.hi
-#     v = ic; DIM = length(v)
-#     traj = zeros(2+len_t_, 2DIM); traj[1, 1:DIM] = v
-
-#     tk = 0
-#     while tk ≤ len_t_
-#         t,_,_,_ = v
-#         v, dv = _RK4(sys, v, h)
-
-#         if t ≥ first(saveat)
-#             tk += 1
-#             traj[tk+1,         1:DIM ] =  v
-#             traj[tk  , DIM .+ (1:DIM)] = dv
-#         end
-#     end
-#     return traj[1:(end-2), :]
-# end
-# factory_foodchain(T::Type, args...; kargs...) =
-# DataFrame(factory_foodchain(args...; kargs...), ["t", "R", "C", "P", "dt", "dR", "dC", "dP"])[:, Not(:dt)]
-
 function factory_thomas(b::Number; ic = rand(3), saveat = 0:1e-2:2000)
-    function thomas(du, u, p, t)
+    function sys(du, u, p, t)
         x, y, z = u
         b = p[1]
 
@@ -520,10 +477,45 @@ function factory_thomas(b::Number; ic = rand(3), saveat = 0:1e-2:2000)
         du[3] = sin(x) - b*z
         return du
     end
-    sol = solve(ODEProblem(thomas, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false)
-    matrix = Matrix([sol.t'; sol[:, :]; stack([thomas(zeros(3), u, [b], 0) for u in sol.u])]')
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [b], 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
 factory_thomas(T::Type, args...; kargs...) =
 DataFrame(factory_thomas(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
 
+function factory_pollinator(κ::Number; ic = [1.,1.], saveat = 0:1e-2:10)
+      α, β,  _h,   γp,   γA = (
+    0.3, 1, 0.4, 1.93, 1.77 )
+    function sys(du, u, p, t)
+        P,A = u
+        κ = p[1]
+
+        du[1] = P*(α - β*P + frac(γp*A, 1 + _h*γp*A))
+        du[2] = A*(α - κ - β*A + frac(γA*P, 1 + _h*γA*P))
+        return du
+    end
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [κ]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(2), u, [κ], 0) for u in sol.u])]')
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
+end
+factory_pollinator(T::Type, args...; kargs...) =
+DataFrame(factory_pollinator(args...; kargs...), ["t", "P", "A", "dP", "dA"])
+
+function factory_algaezooplankton(F::Number; ic = [5, 5], saveat = 0:1e-2:100)
+      r, K,   g,  hA,   i,   e,    m,  hZ = (
+    0.5, 6, 0.4, 0.6, 0.1, 0.6, 0.15, 0.5 )
+    function sys(du, u, p, t)
+        A,Z = u
+        F = p[1]
+
+        du[1] = r*A*(1 - frac(A,K)) - g*Z*frac(A, A + hA) + i*(K - A)
+        du[2] = e*g*Z*frac(A, A + hA) - m*Z - F*frac(Z^2, Z^2 + hZ^2)
+        return du
+    end
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [F]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(2), u, [F], 0) for u in sol.u])]')
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
+end
+factory_algaezooplankton(T::Type, args...; kargs...) =
+DataFrame(factory_algaezooplankton(args...; kargs...), ["t", "A", "Z", "dA", "dZ"])
