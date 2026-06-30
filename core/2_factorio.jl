@@ -424,7 +424,7 @@
 # factory_hastingpowell(T::Type, args...; kargs...) =
 # DataFrame(factory_hastingpowell(args...; kargs...), ["t", "v1", "v2", "v3", "dt", "dv1", "dv2", "dv3"])[:, Not(:dt)]
 
-load_packages([:DataFrames,:DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :Sundials, :DiffEqBase])
+load_packages([:DataFrames, :DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :DiffEqBase])
 
 frac(x, y) = x ./ y
 

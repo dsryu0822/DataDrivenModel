@@ -1,5 +1,4 @@
-load_packages([:StatsBase, :LinearAlgebra, :Random])
-
+load_packages([:StatsBase, :LinearAlgebra, :Random, :DataFrames])
 
 """
 
@@ -60,32 +59,6 @@ function add_fold!(data::AbstractDataFrame; k = 5, seed = -1)
     seed ≥ 0 && Random.seed!(seed)
     data[!, :fold] .= 1 .+ mod.(shuffle(1:nrow(data)), k)
     return data
-end
-
-"""
-    add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
-
-Adds difference columns to the DataFrame `D` based on the specified method.
-The new columns are named with a "d" prefix followed by the original column names.
-
-- If `method` is `:FDM`, it computes the finite difference along the first dimension and appends it to the original DataFrame, excluding the last row.
-- If `method` is `:TVD`, it applies a total variation diminishing difference method to each column and appends the results to the original DataFrame.
-
-"""
-function add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
-    dnames = "d" .* names(D)
-    if method == :FDM
-        return [DataFrame(diff(Matrix(D), dims = 1), dnames) D[1:(end-1), :]]
-    elseif method == :TVD
-        D_ = [D]
-        for k in 1:order
-            push!(D_, DataFrame([tvdiff(z, 10, 100, dx = 1) for z in eachcol(last(D_))], dnames))
-            dnames = "d" .* dnames
-        end
-        return hcat(reverse(D_)...)
-    else
-        throw(ArgumentError("method must be :FDM or :TVD"))
-    end
 end
 
 """

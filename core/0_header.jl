@@ -7,7 +7,7 @@ import Pkg
 function load_packages(packages)
     packages = string.(packages)
     try
-        @time "$(@__FILE__) load" eval(Meta.parse("using $(join(packages, ", "))"))
+        @time "$packages load" eval(Meta.parse("using $(join(packages, ", "))"))
     catch e
         # required = setdiff(packages, getproperty.(values(Pkg.dependencies()), :name))
         required = setdiff(packages, keys(Pkg.installed()))
@@ -16,10 +16,12 @@ function load_packages(packages)
             @info "Installing required packages: $(required)"
             Pkg.add.(required)
         end
-        @time "$(@__FILE__) load" eval(Meta.parse("using $(join(packages, ", "))"))
+        @time "$packages load" eval(Meta.parse("using $(join(packages, ", "))"))
     end
 end
 load_packages([:CSV, :JLD2, :ProgressMeter])
+
+
 # packages = [:Combinatorics, :LinearAlgebra, :SparseArrays, :DataFrames,
 #             :PrettyTables, :Symbolics, :CSV, :DecisionTree, :Random,
 #             :StatsBase, :Dates, :ProgressMeter, :Plots, :LaTeXStrings,

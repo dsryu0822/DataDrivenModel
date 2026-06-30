@@ -1,3 +1,7 @@
+load_packages([:DataFrames, :DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :Sundials, :DiffEqBase
+               :LinearAlgebra, :StatsBase, ])
+
+
 struct STLSQresult
     method::String
     recipe::AbstractDataFrame
@@ -92,6 +96,32 @@ end
 #     return x
 # end
 
+
+"""
+    add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
+
+Adds difference columns to the DataFrame `D` based on the specified method.
+The new columns are named with a "d" prefix followed by the original column names.
+
+- If `method` is `:FDM`, it computes the finite difference along the first dimension and appends it to the original DataFrame, excluding the last row.
+- If `method` is `:TVD`, it applies a total variation diminishing difference method to each column and appends the results to the original DataFrame.
+
+"""
+function add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
+    dnames = "d" .* names(D)
+    if method == :FDM
+        return [DataFrame(diff(Matrix(D), dims = 1), dnames) D[1:(end-1), :]]
+    elseif method == :TVD
+        D_ = [D]
+        for k in 1:order
+            push!(D_, DataFrame([tvdiff(z, 10, 100, dx = 1) for z in eachcol(last(D_))], dnames))
+            dnames = "d" .* dnames
+        end
+        return hcat(reverse(D_)...)
+    else
+        throw(ArgumentError("method must be :FDM or :TVD"))
+    end
+end
 
 """
     residual(f, df)
