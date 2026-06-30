@@ -1,3 +1,6 @@
+load_packages([:StatsBase, :LinearAlgebra, :Random])
+
+
 """
 
     rsq(y, ŷ)

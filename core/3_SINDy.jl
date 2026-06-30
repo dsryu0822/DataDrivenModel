@@ -198,186 +198,6 @@ function jacobian(T::Type, s::STLSQresult)
     end
 end
 
-function set_divider(arr::AbstractVector)
-    s = 0
-    sets = []
-    flag_record = false
-    for k in first(arr):last(arr)
-        if flag_record
-            if (k+1) ∈ arr
-                push!(sets, s:k)
-                flag_record = false
-            end
-        else
-            if k ∉ arr
-                s = k
-                flag_record = true
-            end
-        end
-    end
-    # return sets[sortperm(length.(sets), rev=true)]
-    return sets
-end
-function detect_jump(data, vrbl; dos = 0)
-# if dos == 0
-    normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
-# elseif dos == 1
-#     normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
-# end
-    len_normeddf = length(normeddf)
-    _jumpt = [-1]; jumpt = deepcopy(_jumpt);
-    # if jumpt is initialized with [0], then it will be a problem when idx = 1
-    for _ in 1:nrow(data)
-        jumpt = deepcopy(_jumpt)
-        idx = argmax(normeddf)
-        normeddf[idx] = -Inf
-
-        idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)] # min(idx+1, len_normeddf) is to prevent BoundsError
-        if all(abs.(_jumpt .- idx) .> 1) && isempty(idx3 ∩ argmax(normeddf))
-            push!(_jumpt, idx3...)
-        else
-            break
-        end
-    end
-    jumpt = unique([1; (sort(_jumpt[2:end])); nrow(data)])
-    
-    # normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
-    # plot(yscale = :log10, msw = 0, legend = :none);
-    # # plot(yscale = :log10, msw = 0, xlims = [0, 10], legend = :none);
-    # scatter!(normeddf, shape = :pixel);
-    # scatter!(jumpt[1:end-1], normeddf[jumpt[1:end-1]], shape = :x);
-    # png("normeddf")
-    return jumpt
-end
-
-"""
-    mutate(s, k)
-
-Mutates the `k`-th element of the boolean vector `s` by flipping its value.
-"""
-function mutate(s, k)
-    _s = deepcopy(s)
-    _s[k] = .!_s[k]
-    return _s
-end
-"""
-    forwardselect(DATA, vrbl, cnfg)
-
-Performs forward selection on the datasets using the specified variables and configuration.
-Returns the configuration that minimizes the Akaike Information Criterion (AIC).
-"""
-function forwardselect(cnfg, data, vrbl; maxitr = 1000)
-    jumpt = detect_jump(data, vrbl)
-    sets = set_divider(jumpt)
-    datasets = [data[set, :] for set in sets]
-    sampled = [ds[centerpick(nrow(ds), 50), :] for ds in datasets]
-
-    taboo = Dict()
-    strand_ = []
-    for i in 1:nrow(cnfg)
-        strand = zeros(Bool, nrow(cnfg))
-        strand = mutate(strand, i)
-
-        aic_ = [Inf]
-        for itr in 1:maxitr
-            if itr == maxitr @warn "Forward selection reached maximum iterations without convergence." end
-            
-            aic = fill(Inf, nrow(cnfg))
-            for k in eachindex(strand)
-                mutation = mutate(strand, k)
-                iszero(mutation) && continue
-                if hash(mutation) ∈ keys(taboo)
-                    aic[k] = taboo[hash(mutation)]
-                else
-                    _cnfg = cnfg[mutation, :]           
-                    any([rank(Θ(smpl, _cnfg)) for smpl in sampled] .< count(mutation)) && continue
-
-                    _aic = [SINDy(smpl, vrbl, _cnfg).aic for smpl in sampled]
-                    aic[k] = sum(_aic)
-                    taboo[hash(mutation)] = aic[k]
-                end
-            end
-            strand = mutate(strand, argmin(aic))
-            if minimum(aic) < minimum(aic_)
-                push!(aic_, minimum(aic))
-            else
-                break
-            end
-        end
-        push!(strand_, minimum(aic_) => strand)
-    end
-    strand = last.(strand_)[argmin(first.(strand_))]
-    
-    return cnfg[strand, :]
-end
-
-"""
-    centerpick(n, m)
-
-Select `m` evenly spaced indices from `1:n`, excluding the first and last indices.
-"""
-centerpick(n, m) = round.(Int64, range(1, n, m+2))[2:end-1]
-"""
-    labeling!(data, vrbl, cnfg; θ = 0)
-
-Label the subsystems in DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
-`dos` is the degree of smoothness.
-"""
-function labeling!(data, vrbl, cnfg; θ = 0)
-    jumpt = detect_jump(data, vrbl)
-    sets = set_divider(jumpt)
-    datasets = [data[set, :] for set in sets]
-    sampled = [ds[centerpick(nrow(ds), 50), :] for ds in datasets]
-    # cnfg = forwardselect(sampled, vrbl, cnfg)
-
-    f_ = [SINDy(smpl, vrbl, cnfg) for smpl in sampled]
-    L = zeros(length(f_), length(f_))
-    for i in eachindex(f_)
-        for j in eachindex(f_)
-            if i > j
-                L[i, j] = sum(abs2, f_[i].matrix - f_[j].matrix)
-                L[j, i] = L[i, j]
-            end
-        end
-    end
-    # scatter(filter(!iszero, vec(L)), yscale = :log10)
-    subsys = connected_components(SimpleGraph(L .< θ))
-    f_ = [SINDy([sampled[ss]...;], vrbl, cnfg) for ss in subsys]; # print.(f_)
-
-    label = zeros(Int64, nrow(data))
-    for i in eachindex(subsys)
-        for j in subsys[i]
-            label[sets[j]] .= i
-        end
-    end
-
-    bit_blank = iszero.(label)
-    label[bit_blank] .= argmin.(eachrow(sum.(abs2, stack([residual(f, data[bit_blank, :]) for f in f_]))))
-    data.label = label
-
-    return data
-end
-
-
-function dryad(data, cols; method = :tree) # fairy of tree and forest
-    # _data = deepcopy(data[(data.label .!= circshift(data.label, -1)) .|| (data.label .!= circshift(data.label, 1)), :])
-    # add_fold!(_data)
-    apply_ = method == :forest ? apply_forest : apply_tree
-    build_ = method == :forest ? build_forest : build_tree
-
-    labels = data.label
-    features = Matrix(data[:, cols])
-    acc_ = []
-    for seed in 1:10
-        Dtree = build_(data.label, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
-        push!(acc_, count(labels .== apply_(Dtree, features)) / length(labels))
-        if maximum(acc_) ≈ 1 break end #; else print("█") end
-    end
-    Dtree = build_(data.label, features, rng = argmax(acc_))
-    # println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
-    return Dtree
-end
-
 function gram_schmidt(J)
     N = size(J, 1)
     U, V = deepcopy(J), deepcopy(J)
@@ -493,3 +313,189 @@ end
 function syntheticSINDy(Ξ, sysms::Tuple, recipe; method = "synthetic")
     return syntheticSINDy(Ξ, sysms::Tuple, first(recipe); method)
 end
+
+
+"""''''''''''''''''''''''''''''''''''''''''''''''''''
+
+                        non-smooth
+
+''''''''''''''''''''''''''''''''''''''''''''''''''"""
+# function set_divider(arr::AbstractVector)
+#     s = 0
+#     sets = []
+#     flag_record = false
+#     for k in first(arr):last(arr)
+#         if flag_record
+#             if (k+1) ∈ arr
+#                 push!(sets, s:k)
+#                 flag_record = false
+#             end
+#         else
+#             if k ∉ arr
+#                 s = k
+#                 flag_record = true
+#             end
+#         end
+#     end
+#     # return sets[sortperm(length.(sets), rev=true)]
+#     return sets
+# end
+# function detect_jump(data, vrbl; dos = 0)
+# # if dos == 0
+#     normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+# # elseif dos == 1
+# #     normeddf = norm.(eachrow(diff(diff(Matrix(data[:, first(vrbl)]), dims = 1), dims = 1))) # scatter(normeddf[1:100:end], yscale = :log10)
+# # end
+#     len_normeddf = length(normeddf)
+#     _jumpt = [-1]; jumpt = deepcopy(_jumpt);
+#     # if jumpt is initialized with [0], then it will be a problem when idx = 1
+#     for _ in 1:nrow(data)
+#         jumpt = deepcopy(_jumpt)
+#         idx = argmax(normeddf)
+#         normeddf[idx] = -Inf
+
+#         idx3 = [max(1, idx-1), idx, min(idx+1, len_normeddf)] # min(idx+1, len_normeddf) is to prevent BoundsError
+#         if all(abs.(_jumpt .- idx) .> 1) && isempty(idx3 ∩ argmax(normeddf))
+#             push!(_jumpt, idx3...)
+#         else
+#             break
+#         end
+#     end
+#     jumpt = unique([1; (sort(_jumpt[2:end])); nrow(data)])
+    
+#     # normeddf = norm.(eachrow(diff(Matrix(data[:, first(vrbl)]), dims = 1)))
+#     # plot(yscale = :log10, msw = 0, legend = :none);
+#     # # plot(yscale = :log10, msw = 0, xlims = [0, 10], legend = :none);
+#     # scatter!(normeddf, shape = :pixel);
+#     # scatter!(jumpt[1:end-1], normeddf[jumpt[1:end-1]], shape = :x);
+#     # png("normeddf")
+#     return jumpt
+# end
+
+# """
+#     mutate(s, k)
+
+# Mutates the `k`-th element of the boolean vector `s` by flipping its value.
+# """
+# function mutate(s, k)
+#     _s = deepcopy(s)
+#     _s[k] = .!_s[k]
+#     return _s
+# end
+# """
+#     forwardselect(DATA, vrbl, cnfg)
+
+# Performs forward selection on the datasets using the specified variables and configuration.
+# Returns the configuration that minimizes the Akaike Information Criterion (AIC).
+# """
+# function forwardselect(cnfg, data, vrbl; maxitr = 1000)
+#     jumpt = detect_jump(data, vrbl)
+#     sets = set_divider(jumpt)
+#     datasets = [data[set, :] for set in sets]
+#     sampled = [ds[centerpick(nrow(ds), 50), :] for ds in datasets]
+
+#     taboo = Dict()
+#     strand_ = []
+#     for i in 1:nrow(cnfg)
+#         strand = zeros(Bool, nrow(cnfg))
+#         strand = mutate(strand, i)
+
+#         aic_ = [Inf]
+#         for itr in 1:maxitr
+#             if itr == maxitr @warn "Forward selection reached maximum iterations without convergence." end
+            
+#             aic = fill(Inf, nrow(cnfg))
+#             for k in eachindex(strand)
+#                 mutation = mutate(strand, k)
+#                 iszero(mutation) && continue
+#                 if hash(mutation) ∈ keys(taboo)
+#                     aic[k] = taboo[hash(mutation)]
+#                 else
+#                     _cnfg = cnfg[mutation, :]           
+#                     any([rank(Θ(smpl, _cnfg)) for smpl in sampled] .< count(mutation)) && continue
+
+#                     _aic = [SINDy(smpl, vrbl, _cnfg).aic for smpl in sampled]
+#                     aic[k] = sum(_aic)
+#                     taboo[hash(mutation)] = aic[k]
+#                 end
+#             end
+#             strand = mutate(strand, argmin(aic))
+#             if minimum(aic) < minimum(aic_)
+#                 push!(aic_, minimum(aic))
+#             else
+#                 break
+#             end
+#         end
+#         push!(strand_, minimum(aic_) => strand)
+#     end
+#     strand = last.(strand_)[argmin(first.(strand_))]
+    
+#     return cnfg[strand, :]
+# end
+
+# """
+#     centerpick(n, m)
+
+# Select `m` evenly spaced indices from `1:n`, excluding the first and last indices.
+# """
+# centerpick(n, m) = round.(Int64, range(1, n, m+2))[2:end-1]
+# """
+#     labeling!(data, vrbl, cnfg; θ = 0)
+
+# Label the subsystems in DataFrame `data` with respect to `vrbl` and `cnfg` configuration.
+# `dos` is the degree of smoothness.
+# """
+# function labeling!(data, vrbl, cnfg; θ = 0)
+#     jumpt = detect_jump(data, vrbl)
+#     sets = set_divider(jumpt)
+#     datasets = [data[set, :] for set in sets]
+#     sampled = [ds[centerpick(nrow(ds), 50), :] for ds in datasets]
+#     # cnfg = forwardselect(sampled, vrbl, cnfg)
+
+#     f_ = [SINDy(smpl, vrbl, cnfg) for smpl in sampled]
+#     L = zeros(length(f_), length(f_))
+#     for i in eachindex(f_)
+#         for j in eachindex(f_)
+#             if i > j
+#                 L[i, j] = sum(abs2, f_[i].matrix - f_[j].matrix)
+#                 L[j, i] = L[i, j]
+#             end
+#         end
+#     end
+#     # scatter(filter(!iszero, vec(L)), yscale = :log10)
+#     subsys = connected_components(SimpleGraph(L .< θ))
+#     f_ = [SINDy([sampled[ss]...;], vrbl, cnfg) for ss in subsys]; # print.(f_)
+
+#     label = zeros(Int64, nrow(data))
+#     for i in eachindex(subsys)
+#         for j in subsys[i]
+#             label[sets[j]] .= i
+#         end
+#     end
+
+#     bit_blank = iszero.(label)
+#     label[bit_blank] .= argmin.(eachrow(sum.(abs2, stack([residual(f, data[bit_blank, :]) for f in f_]))))
+#     data.label = label
+
+#     return data
+# end
+
+
+# function dryad(data, cols; method = :tree) # fairy of tree and forest
+#     # _data = deepcopy(data[(data.label .!= circshift(data.label, -1)) .|| (data.label .!= circshift(data.label, 1)), :])
+#     # add_fold!(_data)
+#     apply_ = method == :forest ? apply_forest : apply_tree
+#     build_ = method == :forest ? build_forest : build_tree
+
+#     labels = data.label
+#     features = Matrix(data[:, cols])
+#     acc_ = []
+#     for seed in 1:10
+#         Dtree = build_(data.label, features, rng = seed); # print_tree(Dtree, feature_names = ["V", "I", "Vr"])
+#         push!(acc_, count(labels .== apply_(Dtree, features)) / length(labels))
+#         if maximum(acc_) ≈ 1 break end #; else print("█") end
+#     end
+#     Dtree = build_(data.label, features, rng = argmax(acc_))
+#     # println("Accuracy: $(count(labels .== apply_tree(Dtree, features)) / length(labels))")
+#     return Dtree
+# end
