@@ -101,7 +101,8 @@ function selfprod(M)
 end
 function tikhonov_λ(X, y)
     U, s, V = svd(X)
-    return λ -> V * (Diagonal(s ./ (s.^2 .+ λ)) * U'y)
+    Uᵀy = U'y
+    return λ -> V * (Diagonal(s ./ (s.^2 .+ λ)) * Uᵀy)
 end
 function ngrc_sweep(df, Sidcs, Uidcs)
     X = Matrix(df)
