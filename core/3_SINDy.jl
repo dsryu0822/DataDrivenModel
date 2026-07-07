@@ -1,5 +1,6 @@
-load_packages([:DataFrames, :DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :Sundials, :DiffEqBase
-               :LinearAlgebra, :StatsBase, ])
+load_packages([:DataFrames, :LinearAlgebra, :StatsBase, :SparseArrays,
+    :DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :Sundials, :DiffEqBase,
+    :NoiseRobustDifferentiation])
 
 
 struct STLSQresult

@@ -450,7 +450,7 @@ end
 factory_lorenz63(T::Type, args...; kargs...) =
 DataFrame(factory_lorenz63(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
 
-function factory_foodchain(K::Number; ic = [.85, rand(), .8], saveat = 0:1e-2:10)
+function factory_foodchain(K::Number; ic = [.85, .12 + .34rand(), .8], saveat = 0:1e-2:10)
      xc,    yc,   xp,    yp,      R0,  C0 = (
     0.4, 2.009, 0.08, 2.876, 0.16129, 0.5)
     function sys(du, u, p, t)

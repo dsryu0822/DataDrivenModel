@@ -38,9 +38,9 @@ end
 factory_thomas(T::Type, args...; kargs...) =
 DataFrame(factory_thomas(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
 
-traj0 = factory_thomas(DataFrame, .140, tspan = 1000:1e-2:2000)
+traj0 = factory_thomas(DataFrame, .160, tspan = 1000:1e-2:2000)
 plt_pp_1 = plot(traj0.x, traj0.y, traj0.z, color = :black)
-traj1 = factory_thomas(DataFrame, .150, tspan = 1000:1e-2:2000)
+traj1 = factory_thomas(DataFrame, .170, tspan = 1000:1e-2:2000)
 plt_pp_2 = plot(traj1.x, traj1.y, traj1.z, color = :black)
 
 vrbl = reverse(half(names(traj0)[2:end]))

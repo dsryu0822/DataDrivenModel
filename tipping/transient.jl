@@ -202,10 +202,10 @@ function food_chain(du, u, p, t)
     du[2] = xc*C*(frac(yc*R, R + R0) - 1) - xp*yp*frac(P*C, C + C0)
     du[3] = xp*P*(frac(yp*C, C + C0) - 1)
 end
-traj = factory_foodchain(DataFrame, .99976, ic = [0, .5, .5, .8], saveat = 0:1e-1:10000)[40000:end,:]
+traj = factory_foodchain(DataFrame, .99976, ic = [.5, .5, .8], saveat = 0:1e-1:10000)[40000:end,:]
 icc = shuffle([[r...] for r in eachrow(traj[:, [:R, :C, :P]])])
 ε_ = exp10.(range(-5, -2, 20))
-tau2__ = [zeros(1000) for k in eachindex(ε_)]
+tau2__ = [zeros(100) for k in eachindex(ε_)]
 for k in eachindex(ε_)
     @showprogress @threads for l in eachindex(tau2__[k])
         prob = ODEProblem(food_chain, icc[l], (0, 100000), [0.99976+ε_[k]])
@@ -260,8 +260,8 @@ for k in eachindex(α_)
 end
 # plt_scl1 = scatter(ε_, mean.(tau1__), scale = :log10, size = [400, 400], color = :white, msc = :blue, legend = :none, xticks = exp10.(-10:-1))
 
-# JLD2.@save "temp2.jld2" ε_ tau1__ tau2__
-# JLD2.@load "temp1.jld2"
+# JLD2.@save "transient.jld2" ε_ tau1__ tau2__
+JLD2.@load "transient.jld2"
 # maximum.(tau1__)
 plt_trs = plot(size = [400, 400], xticks = exp10.(-10:-1), ylims = [1e+1, 1e+6]);
 scatter!(plt_trs, ε_, mean.(tau2__), scale = :log10, color = :white, msc = :black, shape = :circ,  label = "actual");
@@ -277,8 +277,8 @@ begin
     import Sundials
     import DiffEqBase
 
-    traj0 = factory_foodchain(DataFrame, 0.95, ic = [0, 0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
-    traj1 = factory_foodchain(DataFrame, 0.96, ic = [0, 0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
+    traj0 = factory_foodchain(DataFrame, 0.95, ic = [0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
+    traj1 = factory_foodchain(DataFrame, 0.96, ic = [0.820915, 0.158239, 0.953786], saveat = 0:1e-1:5000)
 
     vrbl = reverse(half(names(traj0)[2:end]))
     cnfg = cookPI(vrbl; poly = 0:3)
@@ -288,6 +288,6 @@ begin
 
     condition(u,t,integrator) = 0.1 - u[3]
     affect!(integrator) = terminate!(integrator)
-    cb = ContinuousCallback(condition,affect!)
-    sargs = (; reltol = 1e-24, initializealg = DiffEqBase.BrownFullBasicInit(), callback = cb)
+    early_stop = ContinuousCallback(condition,affect!)
+    sargs = (; reltol = 1e-24, initializealg = DiffEqBase.BrownFullBasicInit(), callback = early_stop)
 end
