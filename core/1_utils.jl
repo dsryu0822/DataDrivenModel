@@ -84,6 +84,7 @@ dw(matrix) = matrix[2:end,:]
 
 
 function arglmax(x)
+    if isempty(x) return Int64[] end
     bits = circshift(x, 1) .< x .> circshift(x, -1)
     bits[1] = false
     bits[end] = false
@@ -91,6 +92,7 @@ function arglmax(x)
 end
 
 function arglmin(x)
+    if isempty(x) return Int64[] end
     bits = circshift(x, 1) .> x .< circshift(x, -1)
     bits[1] = false
     bits[end] = false
@@ -103,3 +105,15 @@ end
     Converts a dictionary of bifurcation data into two vectors: one for the keys (parameters) and one for the values (bifurcation points). The keys are repeated according to the length of their corresponding values.
 """
 dict2bifurcation(bfcn) = [[fill(k, length(v)) for (k,v) in bfcn]...;], [values(bfcn)...;]
+
+callbfcn() = Dict{Float64, Vector{Float64}}()
+function callbfcn(filename)
+    if isfile(filename)
+        _bfcn = JLD2.load(filename)["bfcn"]
+    else
+        @info "Initializing bifurcation"
+        _bfcn = callbfcn()
+        JLD2.save(filename, bfcn = _bfcn)
+    end
+    return _bfcn
+end

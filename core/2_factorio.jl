@@ -429,12 +429,12 @@ load_packages([:DataFrames, :DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :
 frac(x, y) = x ./ y
 
 """
-    factory_lorenz63(σ, ρ, β; ic = [5, 5, 5], saveat = 0:1e-3:1000)
+    factory_lorenz63(σ, ρ, β; ic = [100, 100, 100], saveat = 0:1e-3:1000)
 
 The Lorenz system is a system of ordinary differential equations first studied by Edward Lorenz.
 It is notable for having chaotic solutions for certain parameter values and initial conditions.
 """
-function factory_lorenz63(pp; ic = [5, 5, 5], saveat = 0:1e-3:1000)
+function factory_lorenz63(pp; ic = [100, 100, 100], saveat = 0:1e-3:1000)
     function sys(du, u, p, t)
         x, y, z = u; σ, ρ, β = p
         
@@ -443,7 +443,7 @@ function factory_lorenz63(pp; ic = [5, 5, 5], saveat = 0:1e-3:1000)
         du[3] = x*y - β*z
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), pp); saveat)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), pp), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, pp, 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
@@ -521,3 +521,46 @@ function factory_algaezooplankton(F::Number; ic = [5, 5], saveat = 0:1e-2:100)
 end
 factory_algaezooplankton(T::Type, args...; kargs...) =
 DataFrame(factory_algaezooplankton(args...; kargs...), ["t", "A", "Z", "dA", "dZ"])
+
+function factory_chua(α::Number; ic = [0.4, -0.2, 0.2], saveat = 0:1e-2:100)
+     β,   m0,  m1 = (
+    15, -1/7, 2/7)
+    h(x) = m1*x + (m0 - m1)*(abs(x + 1) - abs(x - 1))/2
+    function sys(du, u, p, t)
+        x, y, z = u
+        α = p[1]
+
+        du[1] = α*(y - h(x))
+        du[2] = x - y + z
+        du[3] = -β*y
+        return du
+    end
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [α]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [α], 0) for u in sol.u])]')
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
+end
+factory_chua(T::Type, args...; kargs...) =
+DataFrame(factory_chua(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
+
+
+function factory_aizawa(b::Number; ic = [0.1, 0.1, 0.1], saveat = 0:1e-2:100)
+      a,  c,   d,   e,  f = (
+    .95, .6, 3.5, .25, .1)
+# function factory_aizawa(d::Number; ic = [0.1, 0.1, 0.1], saveat = 0:1e-2:100)
+#       a,  c,   b,   e,  f = (
+#     .95, .6, 0.7, .25, .1)
+    function sys(du, u, p, t)
+        x, y, z = u
+        b = p[1]
+
+        du[1] = (z - b)*x - d*y
+        du[2] = d*x + (z - b)*y
+        du[3] = c + a*z - (z^3)/3 - (x^2 + y^2)*(1 + e*z) + f*z*x^3
+        return du
+    end
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [b], 0) for u in sol.u])]')
+    return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
+end
+factory_aizawa(T::Type, args...; kargs...) =
+DataFrame(factory_aizawa(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])

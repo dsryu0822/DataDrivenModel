@@ -32,11 +32,56 @@ function (s::STLSQresult)(data::AbstractDataFrame)
     return DataFrame(reshape(fitted, :, length(s.lname)), s.lname)
 end
 function ssolve(sindy::STLSQresult, ic, saveat)
-    g = define(Function, sindy, fname = "f_$(rand(UInt64))")
-    sol = solve(ODEProblem(g, ic, (0, last(saveat))),
-          RK4(), maxiters = 1e+7, dt = saveat.step.hi, adaptive=false; saveat)
-    matrix = Matrix([sol.t sol[:, :]'])
-    return matrix
+    if sindy.method == "SINDy"
+        return esolve(sindy, ic, saveat)
+    elseif sindy.method == "SINDyPI"
+        return isolve(sindy, ic, saveat)
+    else
+        error("Unknown method: $(sindy.method)")
+    end
+end
+function esolve(sindy::STLSQresult, ic, saveat)
+    func = define(Function, sindy, fname = "f_$(rand(UInt64))")
+    rn = sindy.rname
+    sol = Base.invokelatest() do
+        ic = collect(ic[1, rn])
+        solve(ODEProblem(func, collect(ic), (0, last(saveat))),
+            RK4(), dt = saveat.step.hi, adaptive = false; saveat)
+    end
+    in_ = first(saveat) .≤ sol.t .≤ last(saveat)
+    matrix = try
+        Matrix([sol.t[in_] stack(sol.u[in_], dims = 1)])
+    catch
+        zeros(0, length(sindy.lname)+1)
+    end
+    return DataFrame(matrix, ["t"; sindy.rname])
+end
+function isolve(sindy::STLSQresult, ic, saveat)
+    func = define(Function, sindy, fname = "f_$(rand(UInt64))")
+    ln = sindy.lname; rn = setdiff(sindy.rname, ln)
+    sol = Base.invokelatest() do
+        ic = collect(ic[1, rn])
+        prob = DAEProblem(func, zeros(length(ln)), collect(ic), (0, last(saveat)),
+            differential_vars = ones(Bool, length(ic)))
+        solve(prob, Sundials.IDA(), initializealg = DiffEqBase.BrownFullBasicInit(),
+            reltol = 1e-6; saveat)
+    end
+    t_ = sol.t
+    u_ = sol.u
+    if t_[end] < last(saveat)
+        while t_[end] < last(saveat)
+            sol = Base.invokelatest() do
+                prob = remake(sol.prob, u0 = u_[end], tspan = (t_[end], last(saveat)))
+                solve(prob, Sundials.IDA(), initializealg = DiffEqBase.BrownFullBasicInit(),
+                    reltol = 1e-6; saveat)
+            end
+            t_ = [t_; sol.t[2:end]]
+            u_ = [u_; sol.u[2:end]]
+        end
+    end
+    in_ = first(saveat) .≤ t_ .≤ last(saveat)
+    matrix = Matrix([t_[in_] stack(u_[in_], dims = 1)])
+    return DataFrame(matrix, ["t"; rn])
 end
 
 
