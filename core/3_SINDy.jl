@@ -22,16 +22,35 @@ function Base.show(io::IO, s::STLSQresult)
     # print(io, "\nnumber of terms: ", nrow(s.recipe), "\t mse = ", s.mse)
 end
 function (s::STLSQresult)(x) # fast but unstable
+    if s.method == "SINDyPI"
+            n = length(g0.lname)+1
+            sz = nrow(g0.recipe) ÷ n
+            Θx = Θ(x, g0.recipe[1:sz, :])
+            matrices = [g0.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
+            s_matrix = matrices[1]
+            ds_matrix = sum(matrices[2:end])
+            nmrt = Θx * s_matrix
+            dnmr = 1 .- (Θx * ds_matrix)
+            vec(nmrt ./ dnmr)
+        return vec(nmrt ./ dnmr)
+    end
     return vec(Θ(x, s.recipeF) * s.matrixF)
 end
 function (s::STLSQresult)(data::AbstractDataFrame)
-    fitted = s(Matrix(data[:, s.rname]))
+    fitted = if s.method == "SINDyPI"
+        s(Matrix(data[:, setdiff(s.rname, s.lname)]))
+    else
+        s(Matrix(data[:, s.rname]))
+    end
     if typeof(fitted) <: AbstractVector
         fitted = reshape(fitted, :, 1)
     end
     return DataFrame(reshape(fitted, :, length(s.lname)), s.lname)
 end
 function ssolve(sindy::STLSQresult, ic, saveat)
+    if ic isa DataFrameRow
+        ic = DataFrame(ic)
+    end
     if sindy.method == "SINDy"
         return esolve(sindy, ic, saveat)
     elseif sindy.method == "SINDyPI"
@@ -43,6 +62,7 @@ end
 function esolve(sindy::STLSQresult, ic, saveat)
     func = define(Function, sindy, fname = "f_$(rand(UInt64))")
     rn = sindy.rname
+    if ("u" ∈ rn || "du" ∈ rn) @warn "variable name 'u' or 'du' is not allowed" end
     sol = Base.invokelatest() do
         ic = collect(ic[1, rn])
         solve(ODEProblem(func, collect(ic), (0, last(saveat))),
@@ -289,13 +309,13 @@ end
 
 string2function(str) = eval(Meta.parse(str))
 function define(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
-    header = join(setdiff(sindy.rname, sindy.lname), ", ") * " = u; " * join(sindy.lname, ", ") * " = du" 
+    header = join(setdiff(sindy.rname, sindy.lname), ", ") * " = xyz; " * join(sindy.lname, ", ") * " = dxyz" 
     du = ["[$j]" for j in eachindex(sindy.lname)] .* " = "
     if sindy.method == "SINDy"
-        header = "function $(fname)(du, u, p, t)\n" * header
-        du = "du" .* du
+        header = "function $(fname)(dxyz, xyz, p, tau)\n" * header
+        du = "dxyz" .* du
     elseif sindy.method == "SINDyPI"
-        header = "function $(fname)(out, du, u, p, t)\n" * header
+        header = "function $(fname)(out, dxyz, xyz, p, tau)\n" * header
         du = "out" .* du
     end
     factors = sindy.recipe.term[sindy.recipe.func .== identity]

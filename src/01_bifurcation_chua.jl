@@ -6,12 +6,12 @@ include.("../core/" .* readdir("core")[[1,2,3,4,6]])
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''"""
 sol = factory_chua(DataFrame, 8.8)
-plot(sol.x, sol.y, sol.z, alpha = .5)
+plot(sol.x, sol.y, sol.z, alpha = .5, color = :black, xlabel = L"x", ylabel = L"y", zlabel = L"z", size = [400, 400])
 
 pm, pM = 8.430, 8.8; p0, p1 = 8.79, 8.80;
 p_ = range(pm, pM, length = 1001)
 bfcn = callbfcn("G:/BF/chua/bfcnA.jld2")
-@showprogress @threads for k in eachindex(p_)[8.43 .≤ p_ .≤ 8.5]
+@showprogress @threads for k in eachindex(p_)
     sol = factory_chua(DataFrame, p_[k], saveat = 0:1e-3:3000)
     z_ = sol.z[sol.t .≥ 2000]
     bfcn[p_[k]] = z_[arglmax(z_)]

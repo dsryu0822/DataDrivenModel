@@ -5,10 +5,11 @@ include.("../core/" .* readdir("core")[[1,2,3,4,6]])
                     Aizawa attractor
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''"""
-sol = factory_aizawa(DataFrame, 0.72)[8000:end, :]
+sol = factory_aizawa(DataFrame, 0.7)
 plot(sol.x, sol.y, sol.z, alpha = .5, color = :black, xlabel = L"x", ylabel = L"y", zlabel = L"z", size = [400, 400])
 
-pm, pM = 0.6, 0.9; p0, p1 = 0.72, 0.74;
+# pm, pM = 0.6, 0.9; p0, p1 = 0.72, 0.74;
+pm, pM = 0.76, 0.80; p0, p1 = 0.72, 0.74;
 p_ = range(pm, pM, length = 1001)
 bfcn = callbfcn("G:/BF/aizawa/bfcnA.jld2")
 @showprogress @threads for k in eachindex(p_)
