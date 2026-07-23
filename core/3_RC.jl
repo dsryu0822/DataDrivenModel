@@ -100,7 +100,13 @@ function selfprod(M)
     return P
 end
 function tikhonov_λ(X, y)
-    U, s, V = svd(X)
+    m, n = size(X)
+    if m < n
+        F = svd(X')
+        U, s, V = F.V, F.S, F.U
+    else
+        U, s, V = svd(X)
+    end
     Uᵀy = U'y
     return λ -> V * (Diagonal(s ./ (s.^2 .+ λ)) * Uᵀy)
 end
