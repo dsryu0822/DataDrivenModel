@@ -443,14 +443,14 @@ function factory_lorenz63(pp; ic = [100, 100, 100], saveat = 0:1e-3:1000)
         du[3] = x*y - β*z
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), pp), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), pp), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = Inf)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, pp, 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
 factory_lorenz63(T::Type, args...; kargs...) =
 DataFrame(factory_lorenz63(args...; kargs...), ["t", "x", "y", "z", "dx", "dy", "dz"])
 
-function factory_foodchain(K::Number; ic = [.85, .12 + .34rand(), .8], saveat = 0:1e-2:10)
+function factory_foodchain(K::Number; ic = [.85, .12 + .34rand(), .8], saveat = 0:1e-2:10, kargs...)
      xc,    yc,   xp,    yp,      R0,  C0 = (
     0.4, 2.009, 0.08, 2.876, 0.16129, 0.5)
     function sys(du, u, p, t)
@@ -462,7 +462,7 @@ function factory_foodchain(K::Number; ic = [.85, .12 + .34rand(), .8], saveat = 
         du[3] = xp*P*(frac(yp*C, C + C0) - 1)
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [K]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [K]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = Inf; kargs...)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [K], 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :]
 end
@@ -479,7 +479,7 @@ function factory_thomas(b::Number; ic = rand(3), saveat = 0:1e-2:2000)
         du[3] = sin(x) - b*z
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = Inf)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [b], 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
@@ -497,7 +497,7 @@ function factory_pollinator(κ::Number; ic = [1.,1.], saveat = 0:1e-2:10)
         du[2] = A*(α - κ - β*A + frac(γA*P, 1 + _h*γA*P))
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [κ]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [κ]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = Inf)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(2), u, [κ], 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
@@ -515,7 +515,7 @@ function factory_algaezooplankton(F::Number; ic = [5, 5], saveat = 0:1e-2:100)
         du[2] = e*g*Z*frac(A, A + hA) - m*Z - F*frac(Z^2, Z^2 + hZ^2)
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [F]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [F]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = Inf)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(2), u, [F], 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
@@ -535,7 +535,7 @@ function factory_chua(α::Number; ic = [0.4, -0.2, 0.2], saveat = 0:1e-2:100)
         du[3] = -β*y
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [α]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [α]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = Inf)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [α], 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end
@@ -558,7 +558,7 @@ function factory_aizawa(b::Number; ic = [0.1, 0.1, 0.1], saveat = 0:1e-2:100)
         du[3] = c + a*z - (z^3)/3 - (x^2 + y^2)*(1 + e*z) + f*z*x^3
         return du
     end
-    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = 1e+7)
+    sol = solve(ODEProblem(sys, ic, (0, last(saveat)), [b]), RK4(), dt = saveat.step.hi, adaptive=false, maxiters = Inf)
     matrix = Matrix([sol.t'; sol[:, :]; stack([sys(zeros(3), u, [b], 0) for u in sol.u])]')
     return matrix[sol.t .≥ first(saveat), :][1:end-1, :]
 end

@@ -23,15 +23,15 @@ function Base.show(io::IO, s::STLSQresult)
 end
 function (s::STLSQresult)(x) # fast but unstable
     if s.method == "SINDyPI"
-            n = length(g0.lname)+1
-            sz = nrow(g0.recipe) ÷ n
-            Θx = Θ(x, g0.recipe[1:sz, :])
-            matrices = [g0.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
-            s_matrix = matrices[1]
-            ds_matrix = sum(matrices[2:end])
-            nmrt = Θx * s_matrix
-            dnmr = 1 .- (Θx * ds_matrix)
-            vec(nmrt ./ dnmr)
+        n = length(s.lname)+1
+        sz = nrow(s.recipe) ÷ n
+        Θx = Θ(x, s.recipe[1:sz, :])
+        matrices = [s.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
+        s_matrix = matrices[1]
+        ds_matrix = sum(matrices[2:end])
+        nmrt = Θx * s_matrix
+        dnmr = 1 .- (Θx * ds_matrix)
+        vec(nmrt ./ dnmr)
         return vec(nmrt ./ dnmr)
     end
     return vec(Θ(x, s.recipeF) * s.matrixF)
@@ -66,7 +66,7 @@ function esolve(sindy::STLSQresult, ic, saveat)
     sol = Base.invokelatest() do
         ic = collect(ic[1, rn])
         solve(ODEProblem(func, collect(ic), (0, last(saveat))),
-            RK4(), dt = saveat.step.hi, adaptive = false; saveat)
+            RK4(), dt = saveat.step.hi, adaptive = false, maxiters = Inf; saveat)
     end
     in_ = first(saveat) .≤ sol.t .≤ last(saveat)
     matrix = try
@@ -164,7 +164,7 @@ end
 
 
 """
-    add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
+    add_diff(D::AbstractDataFrame; method = :FDM, order = 1, dt = 1)
 
 Adds difference columns to the DataFrame `D` based on the specified method.
 The new columns are named with a "d" prefix followed by the original column names.
@@ -173,14 +173,17 @@ The new columns are named with a "d" prefix followed by the original column name
 - If `method` is `:TVD`, it applies a total variation diminishing difference method to each column and appends the results to the original DataFrame.
 
 """
-function add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
+function add_diff(D::AbstractDataFrame; method = :FDM, order = 1, dt = 1)
+    if "t" in names(D)
+        dt = D.t[2] - D.t[1]
+    end
     dnames = "d" .* names(D)
     if method == :FDM
-        return [DataFrame(diff(Matrix(D), dims = 1), dnames) D[1:(end-1), :]]
+        return [DataFrame(diff(Matrix(D), dims = 1)/dt, dnames) D[1:(end-1), :]]
     elseif method == :TVD
         D_ = [D]
         for k in 1:order
-            push!(D_, DataFrame([tvdiff(z, 10, 100, dx = 1) for z in eachcol(last(D_))], dnames))
+            push!(D_, DataFrame([tvdiff(z, 10, 100, dx = 1)/dt for z in eachcol(last(D_))], dnames))
             dnames = "d" .* dnames
         end
         return hcat(reverse(D_)...)
@@ -188,6 +191,18 @@ function add_diff(D::AbstractDataFrame; method = :FDM, order = 1)
         throw(ArgumentError("method must be :FDM or :TVD"))
     end
 end
+
+"""
+    add_noise(M::AbstractMatrix, σ = 1e-6)
+    add_noise(df::AbstractDataFrame, σ = 1e-6)
+
+Adds Gaussian noise to the input matrix `M` or DataFrame `df` with standard deviation `σ`.
+- For a matrix, it returns a new matrix with added noise.
+- For a DataFrame, it returns a new DataFrame with the same column names and added noise.
+"""
+add_noise(M::AbstractMatrix, σ = 1e-6) = M .+ σ*randn(size(M)...)
+add_noise(df::AbstractDataFrame, σ = 1e-6) = DataFrame(add_noise(Matrix(df), σ), names(df))
+
 
 """
     residual(f, df)
@@ -288,7 +303,7 @@ function jacobian(T::Type, s::STLSQresult)
     if T == Matrix
         return J
     elseif T == Function
-        return x -> Float64.(substitute(J, Dict(rname .=> x)))
+        return xyz -> Float64.(substitute(J, Dict(rname .=> xyz)))
     else
         error("Type not supported: Only `Function` or `Matrix` are supported.")
     end
