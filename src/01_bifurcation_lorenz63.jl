@@ -14,6 +14,7 @@ p_ = range(pm, pM, length = 2001)
 ρ_ = range(120, 150, length = 2001)
 b_ = range(3, 5, length = 2001)
 bfcn = callbfcn()
+lpnv = callbfcn()
 @showprogress @threads for k in eachindex(p_)
     sol = factory_lorenz63(DataFrame, [σ_[k], ρ_[k], b_[k]], ic = [100, 100, 100], saveat = 900:1e-3:1000)
     z_ = sol.z[sol.t .≥ 900]

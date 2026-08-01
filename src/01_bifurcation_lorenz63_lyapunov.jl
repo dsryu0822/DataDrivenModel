@@ -1,72 +1,97 @@
 include.("../core/" .* readdir("core")[[1,2,3,4,6]])
-
-
-using Symbolics
-jacobian(Matrix, f0)
-J3 = jacobian(Function, f0)
-J3(rand(3))
-
-Float64.(substitute(J, Dict(rname .=> rand(3))))
-foo2(rand(3))
-
-substitute(J, Dict(rname .=> rand(3))) |> propertynames
-
-J_func = build_function(J, rname, expression=Val{false})[1]
-J_func(rand(3))  # 바로 Float64 행렬 반환
-
 using ChaosTools
 
-function lorenz_rule(u, p, t)
-    σ = p[1]; ρ = p[2]; β = p[3]
-    du1 = σ*(u[2]-u[1])
-    du2 = u[1]*(ρ-u[3]) - u[2]
-    du3 = u[1]*u[2] - β*u[3]
-    return SVector{3}(du1, du2, du3)
+"""''''''''''''''''''''''''''''''''''''''''''''''''''
+
+                Lorenz-63 ground truth
+
+''''''''''''''''''''''''''''''''''''''''''''''''''"""
+# function sys(du, u, p, t)
+#     x, y, z = u; σ, ρ, β = p
+    
+#     du[1] = σ*(y - x)
+#     du[2] = x*(ρ - z) - y
+#     du[3] = x*y - β*z
+#     return du
+# end
+
+# sol = factory_lorenz63(DataFrame, [10, 28, 8/3])
+# plot(sol.x, sol.y, sol.z, alpha = .5)
+
+pm, pM = -2, 3; p0, p1 = 0, 1;
+p_ = range(pm, pM, length = 2001)
+σ_ = range(6, 15, length = 2001)
+ρ_ = range(120, 150, length = 2001)
+b_ = range(3, 5, length = 2001)
+# lpnv = callbfcn()
+# @showprogress @threads for k in eachindex(p_)
+#     lpnv[p_[k]] = lyapunovspectrum(CoupledODEs(sys, [100.0, 100, 100], [σ_[k], ρ_[k], b_[k]]), 100000)
+# end
+# JLD2.@save "G:/BF/lorenz63/lpnvA.jld2" lpnv
+
+"""''''''''''''''''''''''''''''''''''''''''''''''''''
+
+                Lorenz-63 recovered
+
+''''''''''''''''''''''''''''''''''''''''''''''''''"""
+trajA0 = factory_lorenz63(DataFrame, [σ_[ 801], ρ_[ 801], b_[ 801]], saveat = 900:1e-3:1000)
+trajA1 = factory_lorenz63(DataFrame, [σ_[1201], ρ_[1201], b_[1201]], saveat = 900:1e-3:1000)
+vrbl = reverse(half(names(trajA0[:, Not(:t)])))
+cnfg = cook(vrbl, poly = 0:2)
+f0 = SINDy(trajA0, vrbl, cnfg; λ = 1e-3); f0 |> println
+f1 = SINDy(trajA1, vrbl, cnfg; λ = 1e-3); f1 |> println
+trajB0 = ssolve(f0, trajA0[[1], f0.rname], 900:1e-3:1000)
+trajB1 = ssolve(f1, trajA1[[1], f1.rname], 900:1e-3:1000)
+
+# plot(
+#     plot(trajA0.x, trajA0.y, trajA0.z, alpha = .5, color = :black),
+#     plot(trajA1.x, trajA1.y, trajA1.z, alpha = .5, color = :black),
+#     plot(trajB0.x, trajB0.y, trajB0.z, alpha = .5, color = :red),
+#     plot(trajB1.x, trajB1.y, trajB1.z, alpha = .5, color = :red),
+# )
+
+βm = (pm - p0) / (p1 - p0)
+βM = (pM - p0) / (p1 - p0)
+β0, β1 = 0, 1
+β_ = range(βm, βM, length = 2001)
+f_ = affine(Function, f0, f1) # affine(String, f0, f1) |> println
+lpnv = callbfcn()
+@showprogress @threads for k in eachindex(β_)
+# for k in eachindex(β_)
+    lpnv[β_[k]] = lyapunovspectrum(CoupledODEs(f_, [100.0, 100, 100], (β_[k],)), 10000)
 end
-
-lor = CoupledODEs(lorenz_rule, fill(10.0, 3), [10, 32, 8/3])
-@time λλ = lyapunovspectrum(lor, 10000; Δt = 0.1)
-
-function lorenz_rule(du, u, p, t)
-    σ, ρ, β = p
-    du[1] = σ*(u[2]-u[1])
-    du[2] = u[1]*(ρ-u[3]) - u[2]
-    du[3] = u[1]*u[2] - β*u[3]
-end
-
-u0 = fill(10.0, 3)   # 일반 Vector 사용 가능
-lor = CoupledODEs(lorenz_rule, u0, [10, 32, 8/3])
-@time λλ = lyapunovspectrum(lor, 10000; Δt = 0.1)
-
- 
-define(String, f0) |> print
-foo = define(Function, f0)
-lor = CoupledODEs(foo, [-38.8057, 5.32695, 192.705], [0.])
-@time λλ = lyapunovspectrum(lor, 100000)
+# JLD2.@save "G:/BF/lorenz63/lpnvB.jld2" lpnv
 
 
+# f_ = [define(Function, syntheticSINDy((1-β_[k])*f0.matrix + β_[k]*f1.matrix, vrbl, cnfg, method = "SINDy"), fname = "f_$(k)") for k in eachindex(β_)]
+# lpnv = callbfcn()
+# lpnv = JLD2.load("G:/BF/lorenz63/lpnvB.jld2")["lpnv"]
+# for k in eachindex(β_)[401:end]
+#     @time "k = $k" lpnv[β_[k]] = lyapunovspectrum(CoupledODEs(f_[k], [100.0, 100, 100], ()), 10000)
+#     println("Live heap: ", Base.gc_live_bytes() / 1e6, " MB")
+#     GC.gc()
+#     if iszero(mod(k, 50))
+#         @info "Saving lpnv to file at k = $k"
+#         JLD2.@save "G:/BF/lorenz63/lpnvB.jld2" lpnv
+#     end
+# end
+# JLD2.@save "G:/BF/lorenz63/lpnvB.jld2" lpnv
 
-g0 |> print
-s = g0
+"""''''''''''''''''''''''''''''''''''''''''''''''''''
 
-n = length(s.lname)+1
-sz = nrow(s.recipe) ÷ n
-Θx = s.recipe[1:sz, :tex]
-matrices = [s.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
-s_matrix = matrices[1]
-ds_matrix = sum(matrices[2:end])
-nmrt = Θx * s_matrix
-dnmr = 1 .- (Θx * ds_matrix)
-vec(nmrt ./ dnmr)
+                Lorenz-63 analyze
 
-col = s_matrix[:, 1]
-for j in eachindex(s.lname)
-    s_col = s_matrix[:, j]
-    ds_col = -ds_matrix[:, j]
-    bit_snz = .!iszero.(s_col)
-    bit_dsnz = .!iszero.(ds_col)
-    @info join(string.(s_col[bit_snz].nzval) .* Θx[bit_snz], " + ")
-    @info join(string.(ds_col[bit_dsnz].nzval) .* Θx[bit_dsnz], " + ")
-end
-s |> print
-col[bit_nzterm] |> propertynames
+''''''''''''''''''''''''''''''''''''''''''''''''''"""
+lpnvA = JLD2.load("G:/BF/lorenz63/lpnvA.jld2")["lpnv"]
+df_lpnvA = sort(DataFrame([[keys(lpnvA)...] stack(values(lpnvA), dims = 1)], [:p, :λ1, :λ2, :λ3]), :p)
+plt_lpnv = plot()
+plot!(df_lpnvA.p, df_lpnvA.λ1, color = :black, label = "λ1")
+plot!(df_lpnvA.p, df_lpnvA.λ2, color = :black, label = "λ2")
+plot!(df_lpnvA.p, df_lpnvA.λ3, color = :black, label = "λ3")
+
+lpnvB = JLD2.load("G:/BF/lorenz63/lpnvB.jld2")["lpnv"]
+df_lpnvB = sort(DataFrame([[keys(lpnvB)...] stack(values(lpnvB), dims = 1)], [:β, :λ1, :λ2, :λ3]), :β)
+plot!(df_lpnvB.β, df_lpnvB.λ1, color = :red, label = "λ1")
+plot!(df_lpnvB.β, df_lpnvB.λ2, color = :red, label = "λ2")
+plot!(df_lpnvB.β, df_lpnvB.λ3, color = :red, label = "λ3")
+png("G:/lorenz_lyapunov.png")

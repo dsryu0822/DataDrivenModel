@@ -325,35 +325,57 @@ end
 
 string2function(str) = eval(Meta.parse(str))
 wear(str, a = "(", b = ")") = a * str * b
-function define(T::Type, s::STLSQresult; fname = "f", sigdigits = 24)
-    header = """function $(fname)(dxyz, xyz, param, tau)
-                    $(join(setdiff(s.rname, s.lname), ", ")) = xyz; $(join(s.lname, ", ")) = dxyz"""
-    du = ["dxyz[$j]" for j in eachindex(s.lname)] .* " = "
-
-    if s.method == "SINDyPI"
-        n = length(s.lname)+1
-        sz = nrow(s.recipe) ÷ n
-        Θx = s.recipe[1:sz, :tex]
-        matrices = [s.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
-        s_matrix = round.(matrices[1]; sigdigits)
-        ds_matrix = round.(sum(matrices[2:end]); sigdigits)
-        for j in eachindex(s.lname)
-            s_col = s_matrix[:, j]
-            ds_col = ds_matrix[:, j]
-            bit_snz = .!iszero.(s_col)
-            bit_dsnz = .!iszero.(ds_col)
-            du[j] *= wear.(join(string.(s_col[bit_snz].nzval) .* Θx[bit_snz], " + ")) * "/" * wear.(join(string.(ds_col[bit_dsnz].nzval) .* Θx[bit_dsnz], " + "), "(1 - (", "))")
-        end
-    else
-        for j in eachindex(s.lname)
-            s_col = s.matrix[:, j]
-            bit_snz = .!iszero.(s_col)
-            du[j] *= join(string.(s_col[bit_snz].nzval) .* s.recipe[bit_snz, :tex], " + ")
-        end
+function nzterms(matrix, tex)
+    coef = []
+    term = []
+    for j in axes(matrix, 2)
+        s_col = matrix[:, j]
+        bit_snz = .!iszero.(s_col)
+        push!(coef, string.(s_col[bit_snz].nzval))
+        push!(term, string.(tex[bit_snz]))
     end
-    body = replace(join(du, "\n"), "=  + " => "= ", "+ -" => "- ")
-    footer = "end"
-    function_string = join([header, body, footer], "\n")
+    return coef, term
+end
+function gym(s::STLSQresult; sigdigits = 24)
+    matrix = round.(s.matrix; sigdigits)
+    tex = s.recipe.tex
+    coef, term = nzterms(matrix, tex)
+    formula = [join(c .* t, " + ") for (c, t) in zip(coef, term)]
+    return formula
+end
+function gymPI(s::STLSQresult; sigdigits = 24)
+    n = length(s.lname) + 1
+    sz = nrow(s.recipe) ÷ n
+    Θx = s.recipe[1:sz, :tex]
+    matrices = [s.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
+    s_matrix = round.(matrices[1]; sigdigits)
+    ds_matrix = round.(sum(matrices[2:end]); sigdigits)
+
+    num_coef, num_term = nzterms(s_matrix, Θx)
+    den_coef, den_term = nzterms(ds_matrix, Θx)
+
+    numerator   = [wear(join(c .* t, " + ")) for (c, t) in zip(num_coef, num_term)]
+    denominator = [wear(join(c .* t, " + "), "(1 - (", "))") for (c, t) in zip(den_coef, den_term)]
+    formula = numerator .* "/" .* denominator
+    return formula
+end
+
+function functionize(body; fname = "f", rname = ["t"], lname = ["dt"])
+    return replace(
+"""function $(fname)(dxyz, xyz, param, tau)
+$(join(rname, ", ")) = xyz; $(join(lname, ", ")) = dxyz;
+$body
+end""", "=  + " => "= ", "+ -" => "- ")
+end
+
+function define(T::Type, s::STLSQresult; fname = "f", sigdigits = 24)
+    du = ["dxyz[$j] = " for j in axes(s.matrix, 2)]
+    if s.method == "SINDyPI"
+        body = join(du .* gymPI(s, sigdigits = sigdigits), "\n")
+    else
+        body = join(du .* gym(s, sigdigits = sigdigits), "\n")
+    end
+    function_string = functionize(body; fname, rname = setdiff(s.rname, s.lname), s.lname)
     if T == Function
         return string2function(function_string)
     elseif T == String
@@ -363,6 +385,35 @@ function define(T::Type, s::STLSQresult; fname = "f", sigdigits = 24)
     end
 end
 define(f; args...) = define(String, f; args...)
+
+function affine(T::Type, s0::STLSQresult, s1::STLSQresult; sigdigits = 24)
+    @assert s0.recipe.tex == s1.recipe.tex
+    tex = s1.recipe.tex
+    terms = [[] for _ in axes(s0.matrix, 2)]
+    A = round.(s0.matrix; sigdigits)
+    B = round.(s1.matrix - s0.matrix; sigdigits)
+    for i in axes(A, 1)
+        for j in axes(A, 2)
+            if iszero(A[i,j]) && iszero(B[i,j])
+                continue
+            end
+            term = "($(A[i,j]) + $(B[i,j])β)*$(tex[i])"
+            push!(terms[j], term)
+        end
+    end
+
+    formula = ["dxyz[$j] = " for j in axes(A, 2)] .* join.(terms, " + ")
+    body = "β = param[1]\n" * join(formula, "\n")
+    function_string = functionize(body; fname = "f", rname = setdiff(s0.rname, s0.lname), s0.lname)
+    if T == Function
+        return string2function(function_string)
+    elseif T == String
+        return function_string
+    else
+        @warn "T should be either Function or String. Returning String by default."
+    end
+end
+affine(f0, f1; args...) = affine(String, f0, f1; args...)
 
 function oldefine(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
     header = join(setdiff(sindy.rname, sindy.lname), ", ") * " = xyz; " * join(sindy.lname, ", ") * " = dxyz" 

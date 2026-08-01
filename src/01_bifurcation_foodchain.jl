@@ -30,6 +30,7 @@ bfcn = deepcopy(_bfcn)
 JLD2.@save "G:/BF/foodchain/bfcnA.jld2" bfcn
 
 task = @async for (P0, P1) = [[93, 94], [94, 95], [93, 95], [93, 96], [94, 96], [95, 96]]
+    # P0 = 95; P1 = 96
     p0, p1 = P0/100, P1/100
     @info "G:/BF/foodchain/bfcnB_$(P0)$(P1).jld2"
 
@@ -52,15 +53,15 @@ task = @async for (P0, P1) = [[93, 94], [94, 95], [93, 95], [93, 96], [94, 96], 
     trajC0 = ssolve(g0, trajA0[[1], g0.rname], 4000:1e-2:5000)
     trajC1 = ssolve(g1, trajA1[[1], g1.rname], 4000:1e-2:5000)
 
-    # plot(
-    #     plot(trajA0.R, trajA0.C, trajA0.P, alpha = .5, color = :black),
-    #     plot(trajA1.R, trajA1.C, trajA1.P, alpha = .5, color = :black),
-    #     plot(trajB0.R, trajB0.C, trajB0.P, alpha = .5, color = :red),
-    #     plot(trajB1.R, trajB1.C, trajB1.P, alpha = .5, color = :red),
-    #     plot(trajC0.R, trajC0.C, trajC0.P, alpha = .5, color = :blue),
-    #     plot(trajC1.R, trajC1.C, trajC1.P, alpha = .5, color = :blue),
-    #     layout = (:, 2), size = [400, 600]
-    # )
+    plot(
+        plot(trajA0.R, trajA0.C, trajA0.P, alpha = .5, color = :black),
+        plot(trajA1.R, trajA1.C, trajA1.P, alpha = .5, color = :black),
+        plot(trajB0.R, trajB0.C, trajB0.P, alpha = .5, color = :red),
+        plot(trajB1.R, trajB1.C, trajB1.P, alpha = .5, color = :red),
+        plot(trajC0.R, trajC0.C, trajC0.P, alpha = .5, color = :blue),
+        plot(trajC1.R, trajC1.C, trajC1.P, alpha = .5, color = :blue),
+        layout = (:, 2), size = [400, 600]
+    )
     # CSV.write("G:/BF/foodchain/trajA0_9394.csv", trajA0)
     # CSV.write("G:/BF/foodchain/trajA1_9394.csv", trajA1)
     # CSV.write("G:/BF/foodchain/trajB0_9394.csv", trajB0)

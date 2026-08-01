@@ -8,6 +8,9 @@ include.("../core/" .* readdir("core")[[1,2,3,4,6]])
 sol = factory_lorenz63(DataFrame, [10, 28, 8/3])
 plot(sol.x, sol.y, sol.z, alpha = .5)
 
+sol.x .+= randn(nrow(sol))
+
+
 pm, pM = -2, 3; p0, p1 = 0, 1;
 p_ = range(pm, pM, length = 2001)
 σ_ = range(6, 15, length = 2001)
@@ -24,15 +27,17 @@ scatter(dict2bifurcation(bfcn)..., xlims = [pm, pM], xticks = [pm, p0, p1, pM], 
 scatter([zeros(344); ones(381)], [bfcn[0]; bfcn[1]], xlims = [pm, pM], xticks = [pm, p0, p1, pM], ms = 3, ma = .5, msw = 0, color = :black, ylims = [160, 260], yticks = [160, 260], size = [600, 150], shape = :x, xformatter = _ -> ""); png("temp")
 # JLD2.@save "G:/BF/lorenz63/bfcnA.jld2" bfcn
 
-@time _trajA0 = factory_lorenz63(DataFrame, [σ_[ 801], ρ_[ 801], b_[ 801]], saveat = 900:1e-4:1000)
-@time _trajA1 = factory_lorenz63(DataFrame, [σ_[1201], ρ_[1201], b_[1201]], saveat = 900:1e-4:1000)
+@time _trajA0 = factory_lorenz63(DataFrame, [σ_[ 801], ρ_[ 801], b_[ 801]], saveat = 900:1e-3:1000)
+@time _trajA1 = factory_lorenz63(DataFrame, [σ_[1201], ρ_[1201], b_[1201]], saveat = 900:1e-3:1000)
 vrbl = reverse(half(names(_trajA0[:, Not(:t)])))
 cnfg = cook(vrbl, poly = 0:2)
 
-for (η1, η2) = [[-1, -1], [-2, -2], [-1, -2], [-2, -1]]
+for (η1, η2) = [[-1, -1], [-0, -0], [-1, -0], [-0, -1]] # η1, η2 = [-0, -0]
     saveat = 1900:1e-3:2000
-    @time trajA0 = add_diff(add_noise(_trajA0[:, last(vrbl)], exp10(η1)), method = :FDM, dt = 1e-5)
-    @time trajA1 = add_diff(add_noise(_trajA1[:, last(vrbl)], exp10(η2)), method = :FDM, dt = 1e-5)
+    # @time trajA0 = add_diff(add_noise(_trajA0[:, last(vrbl)], exp10(η1)), method = :FDM, dt = 1e-4)
+    # @time trajA1 = add_diff(add_noise(_trajA1[:, last(vrbl)], exp10(η2)), method = :FDM, dt = 1e-4)
+    trajA0 = deepcopy(_trajA0); trajA0.x .+= exp10(η1)*randn(nrow(trajA0)); trajA0.y .+= exp10(η1)*randn(nrow(trajA0)); trajA0.z .+= exp10(η1)*randn(nrow(trajA0))
+    trajA1 = deepcopy(_trajA1); trajA1.x .+= exp10(η2)*randn(nrow(trajA1)); trajA1.y .+= exp10(η2)*randn(nrow(trajA1)); trajA1.z .+= exp10(η2)*randn(nrow(trajA1))
 
     f0 = SINDy(trajA0, vrbl, cnfg; λ = 1e-3); f0 |> println
     f1 = SINDy(trajA1, vrbl, cnfg; λ = 1e-3); f1 |> println
@@ -53,7 +58,7 @@ for (η1, η2) = [[-1, -1], [-2, -2], [-1, -2], [-2, -1]]
     β_ = range(βm, βM, length = 2001)
     f_ = [syntheticSINDy((1-β)*f0.matrix + β*f1.matrix, vrbl, cnfg, method = "SINDy") for β in β_]
     bfcn = callbfcn()
-    @showprogress for k in eachindex(β_)
+    @showprogress @threads for k in eachindex(β_)
         sol = ssolve(f_[k], trajA0[[1], f_[k].rname], saveat)
         bfcn[β_[k]] = sol.z[arglmax(sol.z)]
     end
@@ -64,7 +69,9 @@ for (η1, η2) = [[-1, -1], [-2, -2], [-1, -2], [-2, -1]]
     JLD2.@save "G:/BF/lorenz63/bfcnB_$(η1)$(η2).jld2" bfcn
 end
 
-for (η1, η2) = [[-1, -1], [-2, -2], [-1, -2], [-2, -1]]
+for (η1, η2) = [[-1, -1], [-0, -0], [-1, -0], [-0, -1]] # η1, η2 = [-0, -0]
     bfcn = JLD2.load("G:/BF/lorenz63/bfcnB_$(η1)$(η2).jld2")["bfcn"]
     scatter(dict2bifurcation(bfcn)..., xticks = [βm, β0, β1, βM], xlims = [βm, βM], ms = .1, ma = 1.0, msw = 0, color = :red, ylims = [160, 260], yticks = [160, 260], size = [600, 150], xformatter = _ -> ""); png("temp_$(η1)$(η2)")
 end
+
+plot(sol.x, sol.y, sol.z)
