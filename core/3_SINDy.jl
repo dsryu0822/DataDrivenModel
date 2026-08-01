@@ -33,8 +33,9 @@ function (s::STLSQresult)(x) # fast but unstable
         dnmr = 1 .- (Θx * ds_matrix)
         vec(nmrt ./ dnmr)
         return vec(nmrt ./ dnmr)
+    else
+        return vec(Θ(x, s.recipeF) * s.matrixF)
     end
-    return vec(Θ(x, s.recipeF) * s.matrixF)
 end
 function (s::STLSQresult)(data::AbstractDataFrame)
     fitted = if s.method == "SINDyPI"
@@ -54,14 +55,14 @@ function ssolve(sindy::STLSQresult, ic, saveat)
     if sindy.method == "SINDy"
         return esolve(sindy, ic, saveat)
     elseif sindy.method == "SINDyPI"
-        return isolve(sindy, ic, saveat)
+        return esolve(sindy, ic, saveat)
     else
         error("Unknown method: $(sindy.method)")
     end
 end
 function esolve(sindy::STLSQresult, ic, saveat)
     func = define(Function, sindy, fname = "f_$(rand(UInt64))")
-    rn = sindy.rname
+    rn = setdiff(sindy.rname, sindy.lname)
     if ("u" ∈ rn || "du" ∈ rn) @warn "variable name 'u' or 'du' is not allowed" end
     sol = Base.invokelatest() do
         ic = collect(ic[1, rn])
@@ -74,7 +75,7 @@ function esolve(sindy::STLSQresult, ic, saveat)
     catch
         zeros(0, length(sindy.lname)+1)
     end
-    return DataFrame(matrix, ["t"; sindy.rname])
+    return DataFrame(matrix, ["t"; rn])
 end
 function isolve(sindy::STLSQresult, ic, saveat)
     func = define(Function, sindy, fname = "f_$(rand(UInt64))")
@@ -323,7 +324,47 @@ function gram_schmidt(J)
 end
 
 string2function(str) = eval(Meta.parse(str))
-function define(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
+wear(str, a = "(", b = ")") = a * str * b
+function define(T::Type, s::STLSQresult; fname = "f", sigdigits = 24)
+    header = """function $(fname)(dxyz, xyz, param, tau)
+                    $(join(setdiff(s.rname, s.lname), ", ")) = xyz; $(join(s.lname, ", ")) = dxyz"""
+    du = ["dxyz[$j]" for j in eachindex(s.lname)] .* " = "
+
+    if s.method == "SINDyPI"
+        n = length(s.lname)+1
+        sz = nrow(s.recipe) ÷ n
+        Θx = s.recipe[1:sz, :tex]
+        matrices = [s.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
+        s_matrix = round.(matrices[1]; sigdigits)
+        ds_matrix = round.(sum(matrices[2:end]); sigdigits)
+        for j in eachindex(s.lname)
+            s_col = s_matrix[:, j]
+            ds_col = ds_matrix[:, j]
+            bit_snz = .!iszero.(s_col)
+            bit_dsnz = .!iszero.(ds_col)
+            du[j] *= wear.(join(string.(s_col[bit_snz].nzval) .* Θx[bit_snz], " + ")) * "/" * wear.(join(string.(ds_col[bit_dsnz].nzval) .* Θx[bit_dsnz], " + "), "(1 - (", "))")
+        end
+    else
+        for j in eachindex(s.lname)
+            s_col = s.matrix[:, j]
+            bit_snz = .!iszero.(s_col)
+            du[j] *= join(string.(s_col[bit_snz].nzval) .* s.recipe[bit_snz, :tex], " + ")
+        end
+    end
+    body = replace(join(du, "\n"), "=  + " => "= ", "+ -" => "- ")
+    footer = "end"
+    function_string = join([header, body, footer], "\n")
+    if T == Function
+        return string2function(function_string)
+    elseif T == String
+        return function_string
+    else
+        @warn "T should be either Function or String. Returning String by default."
+    end
+end
+define(f; args...) = define(String, f; args...)
+
+function oldefine(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
     header = join(setdiff(sindy.rname, sindy.lname), ", ") * " = xyz; " * join(sindy.lname, ", ") * " = dxyz" 
     du = ["[$j]" for j in eachindex(sindy.lname)] .* " = "
     if sindy.method == "SINDy"
@@ -356,7 +397,7 @@ function define(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
         return function_string
     end
 end
-define(f; args...) = define(String, f; args...)
+oldefine(f; args...) = oldefine(String, f; args...)
 
 """
     termprod(config::AbstractDataFrame, term::AbstractString, num::Integer)
