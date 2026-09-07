@@ -1,6 +1,6 @@
 load_packages([:DataFrames, :LinearAlgebra, :StatsBase, :SparseArrays,
     :DifferentialEquations, :OrdinaryDiffEqLowOrderRK, :Sundials, :DiffEqBase,
-    :NoiseRobustDifferentiation])
+    :NoiseRobustDifferentiation, :Kneedle])
 
 
 struct STLSQresult
@@ -61,10 +61,10 @@ function ssolve(sindy::STLSQresult, ic, saveat)
     end
 end
 function esolve(sindy::STLSQresult, ic, saveat)
-    func = define(Function, sindy, fname = "f_$(rand(UInt64))")
     rn = setdiff(sindy.rname, sindy.lname)
     if ("u" ∈ rn || "du" ∈ rn) @warn "variable name 'u' or 'du' is not allowed" end
     sol = Base.invokelatest() do
+        func = define(Function, sindy, fname = "f_$(rand(UInt64))")
         ic = collect(ic[1, rn])
         solve(ODEProblem(func, collect(ic), (0, last(saveat))),
             RK4(), dt = saveat.step.hi, adaptive = false, maxiters = Inf; saveat)
@@ -105,25 +105,33 @@ function isolve(sindy::STLSQresult, ic, saveat)
     return DataFrame(matrix, ["t"; rn])
 end
 
-
-function STLSQ(ΘX, Ẋ; λ = 0, verbose = false,
-    # mask = zeros(Bool, size(ΘX, 2), size(Ẋ, 2)))
-    mask = true)
+function STLSQ(ΘX, Ẋ; λ = 0, verbose = false, mask = true)
     L₂ = norm.(eachcol(ΘX))
     ΘX = ΘX ./ L₂'
     # L₂ is for column-wise normalization to ensure restricted isometry property
     # Due to this L₂, λ thresholding would be doesn't work as expected
 
-    Ξ = ΘX \ Ẋ; dim = size(Ξ, 2)
+    tol = 1e-8
+    Ξ = zeros(size(ΘX, 2), size(Ẋ, 2)); dim = size(Ξ, 2)
+    for j in axes(Ẋ, 2)
+        i_ = .!mask[:, j]
+        # U, S, V = svd(ΘX[:, i_])
+        # S_inv = Diagonal([s > tol ? 1/s : 0 for s in S])
+        # Ξ[i_, j] = V * S_inv * U' * Ẋ[:, j]
+        Ξ[i_, j] = ΘX[:, i_] \ Ẋ[:, j]
+    end
+    # Ξ = ΘX \ Ẋ; dim = size(Ξ, 2)
     _🚫 = 0
     while true
         verbose && print(".")
         🚫 = (abs.(Ξ) .< (λ * L₂)) .|| mask
-        # 🚫 = (abs.(Ξ) .< (λ * L₂))
         Ξ[🚫] .= 0
         for j in 1:dim
             i_ = .!🚫[:, j]
-            Ξ[i_, j] = ΘX[:,i_] \ Ẋ[:,j]
+            # U, S, V = svd(ΘX[:, i_])
+            # S_inv = Diagonal([s > tol ? 1/s : 0 for s in S])
+            # Ξ[i_, j] = V * S_inv * U' * Ẋ[:, j]
+            Ξ[i_, j] = ΘX[:, i_] \ Ẋ[:, j]
         end
         if _🚫 == 🚫 verbose && println("Stopped!"); break end
         _🚫 = deepcopy(🚫)
@@ -131,10 +139,24 @@ function STLSQ(ΘX, Ẋ; λ = 0, verbose = false,
     Ξ = sparse(Ξ ./ L₂) # L₂ is row-wise producted to denormalize coefficient matrix
     return Ξ
 end
-function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame; λ = 0, mask = zeros(Bool, nrow(recipe), length(first(sysms))), method = "SINDy")
+
+function kill_knee(A)
+    y = norm.(eachrow(A))
+    sorty = sort(y)
+    x = 1:length(y)
+    knee = only(kneedle(x, sorty, "convex_inc", 1).knees)
+    return y .< sorty[knee]
+end
+
+function SINDy(df::AbstractDataFrame, sysms::Tuple, recipe::AbstractDataFrame;
+    λ = 0, mask = zeros(Bool, nrow(recipe), length(first(sysms))), kneedle = false, method = "SINDy")
+
     Ysyms, Xsyms = sysms
     X = Θ(df[:, Xsyms], recipe)
     Y = Matrix(df[:, Ysyms])
+    if kneedle
+        mask[kill_knee(X \ Y), :] .= true
+    end
     Ξ = STLSQ(X, Y, λ = λ, mask = mask)
     bit_sparse = all.(map(x -> iszero.(x), eachrow(Ξ)))
     # sparse_rows = findall(bit_sparse)
@@ -336,14 +358,18 @@ function nzterms(matrix, tex)
     end
     return coef, term
 end
-function gym(s::STLSQresult; sigdigits = 24)
+function gym(s::STLSQresult; sigdigits = 24, tex = true)
     matrix = round.(s.matrix; sigdigits)
-    tex = s.recipe.tex
+    if tex == true
+        tex = s.recipe.tex
+    else
+        tex = s.recipe.term
+    end
     coef, term = nzterms(matrix, tex)
     formula = [join(c .* t, " + ") for (c, t) in zip(coef, term)]
     return formula
 end
-function gymPI(s::STLSQresult; sigdigits = 24)
+function gymPI(s::STLSQresult; sigdigits = 24, tex = true)
     n = length(s.lname) + 1
     sz = nrow(s.recipe) ÷ n
     Θx = s.recipe[1:sz, :tex]
@@ -365,15 +391,19 @@ function functionize(body; fname = "f", rname = ["t"], lname = ["dt"])
 """function $(fname)(dxyz, xyz, param, tau)
 $(join(rname, ", ")) = xyz; $(join(lname, ", ")) = dxyz;
 $body
-end""", "=  + " => "= ", "+ -" => "- ")
+end""", "=  + " => "= ", "+ -" => "- ", "* +" => " +")
 end
 
-function define(T::Type, s::STLSQresult; fname = "f", sigdigits = 24)
+function define(T::Type, s::STLSQresult; fname = "f", sigdigits = 24, tex = true)
     du = ["dxyz[$j] = " for j in axes(s.matrix, 2)]
     if s.method == "SINDyPI"
         body = join(du .* gymPI(s, sigdigits = sigdigits), "\n")
     else
-        body = join(du .* gym(s, sigdigits = sigdigits), "\n")
+        if tex == true
+            body = join(du .* gym(s, sigdigits = sigdigits), "\n")
+        else
+            body = join(du .* gym(s, sigdigits = sigdigits, tex = false), "\n")
+        end
     end
     function_string = functionize(body; fname, rname = setdiff(s.rname, s.lname), s.lname)
     if T == Function
@@ -387,6 +417,9 @@ end
 define(f; args...) = define(String, f; args...)
 
 function affine(T::Type, s0::STLSQresult, s1::STLSQresult; sigdigits = 24)
+    if s0.method == "SINDyPI" || s1.method == "SINDyPI"
+        return affinePI(T, s0, s1; sigdigits = sigdigits)
+    end
     @assert s0.recipe.tex == s1.recipe.tex
     tex = s1.recipe.tex
     terms = [[] for _ in axes(s0.matrix, 2)]
@@ -414,6 +447,40 @@ function affine(T::Type, s0::STLSQresult, s1::STLSQresult; sigdigits = 24)
     end
 end
 affine(f0, f1; args...) = affine(String, f0, f1; args...)
+function affinePI(T::Type, s0::STLSQresult, s1::STLSQresult; sigdigits = 24)
+    @assert s0.recipe.tex == s1.recipe.tex
+
+    n = length(s0.lname) + 1
+    sz = nrow(s0.recipe) ÷ n
+    Θx = s0.recipe[1:sz, :tex]
+
+    mats0 = [s0.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
+    mats1 = [s1.matrix[(i-1)*sz+1 : i*sz, :] for i in 1:n]
+
+    A_num, B_num = round.(mats0[1]; sigdigits), round.(mats1[1] - mats0[1]; sigdigits)
+    A_den, B_den = round.(sum(mats0[2:end]); sigdigits), round.(sum(mats1[2:end]) - sum(mats0[2:end]); sigdigits)
+
+    affine_terms(A, B, tex) = [
+        join(["($(A[i,j]) + $(B[i,j])β)*$(tex[i])"
+              for i in axes(A,1) if !(iszero(A[i,j]) && iszero(B[i,j]))], " + ")
+        for j in axes(A,2)
+    ]
+
+    numerator   = wear.(affine_terms(A_num, B_num, Θx))
+    denominator = wear.(affine_terms(A_den, B_den, Θx), "(1 - (", "))")
+    formula = numerator .* "/" .* denominator
+
+    body = "β = param[1]\n" * join(["dxyz[$j] = " for j in axes(A_num, 2)] .* formula, "\n")
+    function_string = functionize(body; fname = "f", rname = setdiff(s0.rname, s0.lname), s0.lname)
+
+    if T == Function
+        return string2function(function_string)
+    elseif T == String
+        return function_string
+    else
+        @warn "T should be either Function or String. Returning String by default."
+    end
+end
 
 function oldefine(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
     header = join(setdiff(sindy.rname, sindy.lname), ", ") * " = xyz; " * join(sindy.lname, ", ") * " = dxyz" 
@@ -436,7 +503,7 @@ function oldefine(T::Type, sindy::STLSQresult; fname = "f", sigdigits = 24)
     if sindy.method == "SINDyPI"
         du = du .* " - " .* sindy.lname
     end
-    body = replace(join(du, "\n"), "=  + " => "= ", "+ -" => "- ")
+    body = replace(join(du, "\n"), "=  + " => "= ", "+ -" => "- ", "* +" => " +")
     footer = "end"
     function_string = join([header, body, footer], "\n")
     if T == Function

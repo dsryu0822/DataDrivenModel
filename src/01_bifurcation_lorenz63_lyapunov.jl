@@ -6,14 +6,14 @@ using ChaosTools
                 Lorenz-63 ground truth
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''"""
-# function sys(du, u, p, t)
-#     x, y, z = u; σ, ρ, β = p
+function sys(du, u, p, t)
+    x, y, z = u; σ, ρ, β = p
     
-#     du[1] = σ*(y - x)
-#     du[2] = x*(ρ - z) - y
-#     du[3] = x*y - β*z
-#     return du
-# end
+    du[1] = σ*(y - x)
+    du[2] = x*(ρ - z) - y
+    du[3] = x*y - β*z
+    return du
+end
 
 # sol = factory_lorenz63(DataFrame, [10, 28, 8/3])
 # plot(sol.x, sol.y, sol.z, alpha = .5)
@@ -95,3 +95,19 @@ plot!(df_lpnvB.β, df_lpnvB.λ1, color = :red, label = "λ1")
 plot!(df_lpnvB.β, df_lpnvB.λ2, color = :red, label = "λ2")
 plot!(df_lpnvB.β, df_lpnvB.λ3, color = :red, label = "λ3")
 png("G:/lorenz_lyapunov.png")
+
+
+
+
+lpnvA = JLD2.load("G:/BF/lorenz63/lpnvA.jld2")["lpnv"]
+df_lpnvA = sort(DataFrame([[keys(lpnvA)...] stack(values(lpnvA), dims = 1)], [:p, :λ1, :λ2, :λ3]), :p)
+plt_lpnv = plot(xticks = [])
+plot!(df_lpnvA.p, df_lpnvA.λ1, color = :black, label = "λ1")
+plot!(df_lpnvA.p, df_lpnvA.λ2, color = :black, label = "λ2")
+plot!(df_lpnvA.p, df_lpnvA.λ3, color = :black, label = "λ3")
+
+bfcnA = JLD2.load("G:/BF/lorenz63/bfcnA.jld2")["bfcn"]
+plt_bfcn = scatter(dict2bifurcation(bfcnA)..., xticks = [], color = :black, ms = 0.1, msw = 0);
+
+default()
+plot(plt_bfcn, plt_lpnv, layout = (2, 1)); png("temp")

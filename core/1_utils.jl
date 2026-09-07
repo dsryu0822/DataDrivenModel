@@ -82,20 +82,31 @@ up(matrix) = matrix[1:(end-1),:]
 """
 dw(matrix) = matrix[2:end,:]
 
+"""
+    arglmax(x)
 
+    Returns the indices of local maxima in the input vector `x`.
+"""
 function arglmax(x)
+    if allequal(Float32.(x)) return [1] end
     if isempty(x) return Int64[] end
     bits = circshift(x, 1) .< x .> circshift(x, -1)
-    bits[1] = false
-    bits[end] = false
+    bits[1] = all(x[1] .≥ x)
+    bits[end] = all(x[end] .≥ x)
     return findall(bits)
 end
 
+"""
+    arglmin(x)
+
+    Returns the indices of local minima in the input vector `x`.
+"""
 function arglmin(x)
+    if allequal(Float32.(x)) return [1] end
     if isempty(x) return Int64[] end
     bits = circshift(x, 1) .> x .< circshift(x, -1)
-    bits[1] = false
-    bits[end] = false
+    bits[1] = all(x[1] .≤ x)
+    bits[end] = all(x[end] .≤ x)
     return findall(bits)
 end
 
@@ -117,3 +128,23 @@ function callbfcn(filename)
     end
     return _bfcn
 end
+
+function getproxy(h, key)
+    try
+        return h[key]
+    catch e
+        key_h = collect(keys(h))
+        value_h = collect(values(h))
+        proxykey = argmin(abs.(key_h .- key))
+        return value_h[proxykey]
+    end
+end
+
+function cleanse(float::Type, bifurcation)
+    bifurcation = deepcopy(deepcopy(bifurcation))
+    for (k, v) in bifurcation
+        bifurcation[k] = unique(float.(v))
+    end
+    return bifurcation
+end
+cleanse(bifurcation) = cleanse(Float16, bifurcation)
