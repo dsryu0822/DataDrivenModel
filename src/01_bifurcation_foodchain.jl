@@ -13,7 +13,8 @@ ic2 = [0.85, 0.2, 0.8]
 #     plot(sol1.R, sol1.C, sol1.P; color = :blue, lw = 1),
 #     plot(sol2.R, sol2.C, sol2.P; color = :blue, lw = 1),
 # )
-ic_ = [[0.85, 0.3rand() + 0.2, 0.8] for _ in 1:10]
+Random.seed!(0)
+ic_ = [[0.85, 0.3rand() + 0.2, 0.8] for _ in 1:100]
 
 # temp = plot(xlims = [0.960, 0.962])
 # for k in findall(0.955 .< K_ .< 0.965)
@@ -26,11 +27,14 @@ ic_ = [[0.85, 0.3rand() + 0.2, 0.8] for _ in 1:10]
 pm, pM = .88, 1.00; p0, p1 = 0.93, 0.96;
 K_ = range(pm, pM, length = 2001)
 bfcn = callbfcn("G:/BF/foodchain/bfcnA.jld2")
-@showprogress @threads for k in eachindex(K_)[0.955 .< K_ .< 0.965]
+@showprogress @threads for k in eachindex(K_)
     sol1 = factory_foodchain(DataFrame, K_[k], ic = ic1, saveat = 9000:1e-1:10000)
     sol2 = factory_foodchain(DataFrame, K_[k], ic = ic2, saveat = 9000:1e-1:10000)
-    bfcn[K_[k]] = [sol1.P[arglmin(sol1.P)]; sol2.P[arglmin(sol2.P)]]
-    if minimum(bfcn[K_[k]]) > 0.55 continue end
+    temp = [sol1.P[arglmin(sol1.P)]; sol2.P[arglmin(sol2.P)]]
+    if minimum(temp) > 0.55
+        bfcn[K_[k]] = temp
+        continue
+    end
     for l in eachindex(ic_)
         ic = ic_[l]
         sol = factory_foodchain(DataFrame, K_[k], ic = ic, saveat = 9000:1e-1:10000)
@@ -41,12 +45,12 @@ bfcn = callbfcn("G:/BF/foodchain/bfcnA.jld2")
         end
     end
 end
-scatter(dict2bifurcation(bfcn)..., xticks = [pm, 0.93, 0.94, 0.95, 0.96, pM], ylims = [0.55, 0.8], yticks = [0.55, 0.8], ms = .3, msw = 0, color = :black, size = [600, 200]); png("temp")
+# scatter(dict2bifurcation(bfcn)..., xticks = [pm, 0.93, 0.94, 0.95, 0.96, pM], xlims = [0.88, 1.0], ylims = [0.5, 0.8], yticks = [0.5, 0.8], ms = .3, msw = 0, color = :black, size = [600, 200]); png("temp")
+# scatter(dict2bifurcation(bfcn)..., xticks = [pm, pM], xlims = [0.88, 1.0], ylims = [0.5, 0.8], yticks = [0.5, 0.8], ms = .3, msw = 0, color = :black, size = [600, 200]); png("temp")
 bfcn = cleanse(Float64, bfcn)
 JLD2.@save "G:/BF/foodchain/bfcnA.jld2" bfcn
 
-for (P0, P1) = [[93, 96], [94, 96], [95, 96]]
-# for (P0, P1) = [[93, 94], [93, 95], [94, 95], [93, 96], [94, 96], [95, 96]]
+for (P0, P1) = [[93, 94], [93, 95], [94, 95], [93, 96], [94, 96], [95, 96]]
     # P0 = 95; P1 = 96
     p0, p1 = P0/100, P1/100
     @info "G:/BF/foodchain/bfcnB_$(P0)$(P1).jld2"
@@ -83,21 +87,24 @@ for (P0, P1) = [[93, 96], [94, 96], [95, 96]]
 
     f_ = affine(Function, f0, f1)
     bfcn = callbfcn("G:/BF/foodchain/bfcnB_$(P0)$(P1).jld2")
-    @showprogress for k in eachindex(β_)[0.955 .< K_ .< 0.965]
+    @showprogress for k in eachindex(β_)
         sol1 = solve(ODEProblem(f_, ic1, (0.0, 10000.0), (β_[k],)), RK4(), dt = 1e-1, adaptive=false, maxiters = Inf)
         sol2 = solve(ODEProblem(f_, ic2, (0.0, 10000.0), (β_[k],)), RK4(), dt = 1e-1, adaptive=false, maxiters = Inf)
         if sol1.retcode == ReturnCode.Success && sol2.retcode == ReturnCode.Success
             P1_ = sol1[3, sol1.t .≥ 9000]
             P2_ = sol2[3, sol2.t .≥ 9000]
-            bfcn[β_[k]] = [P1_[arglmin(P1_)]; P2_[arglmin(P2_)]]
+            temp = [P1_[arglmin(P1_)]; P2_[arglmin(P2_)]]
+            if minimum(temp) > 0.55
+                bfcn[β_[k]] = temp
+                continue
+            end
         end
-        if minimum(bfcn[β_[k]]) > 0.10 continue end
         for l in 1:10
             ic = ic_[l]
             sol = solve(ODEProblem(f_, ic, (0.0, 10000.0), (β_[k],)), RK4(), dt = 1e-1, adaptive=false, maxiters = Inf)
             if sol.retcode == ReturnCode.Success
                 P_ = sol[3, sol.t .≥ 9000]
-                if !isempty(P_) && (minimum(P_) > 0.10)
+                if !isempty(P_) && (minimum(P_) > 0.55)
                     bfcn[β_[k]] = P_[arglmin(P_)]
                     break
                 end
@@ -110,21 +117,24 @@ for (P0, P1) = [[93, 96], [94, 96], [95, 96]]
 
     g_ = affinePI(Function, g0, g1)
     bfcn = callbfcn("G:/BF/foodchain/bfcnC_$(P0)$(P1).jld2")
-    @showprogress @threads for k in eachindex(β_)[0.955 .< K_ .< 0.965]
+    @showprogress @threads for k in eachindex(β_)
         sol1 = solve(ODEProblem(g_, ic1, (0.0, 10000.0), (β_[k],)), RK4(), dt = 1e-1, adaptive=false, maxiters = Inf)
         sol2 = solve(ODEProblem(g_, ic2, (0.0, 10000.0), (β_[k],)), RK4(), dt = 1e-1, adaptive=false, maxiters = Inf)
         if sol1.retcode == ReturnCode.Success && sol2.retcode == ReturnCode.Success
             P1_ = sol1[3, sol1.t .≥ 9000]
             P2_ = sol2[3, sol2.t .≥ 9000]
-            bfcn[β_[k]] = [P1_[arglmin(P1_)]; P2_[arglmin(P2_)]]
+            temp = [P1_[arglmin(P1_)]; P2_[arglmin(P2_)]]
+            if minimum(temp) > 0.55
+                bfcn[β_[k]] = temp
+                continue
+            end
         end
-        if minimum(bfcn[β_[k]]) > 0.10 continue end
         for l in 1:10
             ic = ic_[l]
             sol = solve(ODEProblem(g_, ic, (0.0, 10000.0), (β_[k],)), RK4(), dt = 1e-1, adaptive=false, maxiters = Inf)
             if sol.retcode == ReturnCode.Success
                 P_ = sol[3, sol.t .≥ 9000]
-                if !isempty(P_) && (minimum(P_) > 0.10)
+                if !isempty(P_) && (minimum(P_) > 0.55)
                     bfcn[β_[k]] = P_[arglmin(P_)]
                     break
                 end
@@ -184,20 +194,168 @@ bfcn2 = callbfcn()
     bfcn1[K_[k]] = z1_[arglmin(z1_)]
     bfcn2[K_[k]] = z2_[arglmin(z2_)]
 end
-# # JLD2.@save "G:/BF/foodchain/bfcnA_1_9606_9616.jld2" bfcn1
-# # JLD2.@save "G:/BF/foodchain/bfcnA_2_9606_9616.jld2" bfcn2
+bfcn1 = cleanse(bfcn1)
+bfcn2 = cleanse(bfcn2)
+
+# JLD2.@save "G:/BF/foodchain/bfcnA_1_9606_9616.jld2" bfcn1
+# JLD2.@save "G:/BF/foodchain/bfcnA_2_9606_9616.jld2" bfcn2
 bfcn1 = JLD2.load("G:/BF/foodchain/bfcnA_1_9606_9616.jld2")["bfcn1"]
 bfcn2 = JLD2.load("G:/BF/foodchain/bfcnA_2_9606_9616.jld2")["bfcn2"]
 for (k, v) in bfcn1
     if k < 0.9614812
-        _bfcn1[k] = v
+        bfcn1[k] = v
     end
 end
-plot(size = [100, 100], ticks = [], ylims = [0.55, 0.8])
+default(dpi = 300)
+plot(size = [150, 400], ticks = [], ylims = [0.5, 0.8], xlims = [0.9606, 0.9616])
 scatter!(dict2bifurcation(bfcn2)..., ms = .5, ma = .5, msw = 0, color = :red);
-scatter!(dict2bifurcation(1bfcn1)..., ms = .5, ma = .5, msw = 0, color = :blue); png("temp")
+scatter!(dict2bifurcation(bfcn1)..., ms = .5, ma = .5, msw = 0, color = :blue); png("temp")
 istaskdone(task)
 
+
+bfcn1h, bfcn1v = dict2bifurcation(bfcn1)
+bfcn2h, bfcn2v = dict2bifurcation(bfcn2)
+
+traj93 = factory_foodchain(DataFrame, 0.93, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
+traj94 = factory_foodchain(DataFrame, 0.94, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
+traj95 = factory_foodchain(DataFrame, 0.95, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
+traj96 = factory_foodchain(DataFrame, 0.96, ic = [0.820915, 0.158239, 0.953786], saveat = 4000:1e-1:5000)
+
+trajA_11 = CSV.read("G:/BF/foodchain/trajA_11.csv", DataFrame)
+trajA_12 = CSV.read("G:/BF/foodchain/trajA_12.csv", DataFrame)
+trajA_13 = CSV.read("G:/BF/foodchain/trajA_13.csv", DataFrame)
+trajA_14 = CSV.read("G:/BF/foodchain/trajA_14.csv", DataFrame)
+trajA_15 = CSV.read("G:/BF/foodchain/trajA_15.csv", DataFrame)
+trajA_21 = CSV.read("G:/BF/foodchain/trajA_21.csv", DataFrame)
+trajA_22 = CSV.read("G:/BF/foodchain/trajA_22.csv", DataFrame)
+trajA_23 = CSV.read("G:/BF/foodchain/trajA_23.csv", DataFrame)
+trajA_24 = CSV.read("G:/BF/foodchain/trajA_24.csv", DataFrame)
+trajA_25 = CSV.read("G:/BF/foodchain/trajA_25.csv", DataFrame)
+
+mat"""
+nIDs = 26;
+alphabet = ('a':'z').';
+chars = num2cell(alphabet(1:nIDs));
+chars = chars.';
+charlbl = strcat('(',chars,')'); % {'(a)','(b)','(c)','(d)'}
+addpath("matlab")
+
+fig = figure(1);
+clf(fig);
+fig.WindowStyle = 'normal';
+fig.Units = 'pixels';
+fig.Position(3:4) = [900, 600];
+
+tightsubplot(3, 1, 1)
+plot($bfcnAh, $bfcnAv, 'o', 'MarkerSize', 0.1, 'LineStyle', 'none', 'MarkerEdgeColor', [0, 0, 0], 'MarkerFaceColor', [0, 0, 0])
+text(0.54, -0.15, 'K', Units = 'normalized', FontSize = 12)
+text(-0.02, 0.5, 'P', Units = 'normalized', FontSize = 12, Rotation = 90)
+xlim([0.88, 1.00]); ylim([0.5, 0.8]);
+xticks([0.88, 0.93, 0.94, 0.95, 0.96, 1.00]); yticks([0.5, 0.8]);
+text(0.0, 1.1, 0.2, charlbl{1}, Units = 'normalized', FontSize = 12, FontWeight = 'bold')
+rectangle('Position', [0.96, 0.50, 0.002 0.3], 'EdgeColor', 'b', 'LineStyle', '--');
+
+tightsubplot(3, 4, 5)
+plot3($(traj93.R), $(traj93.C), $(traj93.P), 'k')
+text(0.0, 0.92, 0.2, charlbl{2}, Units = 'normalized', FontSize = 12, FontWeight = 'bold')
+xlim([0.25, 0.9]); xticks([0.25, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.5]); yticks([0.1, 0.5]); yticklabels(["", ""])
+zlim([0.6, 1.0]); zticks([0.6, 1.0]); zticklabels(["", ""])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+set(gca, 'Position', get(gca, 'Position') + [0 -0.03 0 0]);
+
+tightsubplot(3, 4, 6)
+plot3($(traj94.R), $(traj94.C), $(traj94.P), 'k')
+text(0.0, 0.92, 0.2, charlbl{3}, Units = 'normalized', FontSize = 12, FontWeight = 'bold')
+xlim([0.25, 0.9]); xticks([0.25, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.5]); yticks([0.1, 0.5]); yticklabels(["", ""])
+zlim([0.6, 1.0]); zticks([0.6, 1.0]); zticklabels(["", ""])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+set(gca, 'Position', get(gca, 'Position') + [0 -0.03 0 0]);
+
+tightsubplot(3, 4, 7)
+plot3($(traj95.R), $(traj95.C), $(traj95.P), 'k')
+text(0.0, 0.92, 0.2, charlbl{4}, Units = 'normalized', FontSize = 12, FontWeight = 'bold')
+xlim([0.25, 0.9]); xticks([0.25, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.5]); yticks([0.1, 0.5]); yticklabels(["", ""])
+zlim([0.6, 1.0]); zticks([0.6, 1.0]); zticklabels(["", ""])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+set(gca, 'Position', get(gca, 'Position') + [0 -0.03 0 0]);
+
+tightsubplot(3, 4, 8)
+plot3($(traj96.R), $(traj96.C), $(traj96.P), 'k')
+text(0.0, 0.92, 0.2, charlbl{5}, Units = 'normalized', FontSize = 12, FontWeight = 'bold')
+xlim([0.25, 0.9]); xticks([0.25, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.5]); yticks([0.1, 0.5]); yticklabels(["", ""])
+zlim([0.6, 1.0]); zticks([0.6, 1.0]); zticklabels(["", ""])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+set(gca, 'Position', get(gca, 'Position') + [0 -0.03 0 0]);
+
+% tightsubplot(3, 6, 13)
+% plot($bfcn2h, $bfcn2v, 'o', 'MarkerSize', 0.5, 'LineStyle', 'none', 'MarkerEdgeColor', [1, 0, 0], 'MarkerFaceColor', [1, 0, 0])
+% text(0.0, 1.1, 0.2, charlbl{6}, Units = 'normalized', FontSize = 12, FontWeight = 'bold')
+% hold on
+% plot($bfcn1h, $bfcn1v, 'o', 'MarkerSize', 0.5, 'LineStyle', 'none', 'MarkerEdgeColor', [0, 0, 1], 'MarkerFaceColor', [0, 0, 1])
+% xlim([.9606, 0.9616]); ylim([0.5, 0.8]);
+% xticks([.9606, 0.9616]); yticks([0.5, 0.8])
+% xticklabels(["K_1", "K_2"]); yticks([0.5, 0.8])
+
+tightsubplot(3, 5, 11)
+plot3($(trajA_11.R), $(trajA_11.C), $(trajA_11.P), 'Color', [0, 0, 1])
+text(0.0, 0.8, 0.2, charlbl{6}, Units = 'normalized', FontSize = 12, FontWeight = 'bold')
+view(60, 15)
+xlim([0.2, 0.9]); xticks([0.2, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.6]); yticks([0.1, 0.6]); yticklabels(["", ""])
+zlim([0.55, 1.05]); zticks([0.55, 1.05]); zticklabels(["", ""])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+
+tightsubplot(3, 5, 12)
+plot3($(trajA_12.R), $(trajA_12.C), $(trajA_12.P), 'Color', [0, 0, 1])
+view(60, 15)
+xlim([0.2, 0.9]); xticks([0.2, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.6]); yticks([0.1, 0.6]); yticklabels(["", ""])
+zlim([0.55, 1.05]); zticks([0.55, 1.05]); zticklabels(["", ""])
+hold on
+plot3($(trajA_22.R), $(trajA_22.C), $(trajA_22.P), 'Color', [1, 0, 0])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+
+tightsubplot(3, 5, 13)
+plot3($(trajA_13.R), $(trajA_13.C), $(trajA_13.P), 'Color', [0, 0, 1])
+view(60, 15)
+xlim([0.2, 0.9]); xticks([0.2, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.6]); yticks([0.1, 0.6]); yticklabels(["", ""])
+zlim([0.55, 1.05]); zticks([0.55, 1.05]); zticklabels(["", ""])
+hold on
+plot3($(trajA_23.R), $(trajA_23.C), $(trajA_23.P), 'Color', [1, 0, 0])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+
+tightsubplot(3, 5, 14)
+plot3($(trajA_14.R), $(trajA_14.C), $(trajA_14.P), 'Color', [0, 0, 1])
+view(60, 15)
+xlim([0.2, 0.9]); xticks([0.2, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.6]); yticks([0.1, 0.6]); yticklabels(["", ""])
+zlim([0.55, 1.05]); zticks([0.55, 1.05]); zticklabels(["", ""])
+hold on
+plot3($(trajA_24.R), $(trajA_24.C), $(trajA_24.P), 'Color', [1, 0, 0])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+
+tightsubplot(3, 5, 15)
+plot3($(trajA_25.R), $(trajA_25.C), $(trajA_25.P), 'Color', [1, 0, 0])
+view(60, 15)
+xlim([0.2, 0.9]); xticks([0.2, 0.9]); xticklabels(["", ""])
+ylim([0.1, 0.6]); yticks([0.1, 0.6]); yticklabels(["", ""])
+zlim([0.55, 1.05]); zticks([0.55, 1.05]); zticklabels(["", ""])
+set(gca, 'XColor', 'none', 'YColor', 'none', 'ZColor', 'none')
+
+xs = [0.2, 0.395, 0.59, 0.785];   % 각 화살표의 시작 x
+for k = 1:4
+    annotation('arrow', [xs(k), xs(k)+0.05], [0.17, 0.17], ...
+        'Color', 'k', 'LineWidth', 5, ...
+        'HeadStyle', 'plain', 'HeadLength', 10, 'HeadWidth', 20);
+end
+
+clear ans;
+"""
 
 """''''''''''''''''''''''''''''''''''''''''''''''''''
 
@@ -217,7 +375,10 @@ charlbl = strcat('(',chars,')'); % {'(a)','(b)','(c)','(d)'}
 
 
 fig = tiledlayout(5, 4, 'Padding', 'compact', 'TileSpacing', 'compact');
-set(gcf, 'Position', [100, 100, 750, 900])
+clf(fig);
+fig.WindowStyle = 'normal';
+fig.Units = 'pixels';
+fig.Position(3:4) = [900, 600];
 """
 
 K_ = [0.93, 0.94, 0.95, 0.96]
